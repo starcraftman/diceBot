@@ -68,7 +68,9 @@ class Help(Action):
         lines = [
             ['Command', 'Effect'],
             ['{prefix}math', 'Do some math operations'],
+            ['{prefix}m', 'Do some math operations'],
             ['{prefix}roll', 'Roll a dice like: 2d6 + 5'],
+            ['{prefix}r', 'Roll a dice like: 2d6 + 5'],
             ['{prefix}status', 'Show status of bot including uptime'],
             ['{prefix}help', 'This help message'],
         ]
@@ -89,7 +91,7 @@ class Math(Action):
         for line in ' '.join(self.args.spec).split(','):
             line = line.strip()
             if re.match(r'[^0-9 \(\)+-/*]', line):
-                resp += [line + " looks suspicious, I won't evaluate."]
+                resp += ["'{}' looks suspicious, I won't evaluate.\nI only allow: 0-9 ()+-/*".format(line)]
                 continue
 
             # FIXME: Dangerous, but re blocking anything not simple maths.

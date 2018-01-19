@@ -71,7 +71,7 @@ def subs_math(subs, prefix):
 {prefix}m 1 + 2, 55/5, 5 * 10
         Do several math operations.
     """.format(prefix=prefix)
-    sub = subs.add_parser(prefix + 'm', description=desc, formatter_class=RawHelp)
+    sub = subs.add_parser(prefix + 'math', aliases=[prefix + 'm'], description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Math')
     sub.add_argument('spec', nargs='+', help='The math operations.')
 
@@ -84,7 +84,7 @@ def subs_roll(subs, prefix):
 {prefix}r 2d6 + 5, d20 + 4
         Perform the stated rolls and return results.
     """.format(prefix=prefix)
-    sub = subs.add_parser(prefix + 'r', description=desc, formatter_class=RawHelp)
+    sub = subs.add_parser(prefix + 'roll', aliases=[prefix + 'r'], description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Roll')
     sub.add_argument('spec', nargs='+', help='The dice rolls specified.')
 
