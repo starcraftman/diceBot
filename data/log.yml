@@ -1,0 +1,43 @@
+# Reference: https://docs.python.org/3/library/logging.html
+# Tutorial: https://docs.python.org/3/howto/logging.html#logging-basic-tutorial
+version: 1
+disable_existing_loggers: False
+
+formatters:
+  custom:
+    (): 'dice.util.ModFormatter'
+    format: "%(asctime)s [%(levelname)-8s] %(relmod)s | %(message)s"
+
+fhandler_template: &default_handler
+    class: logging.handlers.RotatingFileHandler
+    formatter: custom
+    maxBytes: 10485760
+    backupCount: 3
+    encoding: utf8
+
+handlers:
+  asyncio:
+    <<: *default_handler
+    level: DEBUG
+    filename: /tmp/dice/asyncio.log
+  dice:
+    <<: *default_handler
+    level: DEBUG
+    filename: /tmp/dice/main.log
+  err_stream:
+    class: logging.StreamHandler
+    level: ERROR
+    formatter: custom
+    stream: ext://sys.stdout
+
+loggers:
+  asyncio:
+    level: DEBUG
+    handlers: [asyncio]
+  dice:
+    level: DEBUG
+    handlers: [dice, err_stream]
+
+#root:
+    #level: ERROR
+    #handlers: [err_stream]
