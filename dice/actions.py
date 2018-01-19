@@ -88,7 +88,7 @@ class Math(Action):
         resp = ['__Math Calculations__', '']
         for line in ' '.join(self.args.spec).split(','):
             line = line.strip()
-            if re.match(r'[^0-9 +-/*]', line):
+            if re.match(r'[^0-9 \(\)+-/*]', line):
                 resp += [line + " looks suspicious, I won't evaluate."]
                 continue
 
