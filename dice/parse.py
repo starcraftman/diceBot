@@ -68,9 +68,12 @@ def subs_math(subs, prefix):
 
 {prefix}m 1 + 2
         Do simple math operations.
+{prefix}m 1 + 2, 55/5, 5 * 10
+        Do several math operations.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'm', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Math')
+    sub.add_argument('spec', nargs='+', help='The math operations.')
 
 
 @register_parser
@@ -83,3 +86,10 @@ def subs_roll(subs, prefix):
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'r', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Roll')
+
+
+@register_parser
+def subs_status(subs, prefix):
+    """ Subcommand parsing for status """
+    sub = subs.add_parser(prefix + 'status', description='Info about this bot.')
+    sub.set_defaults(cmd='Status')

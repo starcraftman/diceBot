@@ -6,6 +6,7 @@ All actions have async execute methods.
 from __future__ import absolute_import, print_function
 import asyncio
 import logging
+import re
 import sys
 
 import dice.tbl
@@ -57,6 +58,7 @@ class Help(Action):
             ['Command', 'Effect'],
             ['{prefix}math', 'Do some math operations'],
             ['{prefix}roll', 'Roll a dice like: 2d6 + 5'],
+            ['{prefix}status', 'Show status of bot including uptime'],
             ['{prefix}help', 'This help message'],
         ]
         lines = [[line[0].format(prefix=prefix), line[1]] for line in lines]
@@ -72,7 +74,17 @@ class Math(Action):
 
     """
     async def execute(self):
-        await self.bot.send_message(self.msg.channel, 'Do your own math!')
+        resp = ['__Math Calculations__', '']
+        for line in ' '.join(self.args.spec).split(','):
+            line = line.strip()
+            if re.match(r'[^0-9 +-/*]', line):
+                resp += [line + " looks suspicious, I won't evaluate."]
+                continue
+
+            # FIXME: Dangerous, but re blocking anything not simple maths.
+            resp += [line + " = " + str(eval(line))]
+
+        await self.bot.send_message(self.msg.channel, '\n'.join(resp))
 
 
 class Roll(Action):
@@ -82,3 +94,18 @@ class Roll(Action):
     """
     async def execute(self):
         await self.bot.send_message(self.msg.channel, 'Do your own rolls!')
+
+
+class Status(Action):
+    """
+    Display the status of this bot.
+    """
+    async def execute(self):
+        lines = [
+            ['Created By', 'GearsandCogs'],
+            ['Uptime', self.bot.uptime],
+            ['Version', '{}'.format(dice.__version__)],
+        ]
+
+        await self.bot.send_message(self.msg.channel,
+                                    dice.tbl.wrap_markdown(dice.tbl.format_table(lines)))
