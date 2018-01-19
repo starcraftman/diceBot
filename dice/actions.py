@@ -5,12 +5,23 @@ All actions have async execute methods.
 """
 from __future__ import absolute_import, print_function
 import asyncio
+import functools
 import logging
+import random
 import re
 import sys
 
+import dice.exc
 import dice.tbl
 import dice.util
+
+
+OP_DICT = {
+    '__add__': '+',
+    '__sub__': '-',
+    '+': '__add__',
+    '-': '__sub__',
+}
 
 
 async def bot_shutdown(bot, delay=30):  # pragma: no cover
@@ -93,7 +104,160 @@ class Roll(Action):
 
     """
     async def execute(self):
-        await self.bot.send_message(self.msg.channel, 'Do your own rolls!')
+        resp = ['__Dice Rolls__', '']
+
+        for line in ' '.join(self.args.spec).split(','):
+            line = line.strip()
+            throw = Throw(tokenize_dice_spec(line))
+            resp += [line + " = {}".format(throw.throw())]
+
+        await self.bot.send_message(self.msg.channel, '\n'.join(resp))
+
+
+class Dice(object):
+    def __init__(self, next_op=""):
+        self.num = 0
+        self.next_op = next_op  # Either "__add__" or "__sub__"
+        self.last_roll = ""
+        self.acu = ""  # Slot to accumulate text, used in reduction
+
+    def __str__(self):
+        raise NotImplementedError
+
+    def __add__(self, other):
+        if not isinstance(other, Dice):
+            raise ValueError
+        return FixedRoll(self.num + other.num, other.next_op)
+
+    def __sub__(self, other):
+        if not isinstance(other, Dice):
+            raise ValueError
+        return FixedRoll(self.num - other.num, other.next_op)
+
+    def roll(self):
+        raise NotImplementedError
+
+
+class FixedRoll(Dice):
+    def __init__(self, num, next_op=""):
+        super().__init__(next_op)
+        self.num = int(num)
+        self.last_roll = "({})".format(num)
+
+    def __str__(self):
+        return "({}){}".format(self.num, ' {} '.format(OP_DICT[self.next_op]) if self.next_op else "")
+
+    @property
+    def spec(self):
+        return str(self)
+
+    def roll(self):
+        return self.num
+
+
+class DiceRoll(Dice):
+    def __init__(self, spec, next_op=""):
+        super().__init__(next_op)
+        self.rolls, self.dice = parse_dice_spec(spec)
+
+    def __str__(self):
+        return "({}){}".format(self.last_roll, ' {} '.format(OP_DICT[self.next_op]) if self.next_op else "")
+
+    @property
+    def spec(self):
+        return "({}d{})".format(self.rolls, self.dice)
+
+    def roll(self):
+        self.last_roll = ""
+        self.num = 0
+        for _ in range(self.rolls):
+            roll = random.randint(1, self.dice)
+            self.num += roll
+            self.last_roll += '{} + '.format(roll)
+
+        self.last_roll = self.last_roll[:-3]
+        return self.num
+
+
+class Throw(object):
+    """
+    Throws 1 or more Dice. Knows how to format the text output for a single throw.
+    """
+    def __init__(self, dice=None):
+        if not dice:
+            dice = []
+        self.dice = dice
+
+    def add_dice(self, dice):
+        """ Add one or more dice to be thrown. """
+        self.dice += dice
+
+    def throw(self):
+        """ Throw the dice and return the individual rolls and total. """
+        for die in self.dice:
+            die.roll()
+
+        tot = functools.reduce(pick_op, self.dice)
+
+        return "{} = {}".format(tot.acu, tot.num)
+
+
+def parse_dice_spec(spec):
+    """
+    Parse a SINGLE dice spec of form 2d6.
+    """
+    terms = str(spec).lower().split('d')
+    terms.reverse()
+
+    if len(terms) < 1:
+        raise dice.exc.InvalidCommandArgs("Cannot determine dice.")
+
+    try:
+        sides = int(terms[0])
+        if sides < 1:
+            raise dice.exc.InvalidCommandArgs("Invalid number for dice (d__6__). Number must be [1, +∞]")
+        if terms[1] == '':
+            rolls = 1
+        else:
+            rolls = int(terms[1])
+            if rolls < 1:
+                raise dice.exc.InvalidCommandArgs("Invalid number for rolls (__r__d6). Number must be [1, +∞] or blank (1).")
+    except IndexError:
+        rolls = 1
+    except ValueError:
+        raise dice.exc.InvalidCommandArgs("Invalid number for rolls or dice.")
+
+    return (rolls, sides)
+
+
+def pick_op(d1, d2):
+    """
+    Just a slightly larger lambda.
+    To be used as a reduction across dice.
+    """
+    result = getattr(d1, d1.next_op)(d2)
+    if not d1.acu:
+        d1.acu = str(d1)
+    result.acu = d1.acu + str(d2)
+    return result
+
+
+def tokenize_dice_spec(spec):
+    """
+    Tokenize a string of arbitrary Fixed and Dice rolls into tokens.
+    """
+    tokens = []
+    for roll in re.split(r'\s+', spec):
+        if roll in ['+', '-'] and tokens:
+            tokens[-1].next_op = OP_DICT[roll]
+            continue
+
+        try:
+            tokens += [FixedRoll(int(roll))]
+        except ValueError:
+            tokens += [DiceRoll(roll)]
+
+    return tokens
 
 
 class Status(Action):

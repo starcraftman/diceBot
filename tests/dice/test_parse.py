@@ -35,5 +35,5 @@ def test_make_parser():
     Simply verify it works, not all parser paths.
     """
     parser = dice.parse.make_parser('!')
-    args = parser.parse_args('!m'.split())
+    args = parser.parse_args('!m 1 + 1'.split())
     args.cmd == 'Math'

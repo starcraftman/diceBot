@@ -86,6 +86,7 @@ def subs_roll(subs, prefix):
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'r', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Roll')
+    sub.add_argument('spec', nargs='+', help='The dice rolls specified.')
 
 
 @register_parser
