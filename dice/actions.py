@@ -121,6 +121,21 @@ class Roll(Action):
         await self.bot.send_message(self.msg.channel, '\n'.join(resp))
 
 
+class Status(Action):
+    """
+    Display the status of this bot.
+    """
+    async def execute(self):
+        lines = [
+            ['Created By', 'GearsandCogs'],
+            ['Uptime', self.bot.uptime],
+            ['Version', '{}'.format(dice.__version__)],
+        ]
+
+        await self.bot.send_message(self.msg.channel,
+                                    dice.tbl.wrap_markdown(dice.tbl.format_table(lines)))
+
+
 class Dice(object):
     def __init__(self, next_op=""):
         self.values = []
@@ -131,6 +146,10 @@ class Dice(object):
     def num(self):
         return functools.reduce(lambda x, y: x + y, self.values)
 
+    @property
+    def spec(self):
+        return str(self)
+
     def __str__(self):
         trailing_op = ' {} '.format(OP_DICT[self.next_op]) if self.next_op else ""
         line = "({})".format(" + ".join([str(x) for x in self.values]))
@@ -138,13 +157,19 @@ class Dice(object):
 
     def __add__(self, other):
         if not isinstance(other, Dice):
-            raise ValueError
-        return FixedRoll(self.num + other.num, other.next_op)
+            raise ValueError("Can only add Dice")
+
+        new_roll = FixedRoll(self.num + other.num, other.next_op)
+        new_roll.acu = str(self) + str(other)
+        return new_roll
 
     def __sub__(self, other):
         if not isinstance(other, Dice):
-            raise ValueError
-        return FixedRoll(self.num - other.num, other.next_op)
+            raise ValueError("Can only add Dice")
+
+        new_roll = FixedRoll(self.num - other.num, other.next_op)
+        new_roll.acu = str(self) + str(other)
+        return new_roll
 
     def roll(self):
         raise NotImplementedError
@@ -154,10 +179,6 @@ class FixedRoll(Dice):
     def __init__(self, num, next_op=""):
         super().__init__(next_op)
         self.values = [int(num)]
-
-    @property
-    def spec(self):
-        return str(self)
 
     def roll(self):
         return self.num
@@ -173,35 +194,30 @@ class DiceRoll(Dice):
         return "({}d{})".format(self.rolls, self.dice)
 
     def roll(self):
-        self.values = []
-        for _ in range(self.rolls):
-            self.values += [random.randint(1, self.dice)]
-
+        self.values = [random.randint(1, self.dice) for _ in range(self.rolls)]
         return self.num
 
 
 class DiceRollKeepHigh(DiceRoll):
     def __init__(self, spec, next_op=""):
-        index = spec.index('kh')
         try:
+            index = spec.index('kh')
             self.keep = int(spec[index + 2:])
         except ValueError:
             self.keep = 1
         super().__init__(spec[:index], next_op)
 
     def __str__(self):
-        trailing_op = ' {} '.format(OP_DICT[self.next_op]) if self.next_op else ""
-        line = ''
         emphasize = sorted(self.values)[:-self.keep]
-
+        line = ''
         for val in self.values:
             if val in emphasize:
-                line += "~~{}~~ + ".format(val)
                 emphasize.remove(val)
-            else:
-                line += "{} + ".format(val)
+                val = "~~{}~~".format(val)
+            line += "{} + ".format(val)
 
-        return '(' + line[:-3] + ')' + trailing_op 
+        trailing_op = ' {} '.format(OP_DICT[self.next_op]) if self.next_op else ""
+        return '(' + line[:-3] + ')' + trailing_op
 
     @property
     def spec(self):
@@ -215,26 +231,24 @@ class DiceRollKeepHigh(DiceRoll):
 
 class DiceRollKeepLow(DiceRoll):
     def __init__(self, spec, next_op=""):
-        index = spec.index('kl')
         try:
+            index = spec.index('kl')
             self.keep = int(spec[index + 2:])
         except ValueError:
             self.keep = 1
         super().__init__(spec[:index], next_op)
 
     def __str__(self):
-        trailing_op = ' {} '.format(OP_DICT[self.next_op]) if self.next_op else ""
         line = ''
         emphasize = sorted(self.values)[self.keep:]
-
         for val in self.values:
             if val in emphasize:
-                line += "~~{}~~ + ".format(val)
                 emphasize.remove(val)
-            else:
-                line += "{} + ".format(val)
+                val = "~~{}~~".format(val)
+            line += "{} + ".format(val)
 
-        return '(' + line[:-3] + ')' + trailing_op 
+        trailing_op = ' {} '.format(OP_DICT[self.next_op]) if self.next_op else ""
+        return '(' + line[:-3] + ')' + trailing_op
 
     @property
     def spec(self):
@@ -250,14 +264,14 @@ class Throw(object):
     """
     Throws 1 or more Dice. Knows how to format the text output for a single throw.
     """
-    def __init__(self, dice=None):
-        if not dice:
-            dice = []
-        self.dice = dice
+    def __init__(self, die=None):
+        self.dice = die
+        if not self.dice:
+            self.dice = []
 
-    def add_dice(self, dice):
+    def add_dice(self, die):
         """ Add one or more dice to be thrown. """
-        self.dice += dice
+        self.dice += die
 
     def throw(self):
         """ Throw the dice and return the individual rolls and total. """
@@ -265,7 +279,7 @@ class Throw(object):
             die.roll()
 
         self.dice[0].acu = str(self.dice[0])
-        tot = functools.reduce(pick_op, self.dice)
+        tot = functools.reduce(lambda x, y: getattr(x, x.next_op)(y), self.dice)
 
         return "{} = {}".format(tot.acu, tot.num)
 
@@ -298,21 +312,12 @@ def parse_dice_spec(spec):
     return (rolls, sides)
 
 
-def pick_op(d1, d2):
-    """
-    Just a slightly larger lambda.
-    To be used as a reduction across dice.
-    """
-    result = getattr(d1, d1.next_op)(d2)
-    if not d1.acu:
-        d1.acu = str(d1)
-    result.acu = d1.acu + str(d2)
-    return result
-
-
 def tokenize_dice_spec(spec):
     """
-    Tokenize a string of arbitrary Fixed and Dice rolls into tokens.
+    Tokenize a single string into multiple Dice.
+    String should be of form:
+
+        4d6 + 10d6kh2 - 4
     """
     tokens = []
     for roll in re.split(r'\s+', spec):
@@ -320,7 +325,9 @@ def tokenize_dice_spec(spec):
             tokens[-1].next_op = OP_DICT[roll]
             continue
 
-        if 'kh' in roll:
+        if 'kh' in roll and 'kl' in roll:
+            raise dice.exc.InvalidCommandArgs("__kh__ and __kl__ are mutually exclusive. Pick one muppet!")
+        elif 'kh' in roll:
             tokens += [DiceRollKeepHigh(roll)]
             continue
         elif 'kl' in roll:
@@ -333,18 +340,3 @@ def tokenize_dice_spec(spec):
             tokens += [DiceRoll(roll)]
 
     return tokens
-
-
-class Status(Action):
-    """
-    Display the status of this bot.
-    """
-    async def execute(self):
-        lines = [
-            ['Created By', 'GearsandCogs'],
-            ['Uptime', self.bot.uptime],
-            ['Version', '{}'.format(dice.__version__)],
-        ]
-
-        await self.bot.send_message(self.msg.channel,
-                                    dice.tbl.wrap_markdown(dice.tbl.format_table(lines)))
