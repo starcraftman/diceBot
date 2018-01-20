@@ -201,7 +201,7 @@ class DiceRollKeepHigh(DiceRoll):
             else:
                 line += "{} + ".format(val)
 
-        return line[:-3] + trailing_op
+        return '(' + line[:-3] + ')' + trailing_op 
 
     @property
     def spec(self):
@@ -234,7 +234,7 @@ class DiceRollKeepLow(DiceRoll):
             else:
                 line += "{} + ".format(val)
 
-        return line[:-3] + trailing_op
+        return '(' + line[:-3] + ')' + trailing_op 
 
     @property
     def spec(self):
