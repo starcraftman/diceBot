@@ -87,6 +87,8 @@ def subs_roll(subs, prefix):
         Roll 4d6, keep the 3 __highest__ rolls.
 {prefix}roll 4d6kl2
         Roll 4d6, keep the 2 __lowest__ rolls.
+{prefix}roll 6 * (4d6)
+        Roll 4d6, __6__ times.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'roll', aliases=[prefix + 'r'], description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Roll')

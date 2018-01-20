@@ -108,8 +108,15 @@ class Roll(Action):
 
         for line in ' '.join(self.args.spec).split(','):
             line = line.strip()
+            times = 1
+
+            match = re.match(r'(\d+)\s*\*?\s*\((.*)\)', line)
+            if match:
+                times, line = int(match.group(1)), match.group(2)
+
             throw = Throw(tokenize_dice_spec(line))
-            resp += [line + " = {}".format(throw.throw())]
+            for _ in range(times):
+                resp += [line + " = {}".format(throw.throw())]
 
         await self.bot.send_message(self.msg.channel, '\n'.join(resp))
 
