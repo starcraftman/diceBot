@@ -220,5 +220,38 @@ def msg_splitter(msg):
     return parts
 
 
+def emphasize_match(seq, line, fmt='__{}__'):
+    """
+    Emphasize the matched portion of string.
+    """
+    start, end = dice.util.substr_ind(seq, line)
+    matched = line[start:end]
+    return line.replace(matched, fmt.format(matched))
+
+
+def emphasize_match_one(seq, line, fmt='__{}__'):
+    """
+    Emphasize the matched portion of string once.
+
+    Went in a different direction, keeping for posterity.
+    """
+    prefix = fmt[:fmt.index('{')]
+    search_line = line
+    while dice.util.substr_ind(seq, search_line):
+        start, end = dice.util.substr_ind(seq, search_line)
+        if line[start - len(prefix):end] == prefix + line[start:end]:
+            search_line = search_line[end:]
+            continue
+        else:
+            break
+
+    offset = len(line) - len(search_line)
+    start += offset
+    end += offset
+    line = line[:start] + fmt.format(seq) + line[end:]
+
+    return line
+
+
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 YAML_FILE = rel_to_abs('data', 'config.yml')

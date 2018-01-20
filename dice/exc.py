@@ -82,7 +82,7 @@ class MoreThanOneMatch(UserException):
         header = "Resubmit query with more specific criteria."
         header += "\nToo many matches for '{}' in {}s:".format(
             self.sequence, cls)
-        matched_strings = [emphasize_match(self.sequence, getattr(obj, self.obj_attr, obj))
+        matched_strings = [dice.util.emphasize_match(self.sequence, getattr(obj, self.obj_attr, obj))
                            for obj in self.matches]
         matched = "\n    - " + "\n    - ".join(matched_strings)
         return header + matched
@@ -178,15 +178,6 @@ class NameCollisionError(SheetParsingError):
             "    Then execute `admin scan` to reload the db",
         ]
         return "\n".join(lines)
-
-
-def emphasize_match(seq, line, fmt='__{}__'):
-    """
-    Emphasize the matched portion of string.
-    """
-    start, end = dice.util.substr_ind(seq, line)
-    matched = line[start:end]
-    return line.replace(matched, fmt.format(matched))
 
 
 def log_format(*, content, author, channel):

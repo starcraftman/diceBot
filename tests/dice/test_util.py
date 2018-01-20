@@ -95,3 +95,18 @@ def test_msg_splitter():
         assert dice.util.msg_splitter(test2) == [test1 + "stop here", test1[:-1]]
     finally:
         dice.util.MSG_LIMIT = old_limit
+
+
+def test_emphasize_match():
+    result = dice.util.emphasize_match('match', 'A line that should match somewhere')
+
+    assert result == 'A line that should __match__ somewhere'
+
+
+def test_emphasize_match_one():
+    result = dice.util.emphasize_match_one('7', '7, 5, 2, 7')
+    assert result == '__7__, 5, 2, 7'
+    result = dice.util.emphasize_match_one('7', result)
+    assert result == '__7__, 5, 2, __7__'
+    result = dice.util.emphasize_match_one('2', result)
+    assert result == '__7__, 5, __2__, __7__'

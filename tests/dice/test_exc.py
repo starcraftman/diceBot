@@ -71,12 +71,6 @@ To Resolve:
     assert error.reply() == expect
 
 
-def test_emphasize_match():
-    result = dice.exc.emphasize_match('match', 'A line that should match somewhere')
-
-    assert result == 'A line that should __match__ somewhere'
-
-
 def test_log_format():
     msg = fake_msg_gears('Hello world!')
     expect = """GearsandCogs sent Hello world! from Channel: live_hudson/Server: Gears' Hideout

@@ -120,3 +120,17 @@ def test_throw():
     dado2 = dice.actions.FixedRoll('4')
     throw = dice.actions.Throw([dado, dado2])
     print(throw.throw())
+
+
+def test_rolldice_keephigh():
+    dado = dice.actions.DiceRollKeepHigh('4d6kh3')
+    print(dado.roll())
+    print(dado.num, dado.values, str(dado))
+    print(dado.spec)
+
+
+def test_rolldice_keeplow():
+    dado = dice.actions.DiceRollKeepLow('4d6kl3')
+    print(dado.roll())
+    print(dado.num, dado.values, str(dado))
+    print(dado.spec)

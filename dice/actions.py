@@ -83,8 +83,7 @@ class Help(Action):
 
 class Math(Action):
     """
-    Who is request to Inara for CMDR info.
-
+    Perform one or more math operations.
     """
     async def execute(self):
         resp = ['__Math Calculations__', '']
@@ -102,8 +101,7 @@ class Math(Action):
 
 class Roll(Action):
     """
-    Who is request to Inara for CMDR info.
-
+    Perform one or more rolls of dice according to spec.
     """
     async def execute(self):
         resp = ['__Dice Rolls__', '']
@@ -118,13 +116,18 @@ class Roll(Action):
 
 class Dice(object):
     def __init__(self, next_op=""):
-        self.num = 0
+        self.values = []
         self.next_op = next_op  # Either "__add__" or "__sub__"
-        self.last_roll = ""
         self.acu = ""  # Slot to accumulate text, used in reduction
 
+    @property
+    def num(self):
+        return functools.reduce(lambda x, y: x + y, self.values)
+
     def __str__(self):
-        raise NotImplementedError
+        trailing_op = ' {} '.format(OP_DICT[self.next_op]) if self.next_op else ""
+        line = "({})".format(" + ".join([str(x) for x in self.values]))
+        return line + trailing_op
 
     def __add__(self, other):
         if not isinstance(other, Dice):
@@ -143,11 +146,7 @@ class Dice(object):
 class FixedRoll(Dice):
     def __init__(self, num, next_op=""):
         super().__init__(next_op)
-        self.num = int(num)
-        self.last_roll = "({})".format(num)
-
-    def __str__(self):
-        return "({}){}".format(self.num, ' {} '.format(OP_DICT[self.next_op]) if self.next_op else "")
+        self.values = [int(num)]
 
     @property
     def spec(self):
@@ -162,23 +161,76 @@ class DiceRoll(Dice):
         super().__init__(next_op)
         self.rolls, self.dice = parse_dice_spec(spec)
 
-    def __str__(self):
-        return "({}){}".format(self.last_roll, ' {} '.format(OP_DICT[self.next_op]) if self.next_op else "")
-
     @property
     def spec(self):
         return "({}d{})".format(self.rolls, self.dice)
 
     def roll(self):
-        self.last_roll = ""
-        self.num = 0
+        self.values = []
         for _ in range(self.rolls):
-            roll = random.randint(1, self.dice)
-            self.num += roll
-            self.last_roll += '{} + '.format(roll)
+            self.values += [random.randint(1, self.dice)]
 
-        self.last_roll = self.last_roll[:-3]
         return self.num
+
+
+class DiceRollKeepHigh(DiceRoll):
+    def __init__(self, spec, next_op=""):
+        index = spec.index('kh')
+        self.keep = int(spec[index + 2:])
+        super().__init__(spec[:index], next_op)
+
+    def __str__(self):
+        trailing_op = ' {} '.format(OP_DICT[self.next_op]) if self.next_op else ""
+        line = ''
+        emphasize = sorted(self.values)[:-self.keep]
+
+        for val in self.values:
+            if val in emphasize:
+                line += "~~{}~~ + ".format(val)
+                emphasize.remove(val)
+            else:
+                line += "{} + ".format(val)
+
+        return line[:-3] + trailing_op
+
+    @property
+    def spec(self):
+        return "({}d{}kh{})".format(self.rolls, self.dice, self.keep)
+
+    @property
+    def num(self):
+        vals = sorted(self.values)[-self.keep:]
+        return functools.reduce(lambda x, y: x + y, vals)
+
+
+class DiceRollKeepLow(DiceRoll):
+    def __init__(self, spec, next_op=""):
+        index = spec.index('kl')
+        self.keep = int(spec[index + 2:])
+        super().__init__(spec[:index], next_op)
+
+    def __str__(self):
+        trailing_op = ' {} '.format(OP_DICT[self.next_op]) if self.next_op else ""
+        line = ''
+        emphasize = sorted(self.values)[self.keep:]
+
+        for val in self.values:
+            if val in emphasize:
+                line += "~~{}~~ + ".format(val)
+                emphasize.remove(val)
+            else:
+                line += "{} + ".format(val)
+
+        return line[:-3] + trailing_op
+
+    @property
+    def spec(self):
+        return "({}d{}kl{})".format(self.rolls, self.dice, self.keep)
+
+    @property
+    def num(self):
+        vals = sorted(self.values)[:self.keep]
+        return functools.reduce(lambda x, y: x + y, vals)
 
 
 class Throw(object):
@@ -199,6 +251,7 @@ class Throw(object):
         for die in self.dice:
             die.roll()
 
+        self.dice[0].acu = str(self.dice[0])
         tot = functools.reduce(pick_op, self.dice)
 
         return "{} = {}".format(tot.acu, tot.num)
@@ -252,6 +305,13 @@ def tokenize_dice_spec(spec):
     for roll in re.split(r'\s+', spec):
         if roll in ['+', '-'] and tokens:
             tokens[-1].next_op = OP_DICT[roll]
+            continue
+
+        if 'kh' in roll:
+            tokens += [DiceRollKeepHigh(roll)]
+            continue
+        elif 'kl' in roll:
+            tokens += [DiceRollKeepLow(roll)]
             continue
 
         try:
