@@ -68,9 +68,9 @@ class Help(Action):
         lines = [
             ['Command', 'Effect'],
             ['{prefix}math', 'Do some math operations'],
-            ['{prefix}m', 'Do some math operations'],
+            ['{prefix}m', 'Alias for `!math`'],
             ['{prefix}roll', 'Roll a dice like: 2d6 + 5'],
-            ['{prefix}r', 'Roll a dice like: 2d6 + 5'],
+            ['{prefix}r', 'Alias for `!roll`'],
             ['{prefix}status', 'Show status of bot including uptime'],
             ['{prefix}help', 'This help message'],
         ]
@@ -176,7 +176,10 @@ class DiceRoll(Dice):
 class DiceRollKeepHigh(DiceRoll):
     def __init__(self, spec, next_op=""):
         index = spec.index('kh')
-        self.keep = int(spec[index + 2:])
+        try:
+            self.keep = int(spec[index + 2:])
+        except ValueError:
+            self.keep = 1
         super().__init__(spec[:index], next_op)
 
     def __str__(self):
@@ -206,7 +209,10 @@ class DiceRollKeepHigh(DiceRoll):
 class DiceRollKeepLow(DiceRoll):
     def __init__(self, spec, next_op=""):
         index = spec.index('kl')
-        self.keep = int(spec[index + 2:])
+        try:
+            self.keep = int(spec[index + 2:])
+        except ValueError:
+            self.keep = 1
         super().__init__(spec[:index], next_op)
 
     def __str__(self):

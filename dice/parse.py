@@ -66,9 +66,9 @@ def subs_math(subs, prefix):
     """ Subcommand parsing for hold """
     desc = """Evaluate some simple math operations.
 
-{prefix}m 1 + 2
+{prefix}math 1 + 2
         Do simple math operations.
-{prefix}m 1 + 2, 55/5, 5 * 10
+{prefix}math 1 + 2, 55/5, 5 * 10
         Do several math operations.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'math', aliases=[prefix + 'm'], description=desc, formatter_class=RawHelp)
@@ -81,8 +81,12 @@ def subs_roll(subs, prefix):
     """ Subcommand parsing for hold """
     desc = """Evaluate some simple math operations.
 
-{prefix}r 2d6 + 5, d20 + 4
+{prefix}roll 2d6 + 5, d20 + 4
         Perform the stated rolls and return results.
+{prefix}roll 4d6kh3
+        Roll 4d6, keep the 3 __highest__ rolls.
+{prefix}roll 4d6kl2
+        Roll 4d6, keep the 2 __lowest__ rolls.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'roll', aliases=[prefix + 'r'], description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Roll')
