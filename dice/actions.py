@@ -117,7 +117,7 @@ class Roll(Action):
 
             throw = Throw(tokenize_dice_spec(line))
             for _ in range(times):
-                resp += [line + " = {}".format(throw.throw())]
+                resp += [line + " = {}".format(throw.next())]
 
         await self.bot.send_message(self.msg.channel, '\n'.join(resp))
 
@@ -347,7 +347,7 @@ class Throw(object):
         """ Add one or more dice to be thrown. """
         self.dice += die
 
-    def throw(self):
+    def next(self):
         """ Throw the dice and return the individual rolls and total. """
         for die in self.dice:
             die.roll()
@@ -393,6 +393,7 @@ def tokenize_dice_spec(spec):
 
         4d6 + 10d6kh2 - 4
     """
+    spec = spec.lower()
     tokens = []
     for roll in re.split(r'\s+', spec):
         if roll in ['+', '-'] and tokens:

@@ -68,69 +68,161 @@ async def test_cmd_invalid_flag(event_loop, f_bot):
         await action_map(msg, f_bot).execute()
 
 
-def test_fixedroll():
+def test_fixed__str__():
+    die = dice.actions.FixedRoll('5')
+    assert str(die) == '(5)'
+    die.next_op = '__add__'
+    assert str(die) == '(5) + '
+    die.next_op = '__sub__'
+    assert str(die) == '(5) - '
+
+
+def test_fixed_spec():
+    assert dice.actions.FixedRoll('5').spec == '(5)'
+
+
+def test_fixed_roll():
     assert dice.actions.FixedRoll('5').roll() == 5
-    assert str(dice.actions.FixedRoll('5')) == '(5)'
 
 
-def test_diceroll():
-    dado = dice.actions.DiceRoll('d6')
-    assert str(dado) == '()'
-    last = dado.roll()
-    assert last in list(range(1, 7))
-    assert str(dado) == '({})'.format(last)
+def test_fixed_num():
+    assert dice.actions.FixedRoll('5').num == 5
 
 
-def test_diceroll_multi():
-    dado = dice.actions.DiceRoll('2d6')
-    assert str(dado) == '()'
-    last = dado.roll()
-    assert last in list(range(1, 13))
+def test_fixed_add():
+    f1 = dice.actions.FixedRoll('5')
+    f2 = dice.actions.FixedRoll('3')
+    assert (f1 + f2).num == 8
 
 
-def test_diceroll_add():
-    dado = dice.actions.DiceRoll('2d6', dice.actions.OP_DICT['+'])
-    dado2 = dice.actions.FixedRoll('3')
-    dado.roll()
-    print(dado + dado2)
-    print(str(dado) + str(dado2))
+def test_fixed_sub():
+    f1 = dice.actions.FixedRoll('5')
+    f2 = dice.actions.FixedRoll('3')
+    assert (f1 - f2).num == 2
 
 
-def test_diceroll_sub():
-    dado = dice.actions.DiceRoll('2d6', dice.actions.OP_DICT['-'])
-    dado2 = dice.actions.FixedRoll('4')
-    dado.roll()
-    print(dado - dado2)
-    print(str(dado) + str(dado2))
+def test_dice__init__():
+    die = dice.actions.DiceRoll('2d6')
+    assert die.rolls == 2
+    assert die.dice == 6
+
+
+def test_dice__str__():
+    die = dice.actions.DiceRoll('2d6')
+    die.values = [2, 3]
+    assert str(die) == '(2 + 3)'
+
+
+def test_dice_num():
+    die = dice.actions.DiceRoll('2d6')
+    die.values = [2, 3]
+    assert die.num == 5
+
+
+def test_dice_roll():
+    die = dice.actions.DiceRoll('2d6')
+    die.roll()
+    assert die.num in list(range(2, 13))
+    for val in die.values:
+        assert val in list(range(1, 7))
+
+
+def test_dice_spec():
+    die = dice.actions.DiceRoll('2d6')
+    assert die.spec == '(2d6)'
+
+
+def test_dicekeephigh__init__():
+    die = dice.actions.DiceRollKeepHigh('3d6kh2')
+    assert die.keep == 2
+    assert die.rolls == 3
+    assert die.dice == 6
+
+    die = dice.actions.DiceRollKeepHigh('3d6k2')
+    assert die.keep == 2
+    assert die.rolls == 3
+    assert die.dice == 6
+
+
+def test_dicekeephigh__str__():
+    die = dice.actions.DiceRollKeepHigh('3d6kh2')
+    die.values = [3, 2, 5]
+    assert str(die) == '(3 + ~~2~~ + 5)'
+
+
+def test_dicekeephigh_num():
+    die = dice.actions.DiceRollKeepHigh('3d6kh2')
+    die.values = [3, 2, 5]
+    assert die.num == 8
+
+
+def test_dicekeephigh_spec():
+    die = dice.actions.DiceRollKeepHigh('3d6kh2')
+    assert die.spec == '(3d6kh2)'
+
+
+def test_dicekeeplow__init__():
+    die = dice.actions.DiceRollKeepLow('3d6kl2')
+    assert die.keep == 2
+    assert die.rolls == 3
+    assert die.dice == 6
+
+
+def test_dicekeeplow__str__():
+    die = dice.actions.DiceRollKeepLow('3d6kl2')
+    die.values = [3, 2, 5]
+    assert str(die) == '(3 + 2 + ~~5~~)'
+
+
+def test_dicekeeplow_num():
+    die = dice.actions.DiceRollKeepLow('3d6kl2')
+    die.values = [3, 2, 5]
+    assert die.num == 5
+
+
+def test_dicekeeplow_spec():
+    die = dice.actions.DiceRollKeepLow('3d6kl2')
+    assert die.spec == '(3d6kl2)'
+
+
+def test_throw__init__():
+    die = dice.actions.DiceRoll('2d6', dice.actions.OP_DICT['-'])
+    die2 = dice.actions.FixedRoll('4')
+    throw = dice.actions.Throw([die, die2])
+    assert throw.dice == [die, die2]
+
+
+def test_throw_add_dice():
+    die = dice.actions.FixedRoll('4')
+    throw = dice.actions.Throw()
+    throw.add_dice([die])
+    assert throw.dice == [die]
+
+
+def test_throw_next():
+    die = dice.actions.DiceRoll('2d6', dice.actions.OP_DICT['+'])
+    die2 = dice.actions.FixedRoll('1')
+    throw = dice.actions.Throw([die, die2])
+    throw.next()
+
+    sum = 0
+    for die in throw.dice:
+        sum += die.num
+    assert sum in list(range(3, 14))
+
+
+def test_parse_dice_spec():
+    assert dice.actions.parse_dice_spec('2d6') == (2, 6)
+    assert dice.actions.parse_dice_spec('2D6') == (2, 6)
 
 
 def test_tokenize_dice_spec():
-    spec = '2d6 + d4 + 4'
+    spec = '4D6KH3 + 2D6 - 4'
 
-    dados = dice.actions.tokenize_dice_spec(spec)
-
-    print(dados[0].next_op)
-    throw = dice.actions.Throw()
-    throw.add_dice(dados)
-    print(throw.throw())
-
-
-def test_throw():
-    dado = dice.actions.DiceRoll('2d6', dice.actions.OP_DICT['-'])
-    dado2 = dice.actions.FixedRoll('4')
-    throw = dice.actions.Throw([dado, dado2])
-    print(throw.throw())
-
-
-def test_rolldice_keephigh():
-    dado = dice.actions.DiceRollKeepHigh('4d6kh3')
-    print(dado.roll())
-    print(dado.num, dado.values, str(dado))
-    print(dado.spec)
-
-
-def test_rolldice_keeplow():
-    dado = dice.actions.DiceRollKeepLow('4d6kl3')
-    print(dado.roll())
-    print(dado.num, dado.values, str(dado))
-    print(dado.spec)
+    dies = dice.actions.tokenize_dice_spec(spec)
+    assert isinstance(dies[0], dice.actions.DiceRollKeepHigh)
+    assert dies[0].next_op == dice.actions.OP_DICT['+']
+    assert isinstance(dies[1], dice.actions.DiceRoll)
+    assert dies[1].next_op == dice.actions.OP_DICT['-']
+    assert isinstance(dies[2], dice.actions.FixedRoll)
+    assert len(dies) == 3
