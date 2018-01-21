@@ -104,7 +104,7 @@ class Roll(Action):
     Perform one or more rolls of dice according to spec.
     """
     async def execute(self):
-        resp = ['__Dice Rolls__', '']
+        resp = ['__Dice Rolls__', 'Key: k|kh2 = keep 2 high, kl3 = keep 3 low', '']
 
         for line in ' '.join(self.args.spec).split(','):
             line = line.strip()
@@ -137,6 +137,9 @@ class Status(Action):
 
 
 class Dice(object):
+    """
+    Overall interface for a dice.
+    """
     def __init__(self, next_op=""):
         self.values = []
         self.next_op = next_op  # Either "__add__" or "__sub__"
@@ -144,18 +147,30 @@ class Dice(object):
 
     @property
     def num(self):
+        """
+        The sum of the dice roll(s) for the spec.
+        """
         return functools.reduce(lambda x, y: x + y, self.values)
 
     @property
     def spec(self):
+        """
+        The specification of how to roll the dice.
+        """
         return str(self)
 
     def __str__(self):
+        """
+        The individual roles displayed in a string.
+        """
         trailing_op = ' {} '.format(OP_DICT[self.next_op]) if self.next_op else ""
         line = "({})".format(" + ".join([str(x) for x in self.values]))
         return line + trailing_op
 
     def __add__(self, other):
+        """
+        Add one dice to another dice. Always returns a FixedRoll (i.e. fixed Dice).
+        """
         if not isinstance(other, Dice):
             raise ValueError("Can only add Dice")
 
@@ -164,6 +179,9 @@ class Dice(object):
         return new_roll
 
     def __sub__(self, other):
+        """
+        Subtract one dice from another dice. Always returns a FixedRoll (i.e. fixed Dice).
+        """
         if not isinstance(other, Dice):
             raise ValueError("Can only add Dice")
 
@@ -172,10 +190,16 @@ class Dice(object):
         return new_roll
 
     def roll(self):
+        """
+        Perform the roll as specified.
+        """
         raise NotImplementedError
 
 
 class FixedRoll(Dice):
+    """
+    A fixed dice roll, always returns a constant number.
+    """
     def __init__(self, num, next_op=""):
         super().__init__(next_op)
         self.values = [int(num)]
@@ -185,6 +209,9 @@ class FixedRoll(Dice):
 
 
 class DiceRoll(Dice):
+    """
+    A standard dice roll. Roll rolls times a dice of any number of sides from [1, inf].
+    """
     def __init__(self, spec, next_op=""):
         super().__init__(next_op)
         self.rolls, self.dice = parse_dice_spec(spec)
@@ -199,13 +226,15 @@ class DiceRoll(Dice):
 
 
 class DiceRollKeepHigh(DiceRoll):
+    """
+    Same as a dice roll but only keep n high rolls.
+    """
     def __init__(self, spec, next_op=""):
-        try:
-            index = spec.index('kh')
-            self.keep = int(spec[index + 2:])
-        except ValueError:
-            self.keep = 1
-        super().__init__(spec[:index], next_op)
+        self.keep = 1
+        match = re.match(r'.*kh?(\d+)', spec)
+        if match:
+            self.keep = int(match.group(1))
+        super().__init__(spec[:spec.rindex('k')], next_op)
 
     def __str__(self):
         emphasize = sorted(self.values)[:-self.keep]
@@ -230,6 +259,9 @@ class DiceRollKeepHigh(DiceRoll):
 
 
 class DiceRollKeepLow(DiceRoll):
+    """
+    Same as a dice roll but only keep n low rolls.
+    """
     def __init__(self, spec, next_op=""):
         try:
             index = spec.index('kl')
@@ -262,7 +294,8 @@ class DiceRollKeepLow(DiceRoll):
 
 class Throw(object):
     """
-    Throws 1 or more Dice. Knows how to format the text output for a single throw.
+    Throws 1 or more Dice. Acts as a simple container.
+    Can be used primarily to reroll a complex dice setup.
     """
     def __init__(self, die=None):
         self.dice = die
@@ -307,7 +340,7 @@ def parse_dice_spec(spec):
     except IndexError:
         rolls = 1
     except ValueError:
-        raise dice.exc.InvalidCommandArgs("Invalid number for rolls or dice.")
+        raise dice.exc.InvalidCommandArgs("Invalid number for rolls or dice. Please clarify: " + spec)
 
     return (rolls, sides)
 
@@ -327,11 +360,11 @@ def tokenize_dice_spec(spec):
 
         if 'kh' in roll and 'kl' in roll:
             raise dice.exc.InvalidCommandArgs("__kh__ and __kl__ are mutually exclusive. Pick one muppet!")
-        elif 'kh' in roll:
-            tokens += [DiceRollKeepHigh(roll)]
-            continue
         elif 'kl' in roll:
             tokens += [DiceRollKeepLow(roll)]
+            continue
+        elif re.match(r'.*\dkh?', roll):
+            tokens += [DiceRollKeepHigh(roll)]
             continue
 
         try:
