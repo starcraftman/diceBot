@@ -84,6 +84,7 @@ def subs_roll(subs, prefix):
 {prefix}roll 2d6 + 5, d20 + 4
         Perform the stated rolls and return results.
 {prefix}roll 4d6kh3
+{prefix}roll 4d6k3
         Roll 4d6, keep the 3 __highest__ rolls.
 {prefix}roll 4d6kl2
         Roll 4d6, keep the 2 __lowest__ rolls.

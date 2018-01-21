@@ -104,7 +104,7 @@ class Roll(Action):
     Perform one or more rolls of dice according to spec.
     """
     async def execute(self):
-        resp = ['__Dice Rolls__', 'Key: k|kh2 = keep 2 high, kl3 = keep 3 low', '']
+        resp = ['__Dice Rolls__', '']
 
         for line in ' '.join(self.args.spec).split(','):
             line = line.strip()
