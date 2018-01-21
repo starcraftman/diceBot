@@ -72,6 +72,7 @@ class Help(Action):
             ['{prefix}roll', 'Roll a dice like: 2d6 + 5'],
             ['{prefix}r', 'Alias for `!roll`'],
             ['{prefix}status', 'Show status of bot including uptime'],
+            ['{prefix}timer', 'Set a timer for HH:MM:SS in future'],
             ['{prefix}help', 'This help message'],
         ]
         lines = [[line[0].format(prefix=prefix), line[1]] for line in lines]
@@ -134,6 +135,46 @@ class Status(Action):
 
         await self.bot.send_message(self.msg.channel,
                                     dice.tbl.wrap_markdown(dice.tbl.format_table(lines)))
+
+
+class Timer(Action):
+    """
+    Display the status of this bot.
+    """
+    async def execute(self):
+        if not re.match(r'[0-9:]+', self.args.time) or self.args.time.count(':') > 2:
+            raise dice.exc.InvalidCommandArgs("I can't understand time spec! Use format: **HH:MM:SS**")
+        t_spec = self.args.time.split(':')
+        t_spec.reverse()
+
+        try:
+            secs = 0
+            secs += int(t_spec[0])
+            secs += int(t_spec[1]) * 60
+            secs += int(t_spec[2]) * 3600
+        except (IndexError, ValueError):
+            if secs == 0:
+                raise dice.exc.InvalidCommandArgs("I can't understand time spec!\nUse format: **HH:MM:SS**")
+
+        timers = []
+        ping = "{} Timer '{}'".format(self.msg.author.mention, self.args.time)
+        if secs - 60 >= 0:
+            timers += [[60, "{} has 60 seconds left!".format(ping)]]
+            secs -= 60
+        if secs - 240 >= 0:
+            timers += [[240, "{} has 5 minutes left!".format(ping)]]
+            secs -= 240
+        if secs >= 0:
+            timers += [[secs, "Timer '{}' was requested, I got this.".format(self.args.time)]]
+        timers.reverse()
+        timers += [[0, "{} has expired. Do something meatbag!".format(ping)]]
+
+        sent_msg = None
+        for time, msg in timers:
+            if sent_msg:
+                await self.bot.delete_message(sent_msg)
+            sent_msg = await self.bot.send_message(self.msg.channel, msg)
+            await asyncio.sleep(time)
 
 
 class Dice(object):

@@ -97,6 +97,19 @@ def subs_roll(subs, prefix):
 
 
 @register_parser
+def subs_timer(subs, prefix):
+    """ Subcommand parsing for hold """
+    desc = """Evaluate some simple math operations.
+
+{prefix}timer time
+        Wait for HH:MM:SS seconds and then mention user.
+    """.format(prefix=prefix)
+    sub = subs.add_parser(prefix + 'timer', description=desc, formatter_class=RawHelp)
+    sub.set_defaults(cmd='Timer')
+    sub.add_argument('time', help='The time to wait.')
+
+
+@register_parser
 def subs_status(subs, prefix):
     """ Subcommand parsing for status """
     sub = subs.add_parser(prefix + 'status', description='Info about this bot.')
