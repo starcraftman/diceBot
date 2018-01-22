@@ -154,7 +154,7 @@ class Timer(Action):
             secs += int(t_spec[2]) * 3600
         except (IndexError, ValueError):
             if secs == 0:
-                raise dice.exc.InvalidCommandArgs("I can't understand time spec!\nUse format: **HH:MM:SS**")
+                raise dice.exc.InvalidCommandArgs("I can't understand time spec! Use format: **HH:MM:SS**")
 
         timers = []
         ping = "{} Timer '{}'".format(self.msg.author.mention, self.args.time)
