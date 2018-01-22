@@ -216,7 +216,7 @@ class Dice(object):
             raise ValueError("Can only add Dice")
 
         new_roll = FixedRoll(self.num + other.num, other.next_op)
-        new_roll.acu = str(self) + str(other)
+        new_roll.acu = self.acu + str(other)
         return new_roll
 
     def __sub__(self, other):
@@ -227,7 +227,7 @@ class Dice(object):
             raise ValueError("Can only add Dice")
 
         new_roll = FixedRoll(self.num - other.num, other.next_op)
-        new_roll.acu = str(self) + str(other)
+        new_roll.acu = self.acu + str(other)
         return new_roll
 
     def roll(self):
