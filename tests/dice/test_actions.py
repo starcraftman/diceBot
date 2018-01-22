@@ -7,6 +7,7 @@ Important Note Regarding DB:
     After executing an action ALWAYS make a new Session(). The old one will still be stale.
 """
 from __future__ import absolute_import, print_function
+
 import pytest
 
 import dice.actions
@@ -35,7 +36,7 @@ def action_map(fake_message, fake_bot):
 
 
 # @pytest.mark.asyncio
-# async def test_template(event_loop, f_bot):
+# async def test_template(f_bot):
     # msg = fake_msg_gears("!cmd")
 
     # await action_map(msg, f_bot).execute()
@@ -45,7 +46,7 @@ def action_map(fake_message, fake_bot):
 
 # General Parse Fails
 @pytest.mark.asyncio
-async def test_cmd_fail(event_loop, f_bot):
+async def test_cmd_fail(f_bot):
     msg = fake_msg_gears("!cmd")
 
     with pytest.raises(dice.exc.ArgumentParseError):
@@ -53,7 +54,7 @@ async def test_cmd_fail(event_loop, f_bot):
 
 
 @pytest.mark.asyncio
-async def test_cmd_req_help(event_loop, f_bot):
+async def test_cmd_req_help(f_bot):
     msg = fake_msg_gears("!m -h")
 
     with pytest.raises(dice.exc.ArgumentHelpError):
@@ -61,11 +62,115 @@ async def test_cmd_req_help(event_loop, f_bot):
 
 
 @pytest.mark.asyncio
-async def test_cmd_invalid_flag(event_loop, f_bot):
+async def test_cmd_invalid_flag(f_bot):
     msg = fake_msg_gears("!m --not_there")
 
     with pytest.raises(dice.exc.ArgumentParseError):
         await action_map(msg, f_bot).execute()
+
+
+@pytest.mark.asyncio
+async def test_cmd_help(f_bot):
+    msg = fake_msg_gears("!help")
+
+    await action_map(msg, f_bot).execute()
+
+    assert "Here is an overview of my commands." in str(f_bot.send_ttl_message.call_args)
+
+
+@pytest.mark.asyncio
+async def test_cmd_math(f_bot):
+    msg = fake_msg_gears("!math (5 * 30) / 10")
+
+    await action_map(msg, f_bot).execute()
+
+    expect = """__Math Calculations__
+
+(5 * 30) / 10 = 15.0"""
+    f_bot.send_message.assert_called_with(msg.channel, expect)
+
+
+@pytest.mark.asyncio
+async def test_cmd_math_alias(f_bot):
+    msg = fake_msg_gears("!m (5 * 30) / 10")
+
+    await action_map(msg, f_bot).execute()
+
+    expect = """__Math Calculations__
+
+(5 * 30) / 10 = 15.0"""
+    f_bot.send_message.assert_called_with(msg.channel, expect)
+
+
+@pytest.mark.asyncio
+async def test_cmd_math_fail(f_bot):
+    msg = fake_msg_gears("!math math.cos(suspicious)")
+
+    await action_map(msg, f_bot).execute()
+
+    expect = """__Math Calculations__
+
+'math.cos(suspicious)' looks suspicious. Allowed characters: 0-9 ()+-/*"""
+    f_bot.send_message.assert_called_with(msg.channel, expect)
+
+
+@pytest.mark.asyncio
+async def test_cmd_roll(f_bot):
+    msg = fake_msg_gears("!roll 3 * (2d6 + 3)")
+
+    await action_map(msg, f_bot).execute()
+
+    actual = str(f_bot.send_message.call_args).replace("\\n", "\n")
+    actual = actual[actual.index("__Dice Rolls"):]
+    act = actual.split('\n')
+
+    assert len(act) == 5
+    assert act[0:2] == ["__Dice Rolls__", ""]
+    for line in act[2:]:
+        assert line.startswith("2d6 + 3 = (")
+
+
+@pytest.mark.asyncio
+async def test_cmd_roll_alias(f_bot):
+    msg = fake_msg_gears("!r 3 * (2d6 + 3)")
+
+    await action_map(msg, f_bot).execute()
+
+    actual = str(f_bot.send_message.call_args).replace("\\n", "\n")
+    actual = actual[actual.index("__Dice Rolls"):]
+    act = actual.split('\n')
+
+    assert len(act) == 5
+    assert act[0:2] == ["__Dice Rolls__", ""]
+    for line in act[2:]:
+        assert line.startswith("2d6 + 3 = (")
+
+
+@pytest.mark.asyncio
+async def test_cmd_status(f_bot):
+    msg = fake_msg_gears("!status")
+
+    await action_map(msg, f_bot).execute()
+
+    expect = dice.tbl.wrap_markdown(dice.tbl.format_table([
+        ['Created By', 'GearsandCogs'],
+        ['Uptime', '5'],
+        ['Version', '{}'.format(dice.__version__)],
+    ]))
+    f_bot.send_message.assert_called_with(msg.channel, expect)
+
+
+@pytest.mark.asyncio
+async def test_cmd_timer_seconds(monkeypatch, f_bot):
+    async def fake_sleep(_):
+        return None
+    monkeypatch.setattr(dice.actions.asyncio, "sleep", fake_sleep)
+    msg = fake_msg_gears("!timer 5")
+
+    await action_map(msg, f_bot).execute()
+
+    expect = "GearsandCogs Timer '5' has expired. Do something meatbag!"
+    f_bot.send_message.assert_called_with(msg.channel, expect)
 
 
 def test_fixed__str__():
@@ -90,15 +195,15 @@ def test_fixed_num():
 
 
 def test_fixed_add():
-    f1 = dice.actions.FixedRoll('5')
-    f2 = dice.actions.FixedRoll('3')
-    assert (f1 + f2).num == 8
+    fd1 = dice.actions.FixedRoll('5')
+    fd2 = dice.actions.FixedRoll('3')
+    assert (fd1 + fd2).num == 8
 
 
 def test_fixed_sub():
-    f1 = dice.actions.FixedRoll('5')
-    f2 = dice.actions.FixedRoll('3')
-    assert (f1 - f2).num == 2
+    fd1 = dice.actions.FixedRoll('5')
+    fd2 = dice.actions.FixedRoll('3')
+    assert (fd1 - fd2).num == 2
 
 
 def test_dice__init__():
@@ -205,10 +310,10 @@ def test_throw_next():
     throw = dice.actions.Throw([die, die2])
     throw.next()
 
-    sum = 0
+    total = 0
     for die in throw.dice:
-        sum += die.num
-    assert sum in list(range(3, 14))
+        total += die.num
+    assert total in list(range(3, 14))
 
 
 def test_parse_dice_spec():

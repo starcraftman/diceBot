@@ -91,7 +91,7 @@ class Math(Action):
         for line in ' '.join(self.args.spec).split(','):
             line = line.strip()
             if re.match(r'[^0-9 \(\)+-/*]', line):
-                resp += ["'{}' looks suspicious, I won't evaluate.\nI only allow: 0-9 ()+-/*".format(line)]
+                resp += ["'{}' looks suspicious. Allowed characters: 0-9 ()+-/*".format(line)]
                 continue
 
             # FIXME: Dangerous, but re blocking anything not simple maths.
