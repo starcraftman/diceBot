@@ -215,6 +215,15 @@ class DiceBot(discord.Client):
             await self.send_message(channel, exc.reply())
 
         except discord.DiscordException as exc:
+            if exc.args[0].startswith("BAD REQUEST (status code: 400"):
+                await self.send_ttl_message(channel, "Response would be > 2000 chars, cannot transmit to Discord.\n\nSorry. If this is a problem see Gears.")
+                try:
+                    await self.delete_message(message)
+                except discord.DiscordException:
+                    pass
+            else:
+                gears = self.get_member_by_substr("gearsand").mention
+                await self.send_message(channel, "A critical discord error occurred, see log {}.".format(gears))
             line = "Discord.py Library raised an exception"
             line += dice.exc.log_format(content=content, author=author, channel=channel)
             log.exception(line)
