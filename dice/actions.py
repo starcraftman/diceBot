@@ -351,6 +351,9 @@ class Throw(object):
         """ Throw the dice and return the individual rolls and total. """
         total_rolls = 0
         for die in self.dice:
+            if die.rolls > 250000:
+                msg = "I'm not your muppet human. You don't need {} rolls!".format(die.rolls)
+                raise dice.exc.InvalidCommandArgs(msg)
             die.roll()
             total_rolls = die.rolls
 
