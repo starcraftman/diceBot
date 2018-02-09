@@ -349,13 +349,17 @@ class Throw(object):
 
     def next(self):
         """ Throw the dice and return the individual rolls and total. """
+        total_rolls = 0
         for die in self.dice:
             die.roll()
+            total_rolls = die.rolls
 
         self.dice[0].acu = str(self.dice[0])
         tot = functools.reduce(lambda x, y: getattr(x, x.next_op)(y), self.dice)
 
-        return "{} = {}".format(tot.acu, tot.num)
+        response = "{} = {}".format(tot.acu if total_rolls < 20 else "(abbreviated)", tot.num)
+
+        return response
 
 
 def parse_dice_spec(spec):
