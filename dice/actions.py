@@ -362,8 +362,10 @@ class Throw(object):
     async def next(self, loop, reply):
         """ Throw the dice and return the individual rolls and total. """
         for die in self.dice:
-            if die.rolls > 250000:
-                await reply("{} seems rather excessive.\n\nI command you to be patient, insufferable mortal.".format(die.spec))
+            if die.rolls > 1000000:
+                msg = "{} seems excessive.\n\n\
+I won't waste my otherworldly resources on it, insufferable mortal.".format(die.spec)
+                await reply(msg)
             await loop.run_in_executor(None, die.roll)
 
         self.dice[0].acu = str(self.dice[0])
