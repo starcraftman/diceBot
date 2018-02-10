@@ -15,7 +15,7 @@ import dice.exc
 import dice.tbl
 import dice.util
 
-
+MAX_DIE_STR = 20
 OP_DICT = {
     '__add__': '+',
     '__sub__': '-',
@@ -116,8 +116,9 @@ class Roll(Action):
                 times, line = int(match.group(1)), match.group(2)
 
             throw = Throw(tokenize_dice_spec(line))
+            reply = functools.partial(self.bot.send_message, self.msg.channel)
             for _ in range(times):
-                resp += [line + " = {}".format(throw.next())]
+                resp += [line + " = {}".format(await throw.next(self.bot.loop, reply))]
 
         await self.bot.send_message(self.msg.channel, '\n'.join(resp))
 
@@ -200,13 +201,19 @@ class Dice(object):
         """
         return str(self)
 
+    @property
+    def trailing_op(self):
+        return ' {} '.format(OP_DICT[self.next_op]) if self.next_op else ""
+
     def __str__(self):
         """
         The individual roles displayed in a string.
         """
-        trailing_op = ' {} '.format(OP_DICT[self.next_op]) if self.next_op else ""
-        line = "({})".format(" + ".join([str(x) for x in self.values]))
-        return line + trailing_op
+        if len(self.values) > MAX_DIE_STR:
+            line = "({}, ..., {})".format(self.values[0], self.values[-1])
+        else:
+            line = "({})".format(" + ".join([str(x) for x in self.values]))
+        return line + self.trailing_op
 
     def __add__(self, other):
         """
@@ -244,6 +251,8 @@ class FixedRoll(Dice):
     def __init__(self, num, next_op=""):
         super().__init__(next_op)
         self.values = [int(num)]
+        self.dice = self.values[0]
+        self.rolls = 1
 
     def roll(self):
         return self.num
@@ -271,13 +280,16 @@ class DiceRollKeepHigh(DiceRoll):
     Same as a dice roll but only keep n high rolls.
     """
     def __init__(self, spec, next_op=""):
+        super().__init__(spec[:spec.rindex('k')], next_op)
         self.keep = 1
         match = re.match(r'.*kh?(\d+)', spec)
         if match:
             self.keep = int(match.group(1))
-        super().__init__(spec[:spec.rindex('k')], next_op)
 
     def __str__(self):
+        if len(self.values) > MAX_DIE_STR:
+            return "({}, ..., {})".format(self.values[0], self.values[-1]) + self.trailing_op
+
         emphasize = sorted(self.values)[:-self.keep]
         line = ''
         for val in self.values:
@@ -286,8 +298,7 @@ class DiceRollKeepHigh(DiceRoll):
                 val = "~~{}~~".format(val)
             line += "{} + ".format(val)
 
-        trailing_op = ' {} '.format(OP_DICT[self.next_op]) if self.next_op else ""
-        return '(' + line[:-3] + ')' + trailing_op
+        return '(' + line[:-3] + ')' + self.trailing_op
 
     @property
     def spec(self):
@@ -304,14 +315,16 @@ class DiceRollKeepLow(DiceRoll):
     Same as a dice roll but only keep n low rolls.
     """
     def __init__(self, spec, next_op=""):
-        try:
-            index = spec.index('kl')
-            self.keep = int(spec[index + 2:])
-        except ValueError:
-            self.keep = 1
-        super().__init__(spec[:index], next_op)
+        super().__init__(spec[:spec.rindex('kl')], next_op)
+        self.keep = 1
+        match = re.match(r'.*kl(\d+)', spec)
+        if match:
+            self.keep = int(match.group(1))
 
     def __str__(self):
+        if len(self.values) > MAX_DIE_STR:
+            return "({}, ..., {})".format(self.values[0], self.values[-1]) + self.trailing_op
+
         line = ''
         emphasize = sorted(self.values)[self.keep:]
         for val in self.values:
@@ -320,8 +333,7 @@ class DiceRollKeepLow(DiceRoll):
                 val = "~~{}~~".format(val)
             line += "{} + ".format(val)
 
-        trailing_op = ' {} '.format(OP_DICT[self.next_op]) if self.next_op else ""
-        return '(' + line[:-3] + ')' + trailing_op
+        return '(' + line[:-3] + ')' + self.trailing_op
 
     @property
     def spec(self):
@@ -347,20 +359,17 @@ class Throw(object):
         """ Add one or more dice to be thrown. """
         self.dice += die
 
-    def next(self):
+    async def next(self, loop, reply):
         """ Throw the dice and return the individual rolls and total. """
-        total_rolls = 0
         for die in self.dice:
             if die.rolls > 250000:
-                msg = "I'm not your muppet human. You don't need {} rolls!".format(die.rolls)
-                raise dice.exc.InvalidCommandArgs(msg)
-            die.roll()
-            total_rolls = die.rolls
+                await reply("{} seems rather excessive.\n\nI command you to be patient, insufferable mortal.".format(die.spec))
+            await loop.run_in_executor(None, die.roll)
 
         self.dice[0].acu = str(self.dice[0])
         tot = functools.reduce(lambda x, y: getattr(x, x.next_op)(y), self.dice)
 
-        response = "{} = {}".format(tot.acu if total_rolls < 20 else "(abbreviated)", tot.num)
+        response = "{} = {}".format(tot.acu, tot.num)
 
         return response
 

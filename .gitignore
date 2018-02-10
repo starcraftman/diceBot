@@ -1,4 +1,5 @@
 *.private
+.pytest_cache
 
 # Byte-compiled / optimized / DLL files
 data/
