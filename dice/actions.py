@@ -111,14 +111,13 @@ class Roll(Action):
             line = line.strip()
             times = 1
 
-            match = re.match(r'(\d+)\s*\*?\s*\((.*)\)', line)
+            match = re.match(r'(\d+)\s*\*\s*(.*)', line)
             if match:
                 times, line = int(match.group(1)), match.group(2)
 
             throw = Throw(tokenize_dice_spec(line))
-            reply = functools.partial(self.bot.send_message, self.msg.channel)
             for _ in range(times):
-                resp += [line + " = {}".format(await throw.next(self.bot.loop, reply))]
+                resp += [line + " = {}".format(await throw.next(self.bot.loop))]
 
         await self.bot.send_message(self.msg.channel, '\n'.join(resp))
 
@@ -359,13 +358,13 @@ class Throw(object):
         """ Add one or more dice to be thrown. """
         self.dice += die
 
-    async def next(self, loop, reply):
+    async def next(self, loop):
         """ Throw the dice and return the individual rolls and total. """
         for die in self.dice:
             if die.rolls > 1000000:
-                msg = "{} seems excessive.\n\n\
-I won't waste my otherworldly resources on it, insufferable mortal.".format(die.spec)
-                await reply(msg)
+                msg = "{} is excessive.\n\n\
+I won't waste my otherworldly resources on it, insufferable mortal.".format(die.spec[1:-1])
+                raise dice.exc.InvalidCommandArgs(msg)
             await loop.run_in_executor(None, die.roll)
 
         self.dice[0].acu = str(self.dice[0])
