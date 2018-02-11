@@ -411,8 +411,8 @@ def tokenize_dice_spec(spec):
 
         4d6 + 10d6kh2 - 4
     """
-    spec = spec.lower()
     tokens = []
+    spec = re.sub(r'([+-])', r' \1 ', spec.lower())
     for roll in re.split(r'\s+', spec):
         if roll in ['+', '-'] and tokens:
             tokens[-1].next_op = OP_DICT[roll]
