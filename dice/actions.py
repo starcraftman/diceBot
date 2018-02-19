@@ -111,7 +111,7 @@ class Roll(Action):
             line = line.strip()
             times = 1
 
-            match = re.match(r'(\d+)\s*\*\s*(.*)', line)
+            match = re.match(r'(\d+)\s*\*\s*\(?([0-9 +-d]*)\)?', line)
             if match:
                 times, line = int(match.group(1)), match.group(2)
 

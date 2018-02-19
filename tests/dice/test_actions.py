@@ -309,7 +309,7 @@ async def test_throw_next(event_loop):
     die = dice.actions.DiceRoll('2d6', dice.actions.OP_DICT['+'])
     die2 = dice.actions.FixedRoll('1')
     throw = dice.actions.Throw([die, die2])
-    await throw.next(event_loop, lambda x: None)
+    await throw.next(event_loop)
 
     total = 0
     for die in throw.dice:
