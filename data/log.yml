@@ -1,7 +1,8 @@
 # Reference: https://docs.python.org/3/library/logging.html
 # Tutorial: https://docs.python.org/3/howto/logging.html#logging-basic-tutorial
+---
 version: 1
-disable_existing_loggers: False
+disable_existing_loggers: "False"
 
 formatters:
   custom:
@@ -9,11 +10,11 @@ formatters:
     format: "%(asctime)s [%(levelname)-8s] %(relmod)s | %(message)s"
 
 fhandler_template: &default_handler
-    class: logging.handlers.RotatingFileHandler
-    formatter: custom
-    maxBytes: 10485760
-    backupCount: 3
-    encoding: utf8
+  class: logging.handlers.RotatingFileHandler
+  formatter: custom
+  maxBytes: 10485760
+  backupCount: 3
+  encoding: utf8
 
 handlers:
   asyncio:
@@ -38,6 +39,6 @@ loggers:
     level: DEBUG
     handlers: [dice, err_stream]
 
-#root:
-    #level: ERROR
-    #handlers: [err_stream]
+# root:
+  # level: ERROR
+  # handlers: [err_stream]
