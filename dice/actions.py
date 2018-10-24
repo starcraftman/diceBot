@@ -22,6 +22,8 @@ OP_DICT = {
     '+': '__add__',
     '-': '__sub__',
 }
+# TODO: Store on start, remove on finish. Add listing timers command.
+TIMERS = {}
 
 
 async def bot_shutdown(bot, delay=30):  # pragma: no cover
@@ -137,10 +139,17 @@ class Status(Action):
                                     dice.tbl.wrap_markdown(dice.tbl.format_table(lines)))
 
 
+# TODO: Properly fill in data on creation.
+# TODO: Allow users to override the amount/timing of warnings.
 class Timer(Action):
     """
     Display the status of this bot.
     """
+    def __self__(self, user, start, end):
+        self.user = user
+        self.start = start
+        self.end = end
+
     async def execute(self):
         if not re.match(r'[0-9:]+', self.args.time) or self.args.time.count(':') > 2:
             raise dice.exc.InvalidCommandArgs("I can't understand time spec! Use format: **HH:MM:SS**")
