@@ -169,7 +169,20 @@ async def test_cmd_timer_seconds(monkeypatch, f_bot):
 
     await action_map(msg, f_bot).execute()
 
-    expect = "GearsandCogs: Timer 'Default description' has expired. Do something meatbag!"
+    expect = "GearsandCogs: Timer 'GearsandCogs 5' has expired. Do something meatbag!"
+    f_bot.send_message.assert_called_with(msg.channel, expect)
+
+
+@pytest.mark.asyncio
+async def test_cmd_timer_with_description(monkeypatch, f_bot):
+    async def fake_sleep(_):
+        return None
+    monkeypatch.setattr(dice.actions.asyncio, "sleep", fake_sleep)
+    msg = fake_msg_gears("!timer 5 -d A simple description")
+
+    await action_map(msg, f_bot).execute()
+
+    expect = "GearsandCogs: Timer 'A simple description' has expired. Do something meatbag!"
     f_bot.send_message.assert_called_with(msg.channel, expect)
 
 

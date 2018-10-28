@@ -354,13 +354,35 @@ class Timer(Action):
         super().__init__(**kwargs)
         if self.args.offsets is None:
             self.args.offsets = TIMER_OFFSETS
+
         self.start = datetime.datetime.now()
         self.end = None
-        self.key = str(self.msg.author.name + str(self.start))
-        self.description = self.args.description if self.args.description else self.args.user + self.args.time
+
         TIMERS[self.key] = self
 
+    @property
+    def key(self):
+        """
+        Unique key to store timer.
+        """
+        return self.msg.author.name + str(self.start)
+
+    @property
+    def description(self):
+        """
+        Description associated with the timer.
+        """
+        try:
+            description = self.msg.author.name + " " + self.args.time
+        except AttributeError:
+            description = "Default description"
+        if isinstance(self.args.description, list):
+            description = " ".join(self.args.description)
+
+        return description
+
     async def execute(self):
+        sent_msg = None
         if not re.match(r'[0-9:]+', self.args.time) or self.args.time.count(':') > 2:
             raise dice.exc.InvalidCommandArgs("I can't understand time spec! Use format: **HH:MM:SS**")
 
@@ -369,8 +391,7 @@ class Timer(Action):
         offsets = sorted([-parse_time_spec(x) for x in self.args.offsets])
         offsets = [x for x in offsets if end_offset + x > 0]  # validate offsets applicable
 
-        msg = TIMER_MSG_TEMPLATE.format(self.msg.author.mention, ' '.join(self.description))
-        sent_msg = None
+        msg = TIMER_MSG_TEMPLATE.format(self.msg.author.mention, self.description)
         for offset in offsets:
             sleep_time = ((self.end + datetime.timedelta(seconds=offset)) - datetime.datetime.now()).seconds
             if sleep_time > 0:
@@ -390,7 +411,7 @@ class Timer(Action):
         del TIMERS[self.key]
 
 
-# TODO: Handle clear timers
+# TODO: Handle clear timers, need to propogate cancellation.
 class Timers(Action):
     """
     Show a users own timers.
@@ -409,7 +430,7 @@ class Timers(Action):
             diff = timer.end - datetime.datetime.now()
             diff = diff - datetime.timedelta(microseconds=diff.microseconds)
 
-            msg += TIMERS_MSG.format(cnt, " ".join(timer.description), trunc_start, trunc_end, diff)
+            msg += TIMERS_MSG.format(cnt, timer.description, trunc_start, trunc_end, diff)
             cnt += 1
 
         if cnt == 1:
@@ -480,6 +501,9 @@ def tokenize_dice_spec(spec):
 def parse_time_spec(time_spec):
     """
     Parse a simple time spec of form: [HH:[MM:[SS]]] into seconds.
+
+    Raises:
+        InvalidCommandArgs - Time spec could not be parsed.
     """
     secs = 0
     try:

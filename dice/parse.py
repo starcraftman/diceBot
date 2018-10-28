@@ -122,7 +122,7 @@ def subs_timer(subs, prefix):
     sub.add_argument('time', help='The time to wait.')
     sub.add_argument('-w', '--warn', dest="offsets", action="append",
                      help='The number of offsets to warn user from end.')
-    sub.add_argument('-d', '--description', nargs="+", default=["Default", "description"], help='The description of timer.')
+    sub.add_argument('-d', '--description', nargs="+", help='The description of timer.')
 
 
 @register_parser
@@ -132,8 +132,6 @@ def subs_timers(subs, prefix):
 
 {prefix}timers
         Print all active timers you've started.
-{prefix}timers --clear
-        Cancel all active timers.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'timers', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Timers')
