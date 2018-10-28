@@ -5,6 +5,7 @@ All actions have async execute methods.
 """
 from __future__ import absolute_import, print_function
 import asyncio
+import datetime
 import functools
 import logging
 import random
@@ -22,8 +23,15 @@ OP_DICT = {
     '+': '__add__',
     '-': '__sub__',
 }
-# TODO: Store on start, remove on finish. Add listing timers command.
+TIMER_OFFSETS = ["60:00", "15:00", "5:00", "1:00"]
+TIMER_MSG_TEMPLATE = "{}: Timer '{}'"
 TIMERS = {}
+TIMERS_MSG = """
+Timer #{} with description: **{}**
+    __Started at__: {}
+    __Ends at__: {}
+    __Time remaining__: {}
+"""
 
 
 async def bot_shutdown(bot, delay=30):  # pragma: no cover
@@ -75,6 +83,7 @@ class Help(Action):
             ['{prefix}r', 'Alias for `!roll`'],
             ['{prefix}status', 'Show status of bot including uptime'],
             ['{prefix}timer', 'Set a timer for HH:MM:SS in future'],
+            ['{prefix}timers', 'See the status of all YOUR active timers'],
             ['{prefix}help', 'This help message'],
         ]
         lines = [[line[0].format(prefix=prefix), line[1]] for line in lines]
@@ -137,53 +146,6 @@ class Status(Action):
 
         await self.bot.send_message(self.msg.channel,
                                     dice.tbl.wrap_markdown(dice.tbl.format_table(lines)))
-
-
-# TODO: Properly fill in data on creation.
-# TODO: Allow users to override the amount/timing of warnings.
-class Timer(Action):
-    """
-    Display the status of this bot.
-    """
-    def __self__(self, user, start, end):
-        self.user = user
-        self.start = start
-        self.end = end
-
-    async def execute(self):
-        if not re.match(r'[0-9:]+', self.args.time) or self.args.time.count(':') > 2:
-            raise dice.exc.InvalidCommandArgs("I can't understand time spec! Use format: **HH:MM:SS**")
-        t_spec = self.args.time.split(':')
-        t_spec.reverse()
-
-        try:
-            secs = 0
-            secs += int(t_spec[0])
-            secs += int(t_spec[1]) * 60
-            secs += int(t_spec[2]) * 3600
-        except (IndexError, ValueError):
-            if secs == 0:
-                raise dice.exc.InvalidCommandArgs("I can't understand time spec! Use format: **HH:MM:SS**")
-
-        timers = []
-        ping = "{} Timer '{}'".format(self.msg.author.mention, self.args.time)
-        if secs - 60 >= 0:
-            timers += [[60, "{} has 60 seconds left!".format(ping)]]
-            secs -= 60
-        if secs - 240 >= 0:
-            timers += [[240, "{} has 5 minutes left!".format(ping)]]
-            secs -= 240
-        if secs >= 0:
-            timers += [[secs, "Timer '{}' was requested, I got this.".format(self.args.time)]]
-        timers.reverse()
-        timers += [[0, "{} has expired. Do something meatbag!".format(ping)]]
-
-        sent_msg = None
-        for time, msg in timers:
-            if sent_msg:
-                await self.bot.delete_message(sent_msg)
-            sent_msg = await self.bot.send_message(self.msg.channel, msg)
-            await asyncio.sleep(time)
 
 
 class Dice(object):
@@ -384,6 +346,78 @@ I won't waste my otherworldly resources on it, insufferable mortal.".format(die.
         return response
 
 
+class Timer(Action):
+    """
+    Allow users to set timers to remind them of things.
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if self.args.offsets is None:
+            self.args.offsets = TIMER_OFFSETS
+        self.start = datetime.datetime.now()
+        self.end = None
+        self.key = str(self.msg.author.name + str(self.start))
+        self.description = self.args.description if self.args.description else self.args.user + self.args.time
+        TIMERS[self.key] = self
+
+    async def execute(self):
+        if not re.match(r'[0-9:]+', self.args.time) or self.args.time.count(':') > 2:
+            raise dice.exc.InvalidCommandArgs("I can't understand time spec! Use format: **HH:MM:SS**")
+
+        end_offset = parse_time_spec(self.args.time)
+        self.end = self.start + datetime.timedelta(seconds=end_offset)
+        offsets = sorted([-parse_time_spec(x) for x in self.args.offsets])
+        offsets = [x for x in offsets if end_offset + x > 0]  # validate offsets applicable
+
+        msg = TIMER_MSG_TEMPLATE.format(self.msg.author.mention, ' '.join(self.description))
+        sent_msg = None
+        for offset in offsets:
+            sleep_time = ((self.end + datetime.timedelta(seconds=offset)) - datetime.datetime.now()).seconds
+            if sleep_time > 0:
+                await asyncio.sleep(sleep_time)
+            if sent_msg:
+                await self.bot.delete_message(sent_msg)
+            time_left = self.end - datetime.datetime.now()
+            time_left = time_left - datetime.timedelta(microseconds=time_left.microseconds)
+            sent_msg = await self.bot.send_message(self.msg.channel, msg + " has {} time remaining!".format(time_left))
+
+        sleep_time = (self.end - datetime.datetime.now()).seconds
+        if sleep_time > 0:
+            await asyncio.sleep(sleep_time)
+        if sent_msg:
+            await self.bot.delete_message(sent_msg)
+        await self.bot.send_message(self.msg.channel, msg + " has expired. Do something meatbag!")
+        del TIMERS[self.key]
+
+
+# TODO: Handle clear timers
+class Timers(Action):
+    """
+    Show a users own timers.
+    """
+    async def execute(self):
+        msg = "The timers for {}:\n\n".format(self.msg.author.name)
+        cnt = 1
+
+        for key in TIMERS:
+            if self.msg.author.name not in key:
+                continue
+
+            timer = TIMERS[key]
+            trunc_start = timer.start.replace(microsecond=0)
+            trunc_end = timer.end.replace(microsecond=0)
+            diff = timer.end - datetime.datetime.now()
+            diff = diff - datetime.timedelta(microseconds=diff.microseconds)
+
+            msg += TIMERS_MSG.format(cnt, " ".join(timer.description), trunc_start, trunc_end, diff)
+            cnt += 1
+
+        if cnt == 1:
+            msg += "**None**"
+
+        await self.bot.send_message(self.msg.channel, msg)
+
+
 def parse_dice_spec(spec):
     """
     Parse a SINGLE dice spec of form 2d6.
@@ -441,3 +475,30 @@ def tokenize_dice_spec(spec):
             tokens += [DiceRoll(roll)]
 
     return tokens
+
+
+def parse_time_spec(time_spec):
+    """
+    Parse a simple time spec of form: [HH:[MM:[SS]]] into seconds.
+    """
+    secs = 0
+    try:
+        t_spec = time_spec.split(':')
+        t_spec.reverse()
+        secs += int(t_spec[0])
+        secs += int(t_spec[1]) * 60
+        secs += int(t_spec[2]) * 3600
+    except (IndexError, ValueError):
+        if secs == 0:
+            raise dice.exc.InvalidCommandArgs("I can't understand time spec! Use format: **HH:MM:SS**")
+
+    return secs
+
+
+def remove_user_timers(timers, msg_author):
+    """
+    Purge all timers associated with msg_author.
+    Youcan only purge your own timers.
+    """
+    for key_to_remove in [x for x in timers if msg_author in x]:
+        del timers[key_to_remove]

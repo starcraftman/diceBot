@@ -169,7 +169,7 @@ async def test_cmd_timer_seconds(monkeypatch, f_bot):
 
     await action_map(msg, f_bot).execute()
 
-    expect = "GearsandCogs Timer '5' has expired. Do something meatbag!"
+    expect = "GearsandCogs: Timer 'Default description' has expired. Do something meatbag!"
     f_bot.send_message.assert_called_with(msg.channel, expect)
 
 
@@ -332,3 +332,14 @@ def test_tokenize_dice_spec():
     assert dies[1].next_op == dice.actions.OP_DICT['-']
     assert isinstance(dies[2], dice.actions.FixedRoll)
     assert len(dies) == 3
+
+
+def test_parse_time_spec():
+    time_spec = "1:15:30"
+    assert dice.actions.parse_time_spec(time_spec) == 3600 + 900 + 30
+
+
+def test_remove_user_timers():
+    timers = {"a_first": 1, "a_second": 2, "b_first": 3}
+    dice.actions.remove_user_timers(timers, "a")
+    assert list(timers.keys()) == ["b_first"]

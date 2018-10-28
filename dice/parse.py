@@ -63,7 +63,7 @@ def subs_help(subs, prefix):
 
 @register_parser
 def subs_math(subs, prefix):
-    """ Subcommand parsing for hold """
+    """ Subcommand parsing for math """
     desc = """Evaluate some simple math operations.
 
 {prefix}math 1 + 2
@@ -78,7 +78,7 @@ def subs_math(subs, prefix):
 
 @register_parser
 def subs_roll(subs, prefix):
-    """ Subcommand parsing for hold """
+    """ Subcommand parsing for roll """
     desc = """Evaluate some simple math operations.
 
 {prefix}roll 2d6 + 5, d20 + 4
@@ -98,15 +98,45 @@ def subs_roll(subs, prefix):
 
 @register_parser
 def subs_timer(subs, prefix):
-    """ Subcommand parsing for hold """
-    desc = """Evaluate some simple math operations.
+    """ Subcommand parsing for timer """
+    desc = """Set timers to remind you of things later!
 
-{prefix}timer time
-        Wait for HH:MM:SS seconds and then mention user.
+    Default warnings if timer greater than vvalue:
+        Warn at 60 minutes to finish.
+        Warn at 15 minutes to finish.
+        Warn at 5 minutes to finish.
+        Warn at 1 minute to finish.
+
+    Time specification: HH:MM:SS
+
+{prefix}timer 1:15:00
+        Wait for 1:15:00 and then mention user. Default warnings will warn user as approached.
+{prefix}timer 3:30 -d Tea timer
+        Wait for HH:MM:SS seconds and then mention user. Tea timer is set as the descritpion.
+{prefix}timer 3:30 -w 60 -w 30 -d Tea timer
+        Wait for 3:30 then mention user. Tea timer is set as the descritpion.
+        User will be warned at 60 seconds and 30 seconds left.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'timer', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Timer')
     sub.add_argument('time', help='The time to wait.')
+    sub.add_argument('-w', '--warn', dest="offsets", action="append",
+                     help='The number of offsets to warn user from end.')
+    sub.add_argument('-d', '--description', nargs="+", default=["Default", "description"], help='The description of timer.')
+
+
+@register_parser
+def subs_timers(subs, prefix):
+    """ Subcommand parsing for timers """
+    desc = """Manage your timers.
+
+{prefix}timers
+        Print all active timers you've started.
+{prefix}timers --clear
+        Cancel all active timers.
+    """.format(prefix=prefix)
+    sub = subs.add_parser(prefix + 'timers', description=desc, formatter_class=RawHelp)
+    sub.set_defaults(cmd='Timers')
 
 
 @register_parser
