@@ -28,8 +28,8 @@ TIMER_MSG_TEMPLATE = "{}: Timer '{}'"
 TIMERS = {}
 TIMERS_MSG = """
 Timer #{} with description: **{}**
-    __Started at__: {}
-    __Ends at__: {}
+    __Started at__: {} UTC
+    __Ends at__: {} UTC
     __Time remaining__: {}
 """
 
@@ -355,7 +355,7 @@ class Timer(Action):
         if self.args.offsets is None:
             self.args.offsets = TIMER_OFFSETS
 
-        self.start = datetime.datetime.now()
+        self.start = datetime.datetime.utcnow()
         self.end = None
 
         TIMERS[self.key] = self
@@ -393,16 +393,16 @@ class Timer(Action):
 
         msg = TIMER_MSG_TEMPLATE.format(self.msg.author.mention, self.description)
         for offset in offsets:
-            sleep_time = ((self.end + datetime.timedelta(seconds=offset)) - datetime.datetime.now()).seconds
+            sleep_time = ((self.end + datetime.timedelta(seconds=offset)) - datetime.datetime.utcnow()).seconds
             if sleep_time > 0:
                 await asyncio.sleep(sleep_time)
             if sent_msg:
                 await self.bot.delete_message(sent_msg)
-            time_left = self.end - datetime.datetime.now()
+            time_left = self.end - datetime.datetime.utcnow()
             time_left = time_left - datetime.timedelta(microseconds=time_left.microseconds)
             sent_msg = await self.bot.send_message(self.msg.channel, msg + " has {} time remaining!".format(time_left))
 
-        sleep_time = (self.end - datetime.datetime.now()).seconds
+        sleep_time = (self.end - datetime.datetime.utcnow()).seconds
         if sleep_time > 0:
             await asyncio.sleep(sleep_time)
         if sent_msg:
@@ -427,7 +427,7 @@ class Timers(Action):
             timer = TIMERS[key]
             trunc_start = timer.start.replace(microsecond=0)
             trunc_end = timer.end.replace(microsecond=0)
-            diff = timer.end - datetime.datetime.now()
+            diff = timer.end - datetime.datetime.utcnow()
             diff = diff - datetime.timedelta(microseconds=diff.microseconds)
 
             msg += TIMERS_MSG.format(cnt, timer.description, trunc_start, trunc_end, diff)
