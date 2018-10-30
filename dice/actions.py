@@ -352,13 +352,24 @@ class Timer(Action):
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        if self.args.offsets is None:
-            self.args.offsets = TIMER_OFFSETS
 
+        if not re.match(r'[0-9:]+', self.args.time) or self.args.time.count(':') > 2:
+            raise dice.exc.InvalidCommandArgs("I can't understand time spec! Use format: **HH:MM:SS**")
+
+        end_offset = parse_time_spec(self.args.time)
         self.start = datetime.datetime.utcnow()
-        self.end = None
+        self.end = self.start + datetime.timedelta(seconds=end_offset)
+        self.sent_msg = None
+        self.triggers = self.calc_triggers(end_offset)
+        self.cancel = False
 
         TIMERS[self.key] = self
+
+    def __str__(self):
+        msg = "Timer(start={}, end={}, cancel={}, sent_msg={}, triggers={})".format(
+            self.start, self.end, self.cancel, self.sent_msg, str(self.triggers)
+        )
+        return msg
 
     @property
     def key(self):
@@ -381,47 +392,70 @@ class Timer(Action):
 
         return description
 
-    async def execute(self):
-        sent_msg = None
-        if not re.match(r'[0-9:]+', self.args.time) or self.args.time.count(':') > 2:
-            raise dice.exc.InvalidCommandArgs("I can't understand time spec! Use format: **HH:MM:SS**")
+    def calc_triggers(self, end_offset):
+        """
+        Set the required trigger times and the associated messages to send.
+        """
+        msg = TIMER_MSG_TEMPLATE.format(self.msg.author.mention, self.description)
 
-        end_offset = parse_time_spec(self.args.time)
-        self.end = self.start + datetime.timedelta(seconds=end_offset)
+        if self.args.offsets is None:
+            self.args.offsets = TIMER_OFFSETS
         offsets = sorted([-parse_time_spec(x) for x in self.args.offsets])
         offsets = [x for x in offsets if end_offset + x > 0]  # validate offsets applicable
 
-        msg = TIMER_MSG_TEMPLATE.format(self.msg.author.mention, self.description)
+        triggers = []
         for offset in offsets:
-            sleep_time = ((self.end + datetime.timedelta(seconds=offset)) - datetime.datetime.utcnow()).seconds
-            if sleep_time > 0:
-                await asyncio.sleep(sleep_time)
-            if sent_msg:
-                await self.bot.delete_message(sent_msg)
-            time_left = self.end - datetime.datetime.utcnow()
-            time_left = time_left - datetime.timedelta(microseconds=time_left.microseconds)
-            sent_msg = await self.bot.send_message(self.msg.channel, msg + " has {} time remaining!".format(time_left))
+            trigger = self.end + datetime.timedelta(seconds=offset)
+            triggers.append([trigger, msg + " has {} time remaining!".format(self.end - trigger)])
 
-        sleep_time = (self.end - datetime.datetime.utcnow()).seconds
-        if sleep_time > 0:
-            await asyncio.sleep(sleep_time)
-        if sent_msg:
-            await self.bot.delete_message(sent_msg)
-        await self.bot.send_message(self.msg.channel, msg + " has expired. Do something meatbag!")
-        del TIMERS[self.key]
+        triggers.append([self.end, msg + " has expired. Do something meatbag!"])
+
+        return triggers
+
+    async def check_timer(self, sleep_gap):
+        """
+        Perform a check on the triggers of this timer.
+
+        If a trigger has been reached, send the appropriate message back to channel.
+        If no triggers left, stop scheduling a new check_timer invocation.
+
+        Args:
+            sleep_gap: The gap between checks on the timer.
+        """
+        del_cnt = 0
+        now = datetime.datetime.utcnow()
+        for trigger, msg in self.triggers:
+            if now > trigger:
+                if self.sent_msg:
+                    await self.bot.delete_message(self.sent_msg)
+                self.sent_msg = await self.bot.send_message(self.msg.channel, msg)
+                del_cnt += 1
+
+        while del_cnt:
+            del self.triggers[0]
+            del_cnt -= 1
+
+        if not self.cancel and self.triggers:
+            await asyncio.sleep(sleep_gap)
+            asyncio.ensure_future(self.check_timer(sleep_gap))
+        else:
+            del TIMERS[self.key]
+
+    async def execute(self):
+        self.sent_msg = await self.bot.send_message(self.msg.channel, "Starting timer for: " + self.args.time)
+        await self.check_timer(1)
 
 
-# TODO: Handle clear timers, need to propogate cancellation.
 class Timers(Action):
     """
     Show a users own timers.
     """
-    async def execute(self):
-        msg = "The timers for {}:\n\n".format(self.msg.author.name)
+    def timer_summary(self):
+        msg = "The timers for {}:\n".format(self.msg.author.name)
         cnt = 1
 
         for key in TIMERS:
-            if self.msg.author.name not in key:
+            if self.msg.author.name not in key or TIMERS[key].cancel:
                 continue
 
             timer = TIMERS[key]
@@ -436,7 +470,59 @@ class Timers(Action):
         if cnt == 1:
             msg += "**None**"
 
-        await self.bot.send_message(self.msg.channel, msg)
+        return msg
+
+    async def manage_timers(self):
+        """
+        Create a simple interactive menu to manage timers.
+        """
+        user_select = None
+        user_timers = [x for x in TIMERS if self.msg.author.name in x]
+        while True:
+            try:
+                reply = "Please select a timer to delete from below [1..{}]:\n".format(len(user_timers)) + self.timer_summary()
+                reply += "\n\nWrite 'done' or 'stop' to finish."
+                responses = [await self.bot.send_message(self.msg.channel, reply)]
+                user_select = await self.bot.wait_for_message(timeout=30, author=self.msg.author,
+                                                              channel=self.msg.channel)
+
+                print(user_timers)
+                print(user_select)
+                print(str(TIMERS))
+                if user_select:
+                    responses += [user_select]
+
+                if not user_select or user_select.content.lower() == 'done'\
+                        or user_select.content.lower() == 'stop':
+                    return
+
+                choice = int(user_select.content) - 1
+                if choice < 0 or choice >= len(user_timers):
+                    raise ValueError
+
+                for timer in TIMERS.values():
+                    print(timer)
+                    print(user_timers[choice])
+                    if timer.key == user_timers[choice]:
+                        timer.cancel = True
+                        del user_timers[choice]
+                        break
+            except (KeyError, ValueError):
+                pass
+            finally:
+                user_select = None
+                asyncio.ensure_future(asyncio.gather(
+                    *[self.bot.delete_message(response) for response in responses]))
+
+    async def execute(self):
+        if self.args.clear:
+            remove_user_timers(TIMERS, self.msg.author.name)
+            return
+        elif self.args.manage:
+            await self.manage_timers()
+            return
+
+        await self.bot.send_message(self.msg.channel, self.timer_summary())
 
 
 def parse_dice_spec(spec):
@@ -525,4 +611,4 @@ def remove_user_timers(timers, msg_author):
     Youcan only purge your own timers.
     """
     for key_to_remove in [x for x in timers if msg_author in x]:
-        del timers[key_to_remove]
+        timers[key_to_remove].cancel = True

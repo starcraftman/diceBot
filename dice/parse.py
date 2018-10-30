@@ -132,8 +132,14 @@ def subs_timers(subs, prefix):
 
 {prefix}timers
         Print all active timers you've started.
+{prefix}timers --clear
+        Clear all active timers you've started.
+{prefix}timers --manage
+        Interactively manage timers. Write 'done' to stop.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'timers', description=desc, formatter_class=RawHelp)
+    sub.add_argument('-c', '--clear', action="store_true", help='Clear all timers.')
+    sub.add_argument('-m', '--manage', action="store_true", help='Manage timers selectively.')
     sub.set_defaults(cmd='Timers')
 
 
