@@ -77,6 +77,18 @@ def subs_math(subs, prefix):
 
 
 @register_parser
+def subs_play(subs, prefix):
+    """ Subcommand parsing for timers """
+    desc = """Play a test sound!
+
+{prefix}play
+        Trigger test sound.
+    """.format(prefix=prefix)
+    sub = subs.add_parser(prefix + 'play', description=desc, formatter_class=RawHelp)
+    sub.set_defaults(cmd='Play')
+
+
+@register_parser
 def subs_roll(subs, prefix):
     """ Subcommand parsing for roll """
     desc = """Evaluate some simple math operations.

@@ -12,6 +12,7 @@ import random
 import re
 import sys
 
+import discord
 import dice.exc
 import dice.tbl
 import dice.util
@@ -32,6 +33,8 @@ Timer #{} with description: **{}**
     __Ends at__: {} UTC
     __Time remaining__: {}
 """
+VOICE = None
+PLAYER = None
 
 
 async def bot_shutdown(bot, delay=30):  # pragma: no cover
@@ -109,6 +112,33 @@ class Math(Action):
             resp += [line + " = " + str(eval(line))]
 
         await self.bot.send_message(self.msg.channel, '\n'.join(resp))
+
+
+# TODO: Likely need a Player class to store all this logic
+#       including playlists, youtube support and so on
+class Play(Action):
+    """
+    Perform one or more math operations.
+    """
+    async def execute(self):
+        global VOICE
+        global PLAYER
+
+        channel = self.msg.author.voice.voice_channel
+        if not channel:
+            channel = discord.utils.get(self.msg.server.channels, type=discord.ChannelType.voice)
+
+        if VOICE:
+            if channel != VOICE.channel:
+                await VOICE.move_to(channel)
+        else:
+            VOICE = await self.bot.join_voice_channel(channel)
+
+        if PLAYER:
+            PLAYER.stop()
+            PLAYER = None
+        PLAYER = VOICE.create_ffmpeg_player("extras/music/test.mp3")
+        PLAYER.start()
 
 
 class Roll(Action):
