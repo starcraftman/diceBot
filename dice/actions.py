@@ -13,6 +13,7 @@ import re
 import sys
 
 import discord
+import youtube_dl
 import dice.exc
 import dice.tbl
 import dice.util
@@ -134,11 +135,22 @@ class Play(Action):
         else:
             VOICE = await self.bot.join_voice_channel(channel)
 
+        #  if self.args.stop and PLAYER:
+            #  PLAYER.stop()
+            #  PLAYER = None
+            #  await VOICE.disconnect()
+            #  VOICE = None
+            #  return
+
         if PLAYER:
             PLAYER.stop()
             PLAYER = None
-        PLAYER = VOICE.create_ffmpeg_player("extras/music/test.mp3")
-        PLAYER.start()
+        try:
+            #  PLAYER = VOICE.create_ffmpeg_player("extras/music/test.mp3")
+            PLAYER = await VOICE.create_ytdl_player(self.args.vid)
+            PLAYER.start()
+        except youtube_dl.YoutubeDLError:
+            await self.bot.send_message("Error during playback.")
 
 
 class Roll(Action):

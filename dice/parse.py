@@ -83,9 +83,16 @@ def subs_play(subs, prefix):
 
 {prefix}play
         Trigger test sound.
+{prefix}play youtube_link
+        Play a youtube vid to completion.
+{prefix}play --stop
+        Stop playing the music.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'play', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Play')
+    #  sub.add_argument('-s', '--stop', action="store_true", help='Stop the music!')
+    sub.add_argument('vid', nargs="?", default="https://www.youtube.com/watch?v=6_b7RDuLwcI",
+                     help='A single youtube link to play.')
 
 
 @register_parser
