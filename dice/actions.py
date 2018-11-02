@@ -135,12 +135,12 @@ class Play(Action):
         else:
             VOICE = await self.bot.join_voice_channel(channel)
 
-        #  if self.args.stop and PLAYER:
-            #  PLAYER.stop()
-            #  PLAYER = None
-            #  await VOICE.disconnect()
-            #  VOICE = None
-            #  return
+        if self.args.stop and PLAYER:
+            PLAYER.stop()
+            PLAYER = None
+            await VOICE.disconnect()
+            VOICE = None
+            return
 
         if PLAYER:
             PLAYER.stop()
@@ -149,8 +149,8 @@ class Play(Action):
             #  PLAYER = VOICE.create_ffmpeg_player("extras/music/test.mp3")
             PLAYER = await VOICE.create_ytdl_player(self.args.vid)
             PLAYER.start()
-        except youtube_dl.YoutubeDLError:
-            await self.bot.send_message("Error during playback.")
+        except youtube_dl.utils.YoutubeDLError:
+            await self.bot.send_message("Error during fetch using youtube_dl.")
 
 
 class Roll(Action):
