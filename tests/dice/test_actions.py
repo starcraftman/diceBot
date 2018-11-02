@@ -7,6 +7,7 @@ Important Note Regarding DB:
     After executing an action ALWAYS make a new Session(). The old one will still be stale.
 """
 from __future__ import absolute_import, print_function
+import asyncio
 
 import pytest
 
@@ -161,29 +162,74 @@ async def test_cmd_status(f_bot):
 
 
 @pytest.mark.asyncio
-async def test_cmd_timer_seconds(monkeypatch, f_bot):
-    async def fake_sleep(_):
-        return None
-    monkeypatch.setattr(dice.actions.asyncio, "sleep", fake_sleep)
-    msg = fake_msg_gears("!timer 5")
+async def test_cmd_timer_seconds(f_bot):
+    msg = fake_msg_gears("!timer 1")
 
     await action_map(msg, f_bot).execute()
+    await asyncio.sleep(2)
 
-    expect = "GearsandCogs: Timer 'GearsandCogs 5' has expired. Do something meatbag!"
+    expect = "GearsandCogs: Timer 'GearsandCogs 1' has expired. Do something meatbag!"
     f_bot.send_message.assert_called_with(msg.channel, expect)
 
 
 @pytest.mark.asyncio
-async def test_cmd_timer_with_description(monkeypatch, f_bot):
-    async def fake_sleep(_):
-        return None
-    monkeypatch.setattr(dice.actions.asyncio, "sleep", fake_sleep)
-    msg = fake_msg_gears("!timer 5 -d A simple description")
+async def test_cmd_timer_with_description(f_bot):
+    msg = fake_msg_gears("!timer 1 -d A simple description")
 
     await action_map(msg, f_bot).execute()
+    await asyncio.sleep(2)
 
     expect = "GearsandCogs: Timer 'A simple description' has expired. Do something meatbag!"
     f_bot.send_message.assert_called_with(msg.channel, expect)
+
+
+@pytest.mark.asyncio
+async def test_cmd_timer_with_warnings(f_bot):
+    msg = fake_msg_gears("!timer 3 -w 2")
+
+    await action_map(msg, f_bot).execute()
+    await asyncio.sleep(2)
+    expect = "GearsandCogs: Timer 'GearsandCogs 3' has 0:00:02 time remaining!"
+    f_bot.send_message.assert_called_with(msg.channel, expect)
+    await asyncio.sleep(2)
+
+
+@pytest.mark.asyncio
+async def test_cmd_timers(f_bot):
+    msg = fake_msg_gears("!timer 4 -w 2")
+    msg2 = fake_msg_gears("!timers")
+
+    await action_map(msg, f_bot).execute()
+    await action_map(msg, f_bot).execute()
+    await action_map(msg2, f_bot).execute()
+
+    capture = str(f_bot.send_message.call_args).replace("\\n", "\n")
+    assert "Timer #1 with description: **GearsandCogs 4**" in capture
+    assert "Timer #2 with description: **GearsandCogs 4**" in capture
+    await asyncio.sleep(2)
+
+
+@pytest.mark.asyncio
+async def test_cmd_timers_clear(f_bot):
+    msg = fake_msg_gears("!timer 4 -w 2")
+    msg2 = fake_msg_gears("!timers --clear")
+    msg3 = fake_msg_gears("!timers")
+
+    await action_map(msg, f_bot).execute()
+    await action_map(msg, f_bot).execute()
+    await action_map(msg2, f_bot).execute()
+    await action_map(msg3, f_bot).execute()
+
+    capture = str(f_bot.send_message.call_args).replace("\\n", "\n")
+    assert "None" in capture
+    await asyncio.sleep(2)
+
+
+@pytest.mark.skip("Not sure best way to test")
+@pytest.mark.asyncio
+async def test_cmd_timers_manage(f_bot):
+    # TODO: Unimplemented
+    pass
 
 
 def test_fixed__str__():
@@ -353,6 +399,10 @@ def test_parse_time_spec():
 
 
 def test_remove_user_timers():
-    timers = {"a_first": 1, "a_second": 2, "b_first": 3}
-    dice.actions.remove_user_timers(timers, "a")
-    assert list(timers.keys()) == ["b_first"]
+    parser = dice.parse.make_parser("!")
+    msg = fake_msg_gears("!timer 1:00")
+    args = parser.parse_args(msg.content.split())
+    timer = dice.actions.Timer(args=args, bot=None, msg=msg)
+    timers = {timer.key: timer}
+    dice.actions.remove_user_timers(timers, msg.author.name)
+    assert timers[timer.key].cancel
