@@ -34,8 +34,6 @@ Timer #{} with description: **{}**
     __Ends at__: {} UTC
     __Time remaining__: {}
 """
-VOICE = None
-PLAYER = None
 
 
 async def bot_shutdown(bot, delay=30):  # pragma: no cover
@@ -115,42 +113,54 @@ class Math(Action):
         await self.bot.send_message(self.msg.channel, '\n'.join(resp))
 
 
-# TODO: Likely need a Player class to store all this logic
-#       including playlists, youtube support and so on
+# TODO: Global queue and global looping flag?
+# TODO: Skip next and back feature.
+# TODO: If above done, just make player a global ojbect instrumented by Play action
+# TODO: Tests? Might be annoying to verify.
 class Play(Action):
     """
-    Perform one or more math operations.
+    Simple music player, takes youtube links for now.
     """
+    voice = None
+    player = None
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        self.channel = self.msg.author.voice.voice_channel
+        if not self.channel:
+            self.channel = discord.utils.get(self.msg.server.channels,
+                                             type=discord.ChannelType.voice)
+
     async def execute(self):
-        global VOICE
-        global PLAYER
-
-        channel = self.msg.author.voice.voice_channel
-        if not channel:
-            channel = discord.utils.get(self.msg.server.channels, type=discord.ChannelType.voice)
-
-        if VOICE:
-            if channel != VOICE.channel:
-                await VOICE.move_to(channel)
+        if Play.voice:
+            if self.channel != Play.voice.channel:
+                await Play.voice.move_to(self.channel)
         else:
-            VOICE = await self.bot.join_voice_channel(channel)
+            Play.voice = await self.bot.join_voice_channel(self.channel)
 
-        if self.args.stop and PLAYER:
-            PLAYER.stop()
-            PLAYER = None
-            await VOICE.disconnect()
-            VOICE = None
-            return
+        if Play.player:
+            Play.player.stop()
+            Play.player = None
 
-        if PLAYER:
-            PLAYER.stop()
-            PLAYER = None
         try:
-            #  PLAYER = VOICE.create_ffmpeg_player("extras/music/test.mp3")
-            PLAYER = await VOICE.create_ytdl_player(self.args.vid)
-            PLAYER.start()
+            for vid in self.args.vids:
+                if "youtube.com" in vid or "youtu.be" in vid:
+                    Play.player = await Play.voice.create_ytdl_player(vid)
+                else:
+                    Play.player = Play.voice.create_ffmpeg_player("extras/music/" + vid)
+                Play.player.start()
+                while Play.player and not Play.player.is_done():
+                    await asyncio.sleep(2)
+
+            if self.args.loop:
+                asyncio.ensure_future(self.execute())
+            else:
+                # Default case handles stop, always disconnect unless looping
+                await Play.voice.disconnect()
+                Play.voice = None
         except youtube_dl.utils.YoutubeDLError:
-            await self.bot.send_message("Error during fetch using youtube_dl.")
+            await self.bot.send_message("Error fetching youtube vid: most probably copyright issue.\nTry another.")
 
 
 class Roll(Action):
