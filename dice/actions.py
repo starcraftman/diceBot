@@ -7,7 +7,9 @@ from __future__ import absolute_import, print_function
 import asyncio
 import datetime
 import functools
+import glob
 import logging
+import os
 import random
 import re
 import sys
@@ -34,6 +36,8 @@ Timer #{} with description: **{}**
     __Ends at__: {} UTC
     __Time remaining__: {}
 """
+MUSIC_PATH = "extras/music"
+PLAYER = None
 
 
 async def bot_shutdown(bot, delay=30):  # pragma: no cover
@@ -113,54 +117,185 @@ class Math(Action):
         await self.bot.send_message(self.msg.channel, '\n'.join(resp))
 
 
-# TODO: Global queue and global looping flag?
-# TODO: Skip next and back feature.
-# TODO: If above done, just make player a global ojbect instrumented by Play action
+def validate_videos(list_vids):
+    """
+    Validate the youtube links or local files.
+
+    Raises:
+        InvalidCommandArgs - A video link or name failed validation.
+    """
+    new_vids = []
+
+    for vid in list_vids:
+        if "/" in vid:
+            if "youtube.com" in vid or "youtu.be" in vid:
+                if vid[0] == "<" and vid[-1] == ">":
+                    vid = vid[1:-1]
+                new_vids.append(vid)
+            else:
+                raise dice.exc.InvalidCommandArgs("Only youtube links supported: " + vid)
+        else:
+            globbed = glob.glob(os.path.join(MUSIC_PATH, vid + "*"))
+            if len(globbed) != 1:
+                raise dice.exc.InvalidCommandArgs("Cannot find local video: " + vid)
+            new_vids.append(globbed[0])
+
+    return new_vids
+
+
+# TODO: Messy, tidy this up.
+# TODO: Create global player at init, don't replace thereafter.
 # TODO: Tests? Might be annoying to verify.
+class Player(Action):
+    """
+    Music player interface.
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        self.channel = self.find_channel()
+        self.voice = None
+        self.player = None
+        self.vids = validate_videos(self.args.vids)
+        self.vid_index = 0
+
+    @property
+    def loop(self):
+        return self.args.loop
+
+    @property
+    def active(self):
+        return self.player and not self.player.is_done()
+
+    def find_channel(self):
+        """
+        Set appropriate channel based on message.
+        """
+        channel = self.msg.author.voice.voice_channel
+        if not channel:
+            channel = discord.utils.get(self.msg.server.channels,
+                                        type=discord.ChannelType.voice)
+
+        return channel
+
+    async def set_voice_channel(self):
+        """
+        Join the right channel before beginning transmission.
+        """
+        if self.voice:
+            if self.channel != self.voice.channel:
+                await self.voice.move_to(self.channel)
+        else:
+            self.voice = await self.bot.join_voice_channel(self.channel)
+
+    async def start(self):
+        """
+        Start the song currently selected.
+        """
+        if self.player:
+            self.player.stop()
+
+        vid = self.vids[self.vid_index]
+        if "youtu" in vid:
+            self.player = await self.voice.create_ytdl_player(vid)
+        else:
+            self.player = self.voice.create_ffmpeg_player(vid)
+        self.player.start()
+
+    async def stop(self):
+        """
+        Stop playing and terminate voice comms.
+        """
+        try:
+            self.player.stop()
+            await self.voice.disconnect()
+            self.player = None
+            self.voice = None
+        except AttributeError:
+            pass
+
+    def prev(self):
+        """
+        Go to the previous song.
+        """
+        if self.player and len(self.vids) > 1:
+            if not self.loop and self.vid_index - 1 < 0:
+                self.vid_index = 0
+                self.player.stop()
+            else:
+                self.vid_index = (self.vid_index - 1) % len(self.vids)
+                asyncio.ensure_future(self.start())
+
+    def next(self):
+        """
+        Go to the next song.
+        """
+        if self.player and len(self.vids) > 1:
+            if not self.loop and self.vid_index + 1 > len(self.vids):
+                self.vid_index = 0
+                self.player.stop()
+            else:
+                self.vid_index = (self.vid_index + 1) % len(self.vids)
+                asyncio.ensure_future(self.start())
+
+    async def execute(self):
+        await self.set_voice_channel()
+
+        try:
+            while self.loop or self.vid_index != len(self.vids):
+                await self.start()
+                while self.player and not self.player.is_done():
+                    if not self.player:
+                        break
+                    await asyncio.sleep(2)
+
+                self.next()
+
+            self.player.stop()
+        except youtube_dl.utils.YoutubeDLError:
+            await self.bot.send_message("Error fetching youtube vid: most probably copyright issue.\nTry another.")
+        except AttributeError:
+            pass
+
+
 class Play(Action):
     """
-    Simple music player, takes youtube links for now.
+    Transparent mapper from actions onto an existing player, unless it makes a new one.
     """
-    voice = None
-    player = None
+    first_time = True
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self.channel = self.msg.author.voice.voice_channel
-        if not self.channel:
-            self.channel = discord.utils.get(self.msg.server.channels,
-                                             type=discord.ChannelType.voice)
+        self.new_player = None
+        if self.args.vids:
+            self.new_player = Player(**kwargs)
 
     async def execute(self):
-        if Play.voice:
-            if self.channel != Play.voice.channel:
-                await Play.voice.move_to(self.channel)
+        global PLAYER
+
+        if self.args.stop:
+            await PLAYER.stop()
+        elif self.args.next:
+            PLAYER.next()
+        elif self.args.prev:
+            PLAYER.prev()
+        elif self.args.restart:
+            await PLAYER.start()
+        elif self.args.stop:
+            await PLAYER.stop()
+        elif self.args.append:
+            PLAYER.vids += self.new_player.vids
         else:
-            Play.voice = await self.bot.join_voice_channel(self.channel)
+            try:
+                await PLAYER.stop()
+                await asyncio.sleep(2)
+            except AttributeError:
+                pass
 
-        if Play.player:
-            Play.player.stop()
-            Play.player = None
-
-        try:
-            for vid in self.args.vids:
-                if "youtube.com" in vid or "youtu.be" in vid:
-                    Play.player = await Play.voice.create_ytdl_player(vid)
-                else:
-                    Play.player = Play.voice.create_ffmpeg_player("extras/music/" + vid)
-                Play.player.start()
-                while Play.player and not Play.player.is_done():
-                    await asyncio.sleep(2)
-
-            if self.args.loop:
-                asyncio.ensure_future(self.execute())
-            else:
-                # Default case handles stop, always disconnect unless looping
-                await Play.voice.disconnect()
-                Play.voice = None
-        except youtube_dl.utils.YoutubeDLError:
-            await self.bot.send_message("Error fetching youtube vid: most probably copyright issue.\nTry another.")
+            if self.args.vids:
+                PLAYER = self.new_player
+                await PLAYER.execute()
 
 
 class Roll(Action):
@@ -538,9 +673,6 @@ class Timers(Action):
                 user_select = await self.bot.wait_for_message(timeout=30, author=self.msg.author,
                                                               channel=self.msg.channel)
 
-                print(user_timers)
-                print(user_select)
-                print(str(TIMERS))
                 if user_select:
                     responses += [user_select]
 
@@ -553,8 +685,6 @@ class Timers(Action):
                     raise ValueError
 
                 for timer in TIMERS.values():
-                    print(timer)
-                    print(user_timers[choice])
                     if timer.key == user_timers[choice]:
                         timer.cancel = True
                         del user_timers[choice]

@@ -81,19 +81,28 @@ def subs_play(subs, prefix):
     """ Subcommand parsing for timers """
     desc = """Play a test sound!
 
-{prefix}play
-        Trigger test sound.
-{prefix}play youtube_link youtube_link2 youtube_link3 ...
-        Play one or more youtube links.
+{prefix}play youtube_link youtube_link2 local_name ...
+        Play one or more youtube links or local files on server.
 {prefix}play --stop
         Stop playing the music.
+{prefix}play --next
+        Play the next song.
+{prefix}play --prev
+        Play the previous song.
+{prefix}play --restart
+        Play the current song from the beginning.
+{prefix}play --append
+        Append the following songs to the list.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'play', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Play')
-    sub.add_argument('-s', '--stop', action="store_true", help='Stop the music!')
+    sub.add_argument('-a', '--append', action="store_true", help='Append songs to playlist.')
     sub.add_argument('-l', '--loop', action="store_true", help='Keep looping until stopped.')
-    sub.add_argument('vids', nargs="*", default=["https://www.youtube.com/watch?v=6_b7RDuLwcI"],
-                     help='A single youtube link to play.')
+    sub.add_argument('-s', '--stop', action="store_true", help='Stop the music!')
+    sub.add_argument('-n', '--next', action="store_true", help='Next song in list.')
+    sub.add_argument('-v', '--prev', action="store_true", help='Previous song in list.')
+    sub.add_argument('-r', '--restart', action="store_true", help='Previous song in list.')
+    sub.add_argument('vids', nargs="*", default=[], help='A single youtube link to play.')
 
 
 @register_parser
