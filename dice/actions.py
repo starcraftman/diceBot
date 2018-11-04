@@ -88,6 +88,7 @@ class Help(Action):
             ['Command', 'Effect'],
             ['{prefix}math', 'Do some math operations'],
             ['{prefix}m', 'Alias for `!math`'],
+            ['{prefix}poni', 'Pony?!?!'],
             ['{prefix}roll', 'Roll a dice like: 2d6 + 5'],
             ['{prefix}r', 'Alias for `!roll`'],
             ['{prefix}status', 'Show status of bot including uptime'],
@@ -307,9 +308,9 @@ class Poni(Action):
     """
     async def execute(self):
         msg = "No images found!"
-        tags = re.split('\s*,\s*|\s*,|,s*', self.msg.content[5:])
+        tags = re.split(r'\s*,\s*|\s*,|,s*', self.msg.content[5:])
         full_tag = "%2C+".join(tags + ["-nswf", "-suggestive"])
-        full_tag = re.sub('\s', '+', full_tag)
+        full_tag = re.sub(r'\s', '+', full_tag)
 
         async with aiohttp.ClientSession() as session:
             async with session.get(PONI_URL + full_tag) as resp:
