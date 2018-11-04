@@ -9,11 +9,13 @@ import datetime
 import functools
 import glob
 import logging
+import math
 import os
 import random
 import re
 import sys
 
+import aiohttp
 import discord
 import youtube_dl
 import dice.exc
@@ -38,6 +40,7 @@ Timer #{} with description: **{}**
 """
 MUSIC_PATH = "extras/music"
 PLAYER = None
+PONI_URL = "https://derpibooru.org/search.json?q="
 
 
 async def bot_shutdown(bot, delay=30):  # pragma: no cover
@@ -296,6 +299,33 @@ class Play(Action):
             if self.args.vids:
                 PLAYER = self.new_player
                 await PLAYER.execute()
+
+
+class Poni(Action):
+    """
+    Poni command.
+    """
+    async def execute(self):
+        msg = "No images found!"
+        full_tag = "%2C+".join(self.args.tags)
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(PONI_URL + full_tag) as resp:
+                resp_json = await resp.json()
+                total_imgs = resp_json['total']
+
+            if total_imgs:
+                total_ind = random.randint(1, total_imgs)
+                page_ind = math.ceil(total_ind / 15)
+                img_ind = total_ind % 15 - 1
+
+                async with session.get(PONI_URL + full_tag + '&page=' + str(page_ind)) as resp:
+                    resp_json = await resp.json()
+                    img_found = resp_json["search"][img_ind]["representations"]
+
+                msg = 'https:' + img_found["full"]
+
+        await self.bot.send_message(self.msg.channel, msg)
 
 
 class Roll(Action):

@@ -77,6 +77,19 @@ def subs_math(subs, prefix):
 
 
 @register_parser
+def subs_poni(subs, prefix):
+    """ Subcommand parsing for timers """
+    desc = """Be magical!
+
+{prefix}poni tag_1 tag_2
+        Do something poniful!
+    """.format(prefix=prefix)
+    sub = subs.add_parser(prefix + 'poni', description=desc, formatter_class=RawHelp)
+    sub.set_defaults(cmd='Poni')
+    sub.add_argument('tags', nargs='+', help='To search.')
+
+
+@register_parser
 def subs_play(subs, prefix):
     """ Subcommand parsing for timers """
     desc = """Play a test sound!
