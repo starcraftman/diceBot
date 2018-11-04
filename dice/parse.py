@@ -81,7 +81,7 @@ def subs_poni(subs, prefix):
     """ Subcommand parsing for timers """
     desc = """Be magical!
 
-{prefix}poni tag_1 tag_2
+{prefix}poni tag_1, tag 2, tag of words
         Do something poniful!
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'poni', description=desc, formatter_class=RawHelp)

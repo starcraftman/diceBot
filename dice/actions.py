@@ -307,7 +307,9 @@ class Poni(Action):
     """
     async def execute(self):
         msg = "No images found!"
-        full_tag = "%2C+".join(self.args.tags)
+        tags = re.split('\s*,\s*|\s*,|,s*', self.msg.content[5:])
+        full_tag = "%2C+".join(tags + ["-nswf", "-suggestive"])
+        full_tag = re.sub('\s', '+', full_tag)
 
         async with aiohttp.ClientSession() as session:
             async with session.get(PONI_URL + full_tag) as resp:
