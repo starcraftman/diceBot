@@ -90,6 +90,7 @@ class DiceBot(discord.Client):
         self.emoji = EmojiResolver()
         self.parser = dice.parse.make_parser(prefix)
         self.start_date = datetime.datetime.utcnow().replace(microsecond=0)
+        self.mplayer = dice.actions.MPlayer(self)
 
     @property
     def uptime(self):  # pragma: no cover
@@ -152,6 +153,7 @@ class DiceBot(discord.Client):
         global P_TASK
         if not P_TASK:
             P_TASK = asyncio.ensure_future(presence_task(self))
+            asyncio.ensure_future(self.mplayer.monitor())
 
         print('DiceBot Ready!')
 

@@ -39,7 +39,6 @@ Timer #{} with description: **{}**
     __Time remaining__: {}
 """
 MUSIC_PATH = "extras/music"
-PLAYER = None
 PONI_URL = "https://derpibooru.org/search.json?q="
 
 
@@ -147,42 +146,54 @@ def validate_videos(list_vids):
     return new_vids
 
 
-# TODO: Messy, tidy this up.
-# TODO: Create global player at init, don't replace thereafter.
+class MPlayerState:
+    """ MPlayer state enum. """
+    stopped = 0
+    playing = 1
+    paused = 2
+
+
 # TODO: Tests? Might be annoying to verify.
-class Player(Action):
+class MPlayer(Action):
     """
     Music player interface.
     """
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-        self.channel = self.find_channel()
+    def __init__(self, bot):
+        self.bot = bot
+        self.channel = None
         self.voice = None
         self.player = None
-        self.vids = validate_videos(self.args.vids)
+        self.vids = []
         self.vid_index = 0
+        self.loop = False
+        self.last_activity = datetime.datetime.utcnow()
+        self.state = MPlayerState.stopped
 
-    @property
-    def loop(self):
-        return self.args.loop
+    def __repr__(self):
+        return "MPlayer(bot={}, channel={}, voice={}, player={},"\
+            " vids={}, vid_index={}, loop={}, last_activity={}, state={})".format(
+                self.bot, self.channel, self.voice, self.player,
+                self.vids, self.vid_index, self.loop, self.last_activity, self.state
+            )
 
     @property
     def active(self):
         return self.player and not self.player.is_done()
 
-    def find_channel(self):
-        """
-        Set appropriate channel based on message.
-        """
-        channel = self.msg.author.voice.voice_channel
-        if not channel:
-            channel = discord.utils.get(self.msg.server.channels,
-                                        type=discord.ChannelType.voice)
+    @property
+    def timed_out(self):
+        return (datetime.datetime.utcnow() - self.last_activity).seconds > 300
 
-        return channel
+    def initialize_settings(self, msg, args):
+        self.channel = msg.author.voice.voice_channel
+        if not self.channel:
+            self.channel = discord.utils.get(msg.server.channels,
+                                             type=discord.ChannelType.voice)
 
-    async def set_voice_channel(self):
+        self.loop = args.loop
+        self.vids = validate_videos(args.vids)
+
+    async def update_voice_channel(self):
         """
         Join the right channel before beginning transmission.
         """
@@ -195,9 +206,15 @@ class Player(Action):
     async def start(self):
         """
         Start the song currently selected.
+
+        Raises:
+            InvalidCommandArgs - No videos to play.
         """
-        if self.player:
-            self.player.stop()
+        if not self.vids:
+            raise dice.exc.InvalidCommandArgs("No videos to play!")
+
+        self.stop()
+        await self.update_voice_channel()
 
         vid = self.vids[self.vid_index]
         if "youtu" in vid:
@@ -205,13 +222,33 @@ class Player(Action):
         else:
             self.player = self.voice.create_ffmpeg_player(vid)
         self.player.start()
+        self.state = MPlayerState.playing
 
-    async def stop(self):
+    def pause(self):
+        """ Toggle player pause function. """
+        if self.state == MPlayerState.playing:
+            self.player.pause()
+            self.state = MPlayerState.paused
+        elif self.state == MPlayerState.paused:
+            self.player.resume()
+            self.state = MPlayerState.playing
+
+    def stop(self):
         """
-        Stop playing and terminate voice comms.
+        Stop playing the stream.
         """
         try:
+            self.state = MPlayerState.stopped
             self.player.stop()
+        except AttributeError:
+            pass
+
+    async def quit(self):
+        """
+        Ensure player stopped and quit the voice channel.
+        """
+        try:
+            self.stop()
             await self.voice.disconnect()
             self.player = None
             self.voice = None
@@ -223,83 +260,84 @@ class Player(Action):
         Go to the previous song.
         """
         if self.player and len(self.vids) > 1:
-            if not self.loop and self.vid_index - 1 < 0:
-                self.vid_index = 0
-                self.player.stop()
-            else:
+            if self.loop and self.vid_index > 0:
                 self.vid_index = (self.vid_index - 1) % len(self.vids)
                 asyncio.ensure_future(self.start())
+            else:
+                self.vid_index = 0
+                self.stop()
+                raise dice.exc.InvalidCommandArgs("Loop is not set, queue finished. Stopping.")
 
     def next(self):
         """
         Go to the next song.
         """
         if self.player and len(self.vids) > 1:
-            if not self.loop and self.vid_index + 1 > len(self.vids):
-                self.vid_index = 0
-                self.player.stop()
-            else:
+            if self.loop or self.vid_index + 1 < len(self.vids):
                 self.vid_index = (self.vid_index + 1) % len(self.vids)
                 asyncio.ensure_future(self.start())
+            else:
+                self.vid_index = 0
+                self.stop()
+                raise dice.exc.InvalidCommandArgs("Loop is not set, queue finished. Stopping.")
 
-    async def execute(self):
-        await self.set_voice_channel()
+    async def monitor(self, sleep_time=3):
+        """
+        Simple monitor thread that lives as long as the bot runs.
+        """
+        while True:
+            try:
+                print(repr(self))
 
-        try:
-            while self.loop or self.vid_index != len(self.vids):
-                await self.start()
-                while self.player and not self.player.is_done():
-                    if not self.player:
-                        break
-                    await asyncio.sleep(2)
+                if self.player and self.state == MPlayerState.playing:
+                    self.last_activity = datetime.datetime.utcnow()
 
-                self.next()
+                if self.state == MPlayerState.playing and self.player.is_done():
+                    self.next()
 
-            self.player.stop()
-        except youtube_dl.utils.YoutubeDLError:
-            await self.bot.send_message("Error fetching youtube vid: most probably copyright issue.\nTry another.")
-        except AttributeError:
-            pass
+                if self.timed_out:
+                    self.quit()
+            except youtube_dl.utils.YoutubeDLError:
+                await self.bot.send_message("Error fetching youtube vid: most probably copyright issue.\nTry another.")
+            except AttributeError:
+                pass
+
+            await asyncio.sleep(sleep_time)
 
 
 class Play(Action):
     """
-    Transparent mapper from actions onto an existing player, unless it makes a new one.
+    Transparent mapper from actions onto the mplayer.
     """
-    first_time = True
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self.new_player = None
-        if self.args.vids:
-            self.new_player = Player(**kwargs)
+        self.new_vids = validate_videos(self.args.vids)
 
     async def execute(self):
-        global PLAYER
+        mplayer = self.bot.mplayer
 
         if self.args.stop:
-            await PLAYER.stop()
+            mplayer.stop()
+        elif self.args.pause:
+            mplayer.pause()
+        elif self.args.volume and mplayer.player:
+            if self.args.volume < 0 or self.args.volume > 100:
+                raise dice.exc.InvalidCommandArgs("Volume must be between [0, 100]")
+            mplayer.player.volume = self.args.volume / 100
         elif self.args.next:
-            PLAYER.next()
+            mplayer.next()
         elif self.args.prev:
-            PLAYER.prev()
-        elif self.args.restart:
-            await PLAYER.start()
-        elif self.args.stop:
-            await PLAYER.stop()
+            mplayer.prev()
         elif self.args.append:
-            PLAYER.vids += self.new_player.vids
+            mplayer.vids += self.new_vids
+        elif self.args.loop:
+            mplayer.loop = not mplayer.loop
         else:
-            try:
-                await PLAYER.stop()
-                await asyncio.sleep(2)
-            except AttributeError:
-                pass
-
-            if self.args.vids:
-                PLAYER = self.new_player
-                await PLAYER.execute()
+            if self.new_vids:
+                # New videos played so replace playlist
+                mplayer.initialize_settings(self.msg, self.args)
+            await mplayer.start()
 
 
 class Poni(Action):

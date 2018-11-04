@@ -92,29 +92,35 @@ def subs_poni(subs, prefix):
 @register_parser
 def subs_play(subs, prefix):
     """ Subcommand parsing for timers """
-    desc = """Play a test sound!
+    desc = """A simple music player for games.
 
 {prefix}play youtube_link youtube_link2 local_name ...
         Play one or more youtube links or local files on server.
-{prefix}play --stop
+{prefix}play --**p**pause
+        Pause or resume playing the music.
+{prefix}play --**s**top
         Stop playing the music.
-{prefix}play --next
-        Play the next song.
-{prefix}play --prev
-        Play the previous song.
-{prefix}play --restart
+{prefix}play --**r**estart
         Play the current song from the beginning.
-{prefix}play --append
+{prefix}play --**n**ext
+        Play the next song.
+{prefix}play --pre**v**
+        Play the previous song.
+{prefix}play --**a**ppend youtube_link_1 local_name_1
         Append the following songs to the list.
+{prefix}play --v**o**lume
+        Set the volume: [0, 100]')
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'play', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Play')
     sub.add_argument('-a', '--append', action="store_true", help='Append songs to playlist.')
-    sub.add_argument('-l', '--loop', action="store_true", help='Keep looping until stopped.')
+    sub.add_argument('-l', '--loop', action="store_true", help='Toggle looping the music.')
+    sub.add_argument('-p', '--pause', action="store_true", help='Toggle pausing the player.')
+    sub.add_argument('-r', '--restart', action="store_true", help='Restart current song.')
     sub.add_argument('-s', '--stop', action="store_true", help='Stop the music!')
     sub.add_argument('-n', '--next', action="store_true", help='Next song in list.')
     sub.add_argument('-v', '--prev', action="store_true", help='Previous song in list.')
-    sub.add_argument('-r', '--restart', action="store_true", help='Previous song in list.')
+    sub.add_argument('-o', '--volume', type=int, help='Set the volume: [0, 100]')
     sub.add_argument('vids', nargs="*", default=[], help='A single youtube link to play.')
 
 
