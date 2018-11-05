@@ -77,19 +77,6 @@ def subs_math(subs, prefix):
 
 
 @register_parser
-def subs_poni(subs, prefix):
-    """ Subcommand parsing for timers """
-    desc = """Be magical!
-
-{prefix}poni tag_1, tag 2, tag of words
-        Do something poniful!
-    """.format(prefix=prefix)
-    sub = subs.add_parser(prefix + 'poni', description=desc, formatter_class=RawHelp)
-    sub.set_defaults(cmd='Poni')
-    sub.add_argument('tags', nargs='+', help='To search.')
-
-
-@register_parser
 def subs_play(subs, prefix):
     """ Subcommand parsing for timers """
     desc = """A simple music player for games.
@@ -113,14 +100,14 @@ def subs_play(subs, prefix):
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'play', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Play')
-    sub.add_argument('-a', '--append', action="store_true", help='Append songs to playlist.')
-    sub.add_argument('-l', '--loop', action="store_true", help='Toggle looping the music.')
-    sub.add_argument('-p', '--pause', action="store_true", help='Toggle pausing the player.')
-    sub.add_argument('-r', '--restart', action="store_true", help='Restart current song.')
-    sub.add_argument('-s', '--stop', action="store_true", help='Stop the music!')
-    sub.add_argument('-n', '--next', action="store_true", help='Next song in list.')
-    sub.add_argument('-v', '--prev', action="store_true", help='Previous song in list.')
-    sub.add_argument('-o', '--volume', type=int, help='Set the volume: [0, 100]')
+    sub.add_argument('-a', '--a', '--append', action="store_true", help='Append songs to playlist.')
+    sub.add_argument('-l', '--l', '--loop', action="store_true", help='Toggle looping the music.')
+    sub.add_argument('-p', '--p', '--pause', action="store_true", help='Toggle pausing the player.')
+    sub.add_argument('-r', '--r', '--restart', action="store_true", help='Restart current song.')
+    sub.add_argument('-s', '--s', '--stop', action="store_true", help='Stop the music!')
+    sub.add_argument('-n', '--n', '--next', action="store_true", help='Next song in list.')
+    sub.add_argument('-v', '--v', '--prev', action="store_true", help='Previous song in list.')
+    sub.add_argument('-o', '--o', '--volume', type=int, help='Set the volume: [0, 100]')
     sub.add_argument('vids', nargs="*", default=[], help='A single youtube link to play.')
 
 
@@ -142,6 +129,52 @@ def subs_roll(subs, prefix):
     sub = subs.add_parser(prefix + 'roll', aliases=[prefix + 'r'], description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Roll')
     sub.add_argument('spec', nargs='+', help='The dice rolls specified.')
+
+
+@register_parser
+def subs_poni(subs, prefix):
+    """ Subcommand parsing for timers """
+    desc = """Be magical!
+
+{prefix}poni tag_1, tag 2, tag of words
+        Do something poniful!
+    """.format(prefix=prefix)
+    sub = subs.add_parser(prefix + 'poni', description=desc, formatter_class=RawHelp)
+    sub.set_defaults(cmd='Poni')
+    sub.add_argument('tags', nargs='+', help='To search.')
+
+
+@register_parser
+def subs_songs(subs, prefix):
+    """ Subcommand parsing for songs """
+    desc = """Manage the song lookup.
+
+{prefix}songs --add name, youtube_link, tag1, tag2, tag3
+{prefix}songs --add name, local_path_name, tag1, tag2
+        Add all names into the songs mapping.
+{prefix}songs --list
+        List everything in the db.
+{prefix}songs --manage name/youtube_link name/local_name1
+        Manage the songs in the db interactively.
+{prefix}songs --search-name name_song
+        Search for a name of song (loose match).
+{prefix}songs --search-tag tag_name
+        Search for a tag (loose match).
+    """.format(prefix=prefix)
+    sub = subs.add_parser(prefix + 'songs', description=desc, formatter_class=RawHelp)
+    sub.set_defaults(cmd='Songs')
+    sub.add_argument('--add', nargs='*', help='Add a song to the mappings.')
+    sub.add_argument('--list', action='store_true', help='Show all mappings.')
+    sub.add_argument('--manage', action='store_true', help='Manage the mappings.')
+    sub.add_argument('--search-name', help='Search the song names.')
+    sub.add_argument('--search-tag', help='Search the song names.')
+
+
+@register_parser
+def subs_status(subs, prefix):
+    """ Subcommand parsing for status """
+    sub = subs.add_parser(prefix + 'status', description='Info about this bot.')
+    sub.set_defaults(cmd='Status')
 
 
 @register_parser
@@ -189,10 +222,3 @@ def subs_timers(subs, prefix):
     sub.add_argument('-c', '--clear', action="store_true", help='Clear all timers.')
     sub.add_argument('-m', '--manage', action="store_true", help='Manage timers selectively.')
     sub.set_defaults(cmd='Timers')
-
-
-@register_parser
-def subs_status(subs, prefix):
-    """ Subcommand parsing for status """
-    sub = subs.add_parser(prefix + 'status', description='Info about this bot.')
-    sub.set_defaults(cmd='Status')

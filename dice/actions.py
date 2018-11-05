@@ -17,10 +17,17 @@ import sys
 
 import aiohttp
 import discord
+import yaml
+try:
+    from yaml import CLoader as Loader, CDumper as Dumper
+except ImportError:
+    from yaml import Loader, Dumper
 import youtube_dl
+
 import dice.exc
 import dice.tbl
 import dice.util
+
 
 MAX_DIE_STR = 20
 OP_DICT = {
@@ -29,9 +36,9 @@ OP_DICT = {
     '+': '__add__',
     '-': '__sub__',
 }
+TIMERS = {}
 TIMER_OFFSETS = ["60:00", "15:00", "5:00", "1:00"]
 TIMER_MSG_TEMPLATE = "{}: Timer '{}'"
-TIMERS = {}
 TIMERS_MSG = """
 Timer #{} with description: **{}**
     __Started at__: {} UTC
@@ -40,6 +47,7 @@ Timer #{} with description: **{}**
 """
 MUSIC_PATH = "extras/music"
 PONI_URL = "https://derpibooru.org/search.json?q="
+SONG_FILE = os.path.abspath(os.path.join("data", "songs.yml"))
 
 
 async def bot_shutdown(bot, delay=30):  # pragma: no cover
@@ -90,6 +98,7 @@ class Help(Action):
             ['{prefix}poni', 'Pony?!?!'],
             ['{prefix}roll', 'Roll a dice like: 2d6 + 5'],
             ['{prefix}r', 'Alias for `!roll`'],
+            ['{prefix}songs', 'Create manage song lookup.'],
             ['{prefix}status', 'Show status of bot including uptime'],
             ['{prefix}timer', 'Set a timer for HH:MM:SS in future'],
             ['{prefix}timers', 'See the status of all YOUR active timers'],
@@ -100,6 +109,21 @@ class Help(Action):
         response = '\n'.join(over) + dice.tbl.wrap_markdown(dice.tbl.format_table(lines, header=True))
         await self.bot.send_ttl_message(self.msg.channel, response)
         await self.bot.delete_message(self.msg)
+
+
+class Status(Action):
+    """
+    Display the status of this bot.
+    """
+    async def execute(self):
+        lines = [
+            ['Created By', 'GearsandCogs'],
+            ['Uptime', self.bot.uptime],
+            ['Version', '{}'.format(dice.__version__)],
+        ]
+
+        await self.bot.send_message(self.msg.channel,
+                                    dice.tbl.wrap_markdown(dice.tbl.format_table(lines)))
 
 
 class Math(Action):
@@ -118,32 +142,6 @@ class Math(Action):
             resp += [line + " = " + str(eval(line))]
 
         await self.bot.send_message(self.msg.channel, '\n'.join(resp))
-
-
-def validate_videos(list_vids):
-    """
-    Validate the youtube links or local files.
-
-    Raises:
-        InvalidCommandArgs - A video link or name failed validation.
-    """
-    new_vids = []
-
-    for vid in list_vids:
-        if "/" in vid:
-            if "youtube.com" in vid or "youtu.be" in vid:
-                if vid[0] == "<" and vid[-1] == ">":
-                    vid = vid[1:-1]
-                new_vids.append(vid)
-            else:
-                raise dice.exc.InvalidCommandArgs("Only youtube links supported: " + vid)
-        else:
-            globbed = glob.glob(os.path.join(MUSIC_PATH, vid + "*"))
-            if len(globbed) != 1:
-                raise dice.exc.InvalidCommandArgs("Cannot find local video: " + vid)
-            new_vids.append(globbed[0])
-
-    return new_vids
 
 
 class MPlayerState:
@@ -340,6 +338,153 @@ class Play(Action):
             await mplayer.start()
 
 
+# TODO: Need tests here
+class Songs(Action):
+    """
+    Songs command.
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        try:
+            with open(SONG_FILE) as fin:
+                self.db = yaml.load(fin, Loader=Loader)
+            self.tag_db = {}
+        except FileNotFoundError:
+            self.db = {}
+            self.save()
+
+    def fmt_music(self, ent):
+        return "{} - {} - {}\n".format(
+            ent['name'], '<{}>'.format(ent['url']) if 'youtu' in ent['url'] else ent['url'],
+            ', '.join(ent.get('tags', []))
+        )
+
+    def refresh_tags(self):
+        """
+        Invert the yaml db into a tags lookup db.
+        """
+        self.tag_db = {}
+        for key in self.db:
+            ele = self.db[key]
+            for tag in ele['tags']:
+                try:
+                    self.tag_db[tag].append(key)
+                except KeyError:
+                    self.tag_db[tag] = [key]
+
+    def save(self):
+        with open(SONG_FILE, 'w') as fout:
+            yaml.dump(self.db, fout, indent=2, explicit_start=True, default_flow_style=False)
+
+    def add(self):
+        parts = re.split(r'\s*,\s*', self.msg.content.replace('!songs --add', ''))
+        parts = [part.strip() for part in parts]
+        self.db[parts[0]] = {
+            'name': parts[0],
+            'url': parts[1],
+            'tags': parts[2:],
+        }
+
+        self.save()
+
+    async def list(self):
+        reply = 'Music Db\n\n'
+        reply += "{} - {} - {}\n".format('**Name**', '**URI**', '**Tags**')
+
+        for key in self.db:
+            ent = self.db[key]
+            reply += self.fmt_music(ent)
+
+        await self.bot.send_message(self.msg.channel, reply)
+
+
+    async def manage(self):
+        limit = 11
+        keys = sorted(self.db.keys())
+
+        while keys:
+            try:
+                subset_keys = keys[:limit]
+
+                reply = "Do you want to manage the following? [1..{}]:\n".format(len(subset_keys))
+                reply += "The selection will be removed from db.\n\n"
+                for key in subset_keys:
+                    reply += self.fmt_music(self.db[key])
+                reply += "\nWrite 'done' or 'stop' to finish."
+                reply += "\nWrite 'next' to display the next page of entries."
+                responses = [await self.bot.send_message(self.msg.channel, reply)]
+                user_select = await self.bot.wait_for_message(timeout=30, author=self.msg.author,
+                                                              channel=self.msg.channel)
+
+                if user_select:
+                    responses += [user_select]
+
+                if not user_select or user_select.content.lower() == 'done'\
+                        or user_select.content.lower() == 'stop':
+                    return
+
+                if user_select.content.lower() == 'next':
+                    keys = keys[limit:]
+                    continue
+
+                choice = int(user_select.content) - 1
+                if choice < 0 or choice >= len(subset_keys):
+                    raise ValueError
+
+                del self.db[subset_keys[choice]]
+                keys.remove(subset_keys[choice])
+                self.save()
+            except (KeyError, ValueError):
+                pass
+            finally:
+                user_select = None
+                asyncio.ensure_future(asyncio.gather(
+                    *[self.bot.delete_message(response) for response in responses]))
+
+        await self.bot.send_message(self.msg.channel, "Management terminated.")
+
+    async def search_names(self, term):
+        reply = 'Music Db - Searching Names for "' + term + '"\n\n'
+        reply += "{} - {} - {}\n\n".format('**Name**', '**URI**', '**Tags**')
+
+        l_term = term.lower()
+        for key in self.db:
+            if l_term in key.lower():
+                ent = self.db[key]
+                reply += self.fmt_music(ent)
+
+        await self.bot.send_message(self.msg.channel, reply)
+
+    async def search_tags(self, term):
+        reply = 'Music Db - Searching Tags for "' + term + '"\n\n'
+        reply += "{} - {} - {}\n\n".format('**Name**', '**URI**', '**Tags**')
+        self.refresh_tags()
+
+        l_term = term.lower()
+        for key in self.tag_db:
+            if l_term in key.lower():
+                reply += '__**{}**__\n'.format(key)
+                for name_key in self.tag_db[key]:
+                    ent = self.db[name_key]
+                    reply += self.fmt_music(ent)
+            reply += "\n"
+
+        await self.bot.send_message(self.msg.channel, reply)
+
+    async def execute(self):
+        if self.args.add:
+            self.add()
+        if self.args.list:
+            await self.list()
+        elif self.args.manage:
+            await self.manage()
+        elif self.args.search_name:
+            await self.search_names(self.args.search_name)
+        elif self.args.search_tag:
+            await self.search_tags(self.args.search_tag)
+
+
 class Poni(Action):
     """
     Poni command.
@@ -389,21 +534,6 @@ class Roll(Action):
                 resp += [line + " = {}".format(await throw.next(self.bot.loop))]
 
         await self.bot.send_message(self.msg.channel, '\n'.join(resp))
-
-
-class Status(Action):
-    """
-    Display the status of this bot.
-    """
-    async def execute(self):
-        lines = [
-            ['Created By', 'GearsandCogs'],
-            ['Uptime', self.bot.uptime],
-            ['Version', '{}'.format(dice.__version__)],
-        ]
-
-        await self.bot.send_message(self.msg.channel,
-                                    dice.tbl.wrap_markdown(dice.tbl.format_table(lines)))
 
 
 class Dice(object):
@@ -865,3 +995,29 @@ def remove_user_timers(timers, msg_author):
     """
     for key_to_remove in [x for x in timers if msg_author in x]:
         timers[key_to_remove].cancel = True
+
+
+def validate_videos(list_vids):
+    """
+    Validate the youtube links or local files.
+
+    Raises:
+        InvalidCommandArgs - A video link or name failed validation.
+    """
+    new_vids = []
+
+    for vid in list_vids:
+        if "/" in vid:
+            if "youtube.com" in vid or "youtu.be" in vid:
+                if vid[0] == "<" and vid[-1] == ">":
+                    vid = vid[1:-1]
+                new_vids.append(vid)
+            else:
+                raise dice.exc.InvalidCommandArgs("Only youtube links supported: " + vid)
+        else:
+            globbed = glob.glob(os.path.join(MUSIC_PATH, vid + "*"))
+            if len(globbed) != 1:
+                raise dice.exc.InvalidCommandArgs("Cannot find local video: " + vid)
+            new_vids.append(globbed[0])
+
+    return new_vids
