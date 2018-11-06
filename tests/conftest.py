@@ -206,3 +206,46 @@ def f_bot():
     fake_bot.loop.run_in_executor.async_side_effect = fake_exec
 
     yield fake_bot
+
+
+@pytest.fixture
+def f_mplayer_db():
+    """
+    Return a simple mplayer db sample.
+    """
+    fake_mplayer_db = {
+        'exists': {
+            'name': 'exists_local',
+            'tags': [
+                'classical',
+                'chopin',
+            ],
+            'url': 'nocturne1.mp3',
+        },
+        'not_exists': {
+            'name': 'not_exists',
+            'tags': [
+                'classical',
+                'chopin',
+            ],
+            'url': 'ballade1.mp3',
+        },
+        'the_oddyssey': {
+            'name': 'the_oddyssey',
+            'tags': [
+                'prog metal',
+                'symphony x',
+            ],
+            'url': 'https://www.youtube.com/watch?v=M3nkuJO2y5I',
+        },
+        'bad_url': {
+            'name': 'bad_url',
+            'tags': [
+                'invalid',
+                'will not pass',
+            ],
+            'url': 'https://www.google.com/videos/24002',
+        },
+    }
+
+    yield fake_mplayer_db

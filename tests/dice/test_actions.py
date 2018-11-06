@@ -9,6 +9,7 @@ Important Note Regarding DB:
 from __future__ import absolute_import, print_function
 import asyncio
 
+import os
 import pytest
 
 import dice.actions
@@ -232,6 +233,13 @@ async def test_cmd_timers_manage(f_bot):
     pass
 
 
+# TODO: dice.actions.Songs
+@pytest.mark.asyncio
+async def test_cmd_songs_save(f_bot):
+    db = {
+    }
+
+
 def test_fixed__str__():
     die = dice.actions.FixedRoll('5')
     assert str(die) == '(5)'
@@ -406,3 +414,56 @@ def test_remove_user_timers():
     timers = {timer.key: timer}
     dice.actions.remove_user_timers(timers, msg.author.name)
     assert timers[timer.key].cancel
+
+
+def test_validate_videos_not_youtube():
+    links = ['https://google.com']
+
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        dice.actions.validate_videos(links)
+
+
+def test_validate_videos_youtube_strip_angles():
+    links = ['<https://youtube.com/watch=1234>']
+
+    assert dice.actions.validate_videos(links) == ['https://youtube.com/watch=1234']
+
+
+def test_validate_videos_local_not_found():
+    links = ['notfound.mp3']
+
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        dice.actions.validate_videos(links)
+
+
+def test_validate_videos_local_found():
+    try:
+        fname = '/tmp/music/found.mp3'
+        try:
+            os.makedirs(os.path.dirname(fname))
+        except FileExistsError:
+            pass
+        with open(fname, 'w') as fout:
+            fout.write('exist')
+
+        dice.actions.MUSIC_PATH = os.path.dirname(fname)
+        links = ['found.mp3']
+        dice.actions.validate_videos(links)
+    finally:
+        dice.actions.MUSIC_PATH = '/tmp/music'
+        os.remove(fname)
+        os.rmdir(os.path.dirname(fname))
+
+
+def test_fmt_music_entry():
+    ent = {
+        'name': 'a_name',
+        'tags': [
+            'a_tag_1',
+            'a_tag_2',
+        ],
+        'url': 'a_link',
+    }
+    expect = 'a_name - a_link - a_tag_1, a_tag_2\n'
+
+    assert dice.actions.fmt_music_entry(ent) == expect

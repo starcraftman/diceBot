@@ -48,13 +48,14 @@ Timer #{} with description: **{}**
 MUSIC_PATH = "extras/music"
 PONI_URL = "https://derpibooru.org/search.json?q="
 SONG_FILE = os.path.abspath(os.path.join("data", "songs.yml"))
+SONG_HEADER = "{} - {} - {}\n\n".format('**Name**', '**URI**', '**Tags**')
 
 
-async def bot_shutdown(bot, delay=30):  # pragma: no cover
+async def bot_shutdown(bot, sleep_time=30):  # pragma: no cover
     """
     Shutdown the bot. Not ideal, I should reconsider later.
     """
-    await asyncio.sleep(delay)
+    await asyncio.sleep(sleep_time)
     await bot.logout()
     await asyncio.sleep(3)
     sys.exit(0)
@@ -108,7 +109,11 @@ class Help(Action):
 
         response = '\n'.join(over) + dice.tbl.wrap_markdown(dice.tbl.format_table(lines, header=True))
         await self.bot.send_ttl_message(self.msg.channel, response)
-        await self.bot.delete_message(self.msg)
+        try:
+            await self.bot.delete_message(self.msg)
+        except discord.Forbidden as exc:
+            self.log.error("Failed to delete msg on: {}/{}\n{}".format(
+                           self.msg.channel.server, self.msg.channel, exc))
 
 
 class Status(Action):
@@ -151,7 +156,7 @@ class MPlayerState:
     paused = 2
 
 
-# TODO: Tests? Might be annoying to verify.
+# TODO: Tests? This is just a wrapper so should be covered by discord.py
 class MPlayer(Action):
     """
     Music player interface.
@@ -285,8 +290,6 @@ class MPlayer(Action):
         """
         while True:
             try:
-                print(repr(self))
-
                 if self.player and self.state == MPlayerState.playing:
                     self.last_activity = datetime.datetime.utcnow()
 
@@ -295,8 +298,10 @@ class MPlayer(Action):
 
                 if self.timed_out:
                     self.quit()
-            except youtube_dl.utils.YoutubeDLError:
+            except youtube_dl.utils.DownloadError:
                 await self.bot.send_message("Error fetching youtube vid: most probably copyright issue.\nTry another.")
+            except youtube_dl.utils.YoutubeDLError:
+                await self.bot.send_message("Something went wrong in YoutubeDL not related to copyright.\nTry again?.")
             except AttributeError:
                 pass
 
@@ -307,32 +312,30 @@ class Play(Action):
     """
     Transparent mapper from actions onto the mplayer.
     """
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-        self.new_vids = validate_videos(self.args.vids)
-
     async def execute(self):
         mplayer = self.bot.mplayer
+        new_vids = validate_videos(self.args.vids)
 
         if self.args.stop:
             mplayer.stop()
         elif self.args.pause:
             mplayer.pause()
-        elif self.args.volume and mplayer.player:
-            if self.args.volume < 0 or self.args.volume > 100:
-                raise dice.exc.InvalidCommandArgs("Volume must be between [0, 100]")
-            mplayer.player.volume = self.args.volume / 100
         elif self.args.next:
             mplayer.next()
         elif self.args.prev:
             mplayer.prev()
+        elif self.args.volume:
+            if self.args.volume < 0 or self.args.volume > 100:
+                raise dice.exc.InvalidCommandArgs("Volume must be between [0, 100]")
+            if not mplayer.player:
+                raise dice.exc.InvalidCommandArgs("Volume can only be modified once player started.")
+            mplayer.player.volume = self.args.volume / 100
         elif self.args.append:
-            mplayer.vids += self.new_vids
+            mplayer.vids += new_vids
         elif self.args.loop:
             mplayer.loop = not mplayer.loop
         else:
-            if self.new_vids:
+            if new_vids:
                 # New videos played so replace playlist
                 mplayer.initialize_settings(self.msg, self.args)
             await mplayer.start()
@@ -354,11 +357,10 @@ class Songs(Action):
             self.db = {}
             self.save()
 
-    def fmt_music(self, ent):
-        return "{} - {} - {}\n".format(
-            ent['name'], '<{}>'.format(ent['url']) if 'youtu' in ent['url'] else ent['url'],
-            ', '.join(ent.get('tags', []))
-        )
+    def save(self):
+        with open(SONG_FILE, 'w') as fout:
+            yaml.dump(self.db, fout, Dumper=Dumper, endoding='UTF-8', indent=2,
+                      explicit_start=True, default_flow_style=False)
 
     def refresh_tags(self):
         """
@@ -373,10 +375,6 @@ class Songs(Action):
                 except KeyError:
                     self.tag_db[tag] = [key]
 
-    def save(self):
-        with open(SONG_FILE, 'w') as fout:
-            yaml.dump(self.db, fout, indent=2, explicit_start=True, default_flow_style=False)
-
     def add(self):
         parts = re.split(r'\s*,\s*', self.msg.content.replace('!songs --add', ''))
         parts = [part.strip() for part in parts]
@@ -390,17 +388,16 @@ class Songs(Action):
 
     async def list(self):
         reply = 'Music Db\n\n'
-        reply += "{} - {} - {}\n".format('**Name**', '**URI**', '**Tags**')
+        reply += SONG_HEADER
 
         for key in self.db:
             ent = self.db[key]
-            reply += self.fmt_music(ent)
+            reply += fmt_music_entry(ent)
 
         await self.bot.send_message(self.msg.channel, reply)
 
-
     async def manage(self):
-        limit = 11
+        limit = 10
         keys = sorted(self.db.keys())
 
         while keys:
@@ -410,7 +407,7 @@ class Songs(Action):
                 reply = "Do you want to manage the following? [1..{}]:\n".format(len(subset_keys))
                 reply += "The selection will be removed from db.\n\n"
                 for key in subset_keys:
-                    reply += self.fmt_music(self.db[key])
+                    reply += fmt_music_entry(self.db[key])
                 reply += "\nWrite 'done' or 'stop' to finish."
                 reply += "\nWrite 'next' to display the next page of entries."
                 responses = [await self.bot.send_message(self.msg.channel, reply)]
@@ -445,21 +442,21 @@ class Songs(Action):
         await self.bot.send_message(self.msg.channel, "Management terminated.")
 
     async def search_names(self, term):
-        reply = 'Music Db - Searching Names for "' + term + '"\n\n'
-        reply += "{} - {} - {}\n\n".format('**Name**', '**URI**', '**Tags**')
+        reply = 'Music Db - Searching Names for "{}"\n\n'.format(term)
+        reply += SONG_HEADER
 
         l_term = term.lower()
         for key in self.db:
             if l_term in key.lower():
                 ent = self.db[key]
-                reply += self.fmt_music(ent)
+                reply += fmt_music_entry(ent)
 
         await self.bot.send_message(self.msg.channel, reply)
 
     async def search_tags(self, term):
-        reply = 'Music Db - Searching Tags for "' + term + '"\n\n'
-        reply += "{} - {} - {}\n\n".format('**Name**', '**URI**', '**Tags**')
         self.refresh_tags()
+        reply = 'Music Db - Searching Tags for "{}"\n\n'.format(term)
+        reply += SONG_HEADER
 
         l_term = term.lower()
         for key in self.tag_db:
@@ -467,7 +464,7 @@ class Songs(Action):
                 reply += '__**{}**__\n'.format(key)
                 for name_key in self.tag_db[key]:
                     ent = self.db[name_key]
-                    reply += self.fmt_music(ent)
+                    reply += fmt_music_entry(ent)
             reply += "\n"
 
         await self.bot.send_message(self.msg.channel, reply)
@@ -800,7 +797,7 @@ class Timer(Action):
 
         return triggers
 
-    async def check_timer(self, sleep_gap):
+    async def check_timer(self, sleep_time=5):
         """
         Perform a check on the triggers of this timer.
 
@@ -815,7 +812,11 @@ class Timer(Action):
         for trigger, msg in self.triggers:
             if now > trigger:
                 if self.sent_msg:
-                    await self.bot.delete_message(self.sent_msg)
+                    try:
+                        await self.bot.delete_message(self.sent_msg)
+                    except discord.Forbidden as exc:
+                        self.log.error("Failed to delete msg on: {}/{}\n{}".format(
+                                       self.msg.channel.server, self.msg.channel, exc))
                 self.sent_msg = await self.bot.send_message(self.msg.channel, msg)
                 del_cnt += 1
 
@@ -824,8 +825,8 @@ class Timer(Action):
             del_cnt -= 1
 
         if not self.cancel and self.triggers:
-            await asyncio.sleep(sleep_gap)
-            asyncio.ensure_future(self.check_timer(sleep_gap))
+            await asyncio.sleep(sleep_time)
+            asyncio.ensure_future(self.check_timer(sleep_time))
         else:
             del TIMERS[self.key]
 
@@ -908,6 +909,16 @@ class Timers(Action):
         await self.bot.send_message(self.msg.channel, self.timer_summary())
 
 
+def fmt_music_entry(ent):
+    """
+    Format an entry in the music db.
+    """
+    return "{} - {} - {}\n".format(
+        ent['name'], '<{}>'.format(ent['url']) if 'youtu' in ent['url'] else ent['url'],
+        ', '.join(ent.get('tags', []))
+    )
+
+
 def parse_dice_spec(spec):
     """
     Parse a SINGLE dice spec of form 2d6.
@@ -934,6 +945,36 @@ def parse_dice_spec(spec):
         raise dice.exc.InvalidCommandArgs("Invalid number for rolls or dice. Please clarify: " + spec)
 
     return (rolls, sides)
+
+
+def parse_time_spec(time_spec):
+    """
+    Parse a simple time spec of form: [HH:[MM:[SS]]] into seconds.
+
+    Raises:
+        InvalidCommandArgs - Time spec could not be parsed.
+    """
+    secs = 0
+    try:
+        t_spec = time_spec.split(':')
+        t_spec.reverse()
+        secs += int(t_spec[0])
+        secs += int(t_spec[1]) * 60
+        secs += int(t_spec[2]) * 3600
+    except (IndexError, ValueError):
+        if secs == 0:
+            raise dice.exc.InvalidCommandArgs("I can't understand time spec! Use format: **HH:MM:SS**")
+
+    return secs
+
+
+def remove_user_timers(timers, msg_author):
+    """
+    Purge all timers associated with msg_author.
+    Youcan only purge your own timers.
+    """
+    for key_to_remove in [x for x in timers if msg_author in x]:
+        timers[key_to_remove].cancel = True
 
 
 def tokenize_dice_spec(spec):
@@ -965,36 +1006,6 @@ def tokenize_dice_spec(spec):
             tokens += [DiceRoll(roll)]
 
     return tokens
-
-
-def parse_time_spec(time_spec):
-    """
-    Parse a simple time spec of form: [HH:[MM:[SS]]] into seconds.
-
-    Raises:
-        InvalidCommandArgs - Time spec could not be parsed.
-    """
-    secs = 0
-    try:
-        t_spec = time_spec.split(':')
-        t_spec.reverse()
-        secs += int(t_spec[0])
-        secs += int(t_spec[1]) * 60
-        secs += int(t_spec[2]) * 3600
-    except (IndexError, ValueError):
-        if secs == 0:
-            raise dice.exc.InvalidCommandArgs("I can't understand time spec! Use format: **HH:MM:SS**")
-
-    return secs
-
-
-def remove_user_timers(timers, msg_author):
-    """
-    Purge all timers associated with msg_author.
-    Youcan only purge your own timers.
-    """
-    for key_to_remove in [x for x in timers if msg_author in x]:
-        timers[key_to_remove].cancel = True
 
 
 def validate_videos(list_vids):
