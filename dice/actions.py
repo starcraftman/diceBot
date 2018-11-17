@@ -297,7 +297,7 @@ class MPlayer(Action):
                     self.next()
 
                 if self.timed_out:
-                    self.quit()
+                    await self.quit()
             except youtube_dl.utils.DownloadError:
                 await self.bot.send_message("Error fetching youtube vid: most probably copyright issue.\nTry another.")
             except youtube_dl.utils.YoutubeDLError:
