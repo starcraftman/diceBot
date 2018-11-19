@@ -83,20 +83,29 @@ def subs_play(subs, prefix):
 
 {prefix}play youtube_link youtube_link2 local_name ...
         Play one or more youtube links or local files on server.
-{prefix}play --**p**pause
+{prefix}play -p
+{prefix}play --pause
         Pause or resume playing the music.
-{prefix}play --**s**top
+{prefix}play -s
+{prefix}play --stop
         Stop playing the music.
-{prefix}play --**r**estart
+{prefix}play -r
+{prefix}play --restart
         Play the current song from the beginning.
-{prefix}play --**n**ext
+{prefix}play -n
+{prefix}play --next
         Play the next song.
-{prefix}play --pre**v**
+{prefix}play -v
+{prefix}play --prev
         Play the previous song.
-{prefix}play --**a**ppend youtube_link_1 local_name_1
+{prefix}play -a youtube_link_1 local_name_1
+{prefix}play --append youtube_link_1 local_name_1
         Append the following songs to the list.
-{prefix}play --v**o**lume
+{prefix}play -o
+{prefix}play --volume
         Set the volume: [0, 100]')
+{prefix}play --db
+        Play something stored in song db.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'play', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Play')
@@ -108,6 +117,7 @@ def subs_play(subs, prefix):
     sub.add_argument('-n', '--next', action="store_true", help='Next song in list.')
     sub.add_argument('-v', '--prev', action="store_true", help='Previous song in list.')
     sub.add_argument('-o', '--volume', type=int, help='Set the volume: [0, 100]')
+    sub.add_argument('--db', action='store_true', help='Play song from db.')
     sub.add_argument('vids', nargs="*", default=[], help='A single youtube link to play.')
 
 
@@ -150,24 +160,30 @@ def subs_songs(subs, prefix):
     desc = """Manage the song lookup.
 
 {prefix}songs --add name, youtube_link, tag1, tag2, tag3
+{prefix}songs -a name, youtube_link, tag1, tag2, tag3
 {prefix}songs --add name, local_path_name, tag1, tag2
+{prefix}songs -a name, local_path_name, tag1, tag2
         Add all names into the songs mapping.
 {prefix}songs --list
+{prefix}songs -l
         List everything in the db.
 {prefix}songs --manage name/youtube_link name/local_name1
+{prefix}songs -m name/youtube_link name/local_name1
         Manage the songs in the db interactively.
-{prefix}songs --search-name name_song
+{prefix}songs --searche name_song
+{prefix}songs -s name_song
         Search for a name of song (loose match).
-{prefix}songs --search-tag tag_name
+{prefix}songs --tag tag_name
+{prefix}songs -t tag_name
         Search for a tag (loose match).
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'songs', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Songs')
-    sub.add_argument('--add', nargs='*', help='Add a song to the mappings.')
-    sub.add_argument('--list', action='store_true', help='Show all mappings.')
-    sub.add_argument('--manage', action='store_true', help='Manage the mappings.')
-    sub.add_argument('--search-name', help='Search the song names.')
-    sub.add_argument('--search-tag', help='Search the song names.')
+    sub.add_argument('-a', '--add', nargs='+', help='Add a song to the mappings.')
+    sub.add_argument('-l', '--list', action='store_true', help='Show all mappings.')
+    sub.add_argument('-m', '--manage', action='store_true', help='Manage the mappings.')
+    sub.add_argument('-s', '--search', nargs='+', help='Search the song names.')
+    sub.add_argument('-t', '--tag', nargs='+', help='Search the song names.')
 
 
 @register_parser
