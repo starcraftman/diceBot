@@ -54,11 +54,12 @@ SONG_FMT = """      __Song {}__: {name}
       __Tags__: {tags}
 
 """
-SONG_FOOTER = """Type __done__ or __stop__ to cancel.
+SONG_FOOTER = """Type __done__ or __exit__ or __stop__ to cancel.
 Type __next__ to display the next page of entries.
-Type __play 1__ to play entry 1.
+Type __play 1__ to play entry 1 (if applicable).
 """
-SONG_PAGE_LIMIT = 10
+LIMIT_SONGS = 10
+LIMIT_TAGS = 30
 
 
 async def bot_shutdown(bot, sleep_time=30):  # pragma: no cover
@@ -176,6 +177,7 @@ class MPlayer(object):
         self.channel = None
         self.vids = []
         self.vid_index = 0
+        self.volume = 50
         self.loop = False
         self.state = MPlayerState.STOPPED
 
@@ -186,9 +188,9 @@ class MPlayer(object):
 
     def __repr__(self):
         return "MPlayer(bot={}, channel={}, error_channel={}, voice={}, player={},"\
-            " vids={}, vid_index={}, loop={}, state={})".format(
+            " vids={}, vid_index={}, loop={}, volume={}, state={})".format(
                 self.bot, self.channel, self.__error_channel, self.__voice, self.__player,
-                self.vids, self.vid_index, self.loop, self.state
+                self.vids, self.vid_index, self.loop, self.volume, self.state
             )
 
     def initialize_settings(self, msg, args):
@@ -204,6 +206,24 @@ class MPlayer(object):
         self.loop = args.loop
         self.vids = validate_videos(args.vids)
 
+    def set_volume(self, new_volume=None):
+        """
+        Set the volume for the bot.
+        """
+        if not new_volume:
+            new_volume = self.volume
+
+        try:
+            new_volume = int(new_volume)
+            if new_volume < 0 or new_volume > 100:
+                raise ValueError
+        except ValueError:
+            raise dice.exc.InvalidCommandArgs("Volume must be between [1, 100]")
+
+        self.volume = new_volume
+        if self.__player:
+            self.__player.volume = new_volume / 100
+
     async def update_voice_channel(self):
         """
         Join the right channel before beginning transmission.
@@ -213,13 +233,6 @@ class MPlayer(object):
                 await self.__voice.move_to(self.channel)
         else:
             self.__voice = await self.bot.join_voice_channel(self.channel)
-
-    def set_volume(self, new_volume):
-        if new_volume < 1 or new_volume > 100:
-            raise dice.exc.InvalidCommandArgs("Volume must be between [1, 100]")
-        if not self.__player:
-            raise dice.exc.InvalidCommandArgs("Volume can only be modified once player started.")
-        self.__player.volume = new_volume / 100
 
     async def start(self):
         """
@@ -240,6 +253,7 @@ class MPlayer(object):
         else:
             self.__player = self.__voice.create_ffmpeg_player(vid)
         self.__player.start()
+        self.set_volume()
         self.state = MPlayerState.PLAYING
 
     def pause(self):
@@ -333,13 +347,12 @@ class MPlayer(object):
             await asyncio.sleep(sleep_time)
 
 
-# TODO: Handle possible paging of tags/songs here.
 class Play(Action):
     """
     Transparent mapper from actions onto the mplayer.
     """
     async def select_song(self, song_db, tag_db, songs):
-        #  songs = sorted(songs, key=lambda x, y: x['name'] < y['name'])
+        songs = sorted(songs, key=lambda x: x['name'])
         song_msg = format_song_list('Choose from the following songs...\n\n',
                                     songs, SONG_FOOTER, cnt=1)
         song_msg += 'Type __back__ to return to tags.'
@@ -354,14 +367,16 @@ class Play(Action):
                     messages += [user_select]
                     user_select.content = user_select.content.lower().strip()
 
-                if not user_select \
-                        or user_select.content == 'done' \
-                        or user_select.content == 'stop':
+                if not user_select or user_select.content in ['done', 'exit', 'stop']:
                     break
 
                 elif user_select.content == 'back':
                     asyncio.ensure_future(self.select_tag(song_db, tag_db))
                     return
+
+                elif user_select.content == 'next':
+                    # TODO: Paging of songs.
+                    pass
 
                 else:
                     choice = int(user_select.content.replace('play ', '')) - 1
@@ -371,8 +386,10 @@ class Play(Action):
                     self.args.loop = True
                     self.args.vids = [songs[choice]['url']]
                     self.bot.mplayer.initialize_settings(self.msg, self.args)
-                    await self.bot.mplayer.start()
-                    await self.bot.send_message(self.msg.channel, 'Song "{}" sent to player.'.format(songs[choice]['name']))
+                    asyncio.ensure_future(asyncio.gather(
+                        self.bot.mplayer.start(),
+                        self.bot.send_message(self.msg.channel, 'Song "{}" sent to player.'.format(songs[choice]['name'])),
+                    ))
                     return
             except ValueError:
                 await self.bot.send_message(self.msg.channel, 'Did not undertand play selection.')
@@ -403,18 +420,18 @@ class Play(Action):
                     messages += [user_select]
                     user_select.content = user_select.content.lower().strip()
 
-                if not user_select \
-                        or user_select.content == 'done' \
-                        or user_select.content == 'stop':
+                if not user_select or user_select.content in ['done', 'exit', 'stop']:
                     break
 
-                #  elif user_select.content == 'next':
-                    #  entries = entries[SONG_PAGE_LIMIT:]
-                    #  num_entries = len(entries[:SONG_PAGE_LIMIT])
+                elif user_select.content == 'next':
+                    pass
+                    # TODO: Paging of tags.
+                    #  entries = entries[LIMIT_SONGS:]
+                    #  num_entries = len(entries[:LIMIT_SONGS])
                     #  page += 1
-                    #  cnt += SONG_PAGE_LIMIT
+                    #  cnt += LIMIT_SONGS
                     #  reply = format_song_list('**__Songs DB__** Page {}\n\n'.format(page),
-                                                #  entries[:SONG_PAGE_LIMIT], SONG_FOOTER, cnt=cnt)
+                                                #  entries[:LIMIT_SONGS], SONG_FOOTER, cnt=cnt)
 
                 else:
                     choice = int(user_select.content) - 1
@@ -446,7 +463,7 @@ class Play(Action):
             mplayer.next()
         elif self.args.prev:
             mplayer.prev()
-        elif self.args.volume:
+        elif self.args.volume != 'zero':
             mplayer.set_volume(self.args.volume)
         elif self.args.append:
             mplayer.vids += new_vids
@@ -562,9 +579,9 @@ class Songs(Action):
         """
         cnt, page = 1, 1
         entries = sorted(list(self.song_db.values()), key=lambda x: x['name'])
-        num_entries = len(entries[:SONG_PAGE_LIMIT])
+        num_entries = len(entries[:LIMIT_SONGS])
         reply = format_song_list('**__Songs DB__** Page {}\n\n'.format(page),
-                                 entries[:SONG_PAGE_LIMIT], SONG_FOOTER, cnt=cnt)
+                                 entries[:LIMIT_SONGS], SONG_FOOTER, cnt=cnt)
 
         while entries:
             try:
@@ -576,14 +593,12 @@ class Songs(Action):
                     messages += [user_select]
                     user_select.content = user_select.content.lower().strip()
 
-                if not user_select \
-                        or user_select.content == 'done' \
-                        or user_select.content == 'stop':
+                if not user_select or user_select.content in ['done', 'exit', 'stop']:
                     break
 
                 elif 'play' in user_select.content:
                     choice = int(user_select.content.replace('play', '')) - 1
-                    if choice < 0 or choice >= SONG_PAGE_LIMIT:
+                    if choice < 0 or choice >= LIMIT_SONGS:
                         raise dice.exc.InvalidCommandArgs('Please select choice in [1, {}]'.format(num_entries))
 
                     self.args.loop = True
@@ -593,12 +608,12 @@ class Songs(Action):
                     break
 
                 elif user_select.content == 'next':
-                    entries = entries[SONG_PAGE_LIMIT:]
-                    num_entries = len(entries[:SONG_PAGE_LIMIT])
+                    entries = entries[LIMIT_SONGS:]
+                    num_entries = len(entries[:LIMIT_SONGS])
                     page += 1
-                    cnt += SONG_PAGE_LIMIT
+                    cnt += LIMIT_SONGS
                     reply = format_song_list('**__Songs DB__** Page {}\n\n'.format(page),
-                                             entries[:SONG_PAGE_LIMIT], SONG_FOOTER, cnt=cnt)
+                                             entries[:LIMIT_SONGS], SONG_FOOTER, cnt=cnt)
             except ValueError:
                 await self.bot.send_message(self.msg.channel, 'Did not undertand play selection.')
             finally:
@@ -613,12 +628,12 @@ class Songs(Action):
         """
         cnt = 1
         entries = sorted(list(self.song_db.values()), key=lambda x: x['name'])
-        num_entries = len(entries[:SONG_PAGE_LIMIT])
+        num_entries = len(entries[:LIMIT_SONGS])
 
         while entries:
             try:
                 reply = format_song_list("Remove one of these songs? [1..{}]:\n".format(num_entries),
-                                         entries[:SONG_PAGE_LIMIT], SONG_FOOTER, cnt=cnt)
+                                         entries[:LIMIT_SONGS], SONG_FOOTER, cnt=cnt)
                 messages = [await self.bot.send_message(self.msg.channel, reply)]
                 user_select = await self.bot.wait_for_message(timeout=30, author=self.msg.author,
                                                               channel=self.msg.channel)
@@ -627,20 +642,18 @@ class Songs(Action):
                     messages += [user_select]
                     user_select.content = user_select.content.lower().strip()
 
-                if not user_select \
-                        or user_select.content == 'done'\
-                        or user_select.content == 'stop':
+                if not user_select or user_select.content in ['done', 'exit', 'stop']:
                     break
 
                 elif user_select.content == 'next':
-                    cnt += SONG_PAGE_LIMIT
-                    entries = entries[SONG_PAGE_LIMIT:]
-                    num_entries = len(entries[:SONG_PAGE_LIMIT])
+                    cnt += LIMIT_SONGS
+                    entries = entries[LIMIT_SONGS:]
+                    num_entries = len(entries[:LIMIT_SONGS])
                     continue
 
                 else:
                     choice = int(user_select.content) - 1
-                    if choice < 0 or choice >= SONG_PAGE_LIMIT:
+                    if choice < 0 or choice >= LIMIT_SONGS:
                         raise ValueError
 
                     self.remove(entries[choice]['name'])
@@ -1103,9 +1116,7 @@ class Timers(Action):
                     messages += [user_select]
                     user_select.content = user_select.content.lower().strip()
 
-                if not user_select \
-                        or user_select.content == 'done' \
-                        or user_select.content == 'stop':
+                if not user_select or user_select.content in ['done', 'exit', 'stop']:
                     return
 
                 choice = int(user_select.content) - 1

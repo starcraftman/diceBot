@@ -116,7 +116,7 @@ def subs_play(subs, prefix):
     sub.add_argument('-s', '--stop', action="store_true", help='Stop the music!')
     sub.add_argument('-n', '--next', action="store_true", help='Next song in list.')
     sub.add_argument('-v', '--prev', action="store_true", help='Previous song in list.')
-    sub.add_argument('-o', '--volume', type=int, help='Set the volume: [0, 100]')
+    sub.add_argument('-o', '--volume', default='zero', help='Set the volume: [0, 100]')
     sub.add_argument('--db', action='store_true', help='Play song from db.')
     sub.add_argument('vids', nargs="*", default=[], help='A single youtube link to play.')
 
