@@ -250,13 +250,24 @@ class MPlayer(object):
         await self.update_voice_channel()
 
         vid = self.vids[self.vid_index]
-        if "youtu" in vid:
-            self.__player = await self.__voice.create_ytdl_player(vid)
-        else:
-            self.__player = self.__voice.create_ffmpeg_player(vid)
-        self.__player.start()
-        self.set_volume()
-        self.state = MPlayerState.PLAYING
+        try:
+            if "youtu" in vid:
+                self.__player = await self.__voice.create_ytdl_player(vid)
+            else:
+                self.__player = self.__voice.create_ffmpeg_player(vid)
+            self.__player.start()
+            self.set_volume()
+            self.state = MPlayerState.PLAYING
+        except youtube_dl.utils.DownloadError as exc:
+            if self.__error_channel:
+                msg = "Player stopped. Error donwloading video: copyright?\n" + dice.tbl.wrap_markdown(str(exc))
+                self.stop()
+                await self.bot.send_message(self.__error_channel, msg)
+        except youtube_dl.utils.YoutubeDLError as exc:
+            if self.__error_channel:
+                msg = "Player stopped. General YoutubeDL error.\n" + dice.tbl.wrap_markdown(str(exc))
+                self.stop()
+                await self.bot.send_message(self.__error_channel, msg)
 
     def pause(self):
         """
@@ -291,27 +302,27 @@ class MPlayer(object):
         except AttributeError:
             pass
 
-    def prev(self):
+    async def prev(self):
         """
         Go to the previous song.
         """
         if self.__player and len(self.vids) > 1:
             if self.loop and self.vid_index > 0:
                 self.vid_index = (self.vid_index - 1) % len(self.vids)
-                asyncio.ensure_future(self.start())
+                await self.start()
             else:
                 self.vid_index = 0
                 self.stop()
                 raise dice.exc.InvalidCommandArgs("Loop is not set, queue finished. Stopping.")
 
-    def next(self):
+    async def next(self):
         """
         Go to the next song.
         """
         if self.__player and len(self.vids) > 1:
             if self.loop or self.vid_index + 1 < len(self.vids):
                 self.vid_index = (self.vid_index + 1) % len(self.vids)
-                asyncio.ensure_future(self.start())
+                await self.start()
             else:
                 self.vid_index = 0
                 self.stop()
@@ -329,20 +340,10 @@ class MPlayer(object):
                     last_activity = datetime.datetime.utcnow()
 
                 if self.state == MPlayerState.PLAYING and self.__player.is_done():
-                    self.next()
+                    await self.next()
 
                 if (datetime.datetime.utcnow() - last_activity).seconds > 300:
                     await self.quit()
-            except youtube_dl.utils.DownloadError as exc:
-                if self.__error_channel:
-                    msg = "Player stopped. Error donwloading video: copyright?\n" + dice.tbl.wrap_markdown(str(exc))
-                    self.stop()
-                    await self.bot.send_message(self.__error_channel, msg)
-            except youtube_dl.utils.YoutubeDLError as exc:
-                if self.__error_channel:
-                    msg = "Player stopped. General YoutubeDL error.\n" + dice.tbl.wrap_markdown(str(exc))
-                    self.stop()
-                    await self.bot.send_message(self.__error_channel, msg)
             except AttributeError:
                 pass
 
@@ -362,9 +363,9 @@ class Play(Action):
         elif self.args.pause:
             mplayer.pause()
         elif self.args.next:
-            mplayer.next()
+            await mplayer.next()
         elif self.args.prev:
-            mplayer.prev()
+            await mplayer.prev()
         elif self.args.volume != 'zero':
             mplayer.set_volume(self.args.volume)
         elif self.args.append:
@@ -528,8 +529,7 @@ class Songs(Action):
                         raise ValueError
 
                     self.remove(entries[choice]['name'])
-                    entries.remove(entries[choice])
-                    break
+                    del entries[choice]
             except (KeyError, ValueError):
                 await self.bot.send_message(
                     self.msg.channel,
