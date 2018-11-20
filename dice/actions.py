@@ -54,12 +54,14 @@ SONG_FMT = """      __Song {}__: {name}
       __Tags__: {tags}
 
 """
-SONG_FOOTER = """Type __done__ or __exit__ or __stop__ to cancel.
+SONG_FOOTER = """
+
+Type __done__ or __exit__ or __stop__ to cancel.
 Type __next__ to display the next page of entries.
 Type __play 1__ to play entry 1 (if applicable).
 """
 LIMIT_SONGS = 10
-LIMIT_TAGS = 30
+LIMIT_TAGS = 20
 
 
 async def bot_shutdown(bot, sleep_time=30):  # pragma: no cover
@@ -351,106 +353,6 @@ class Play(Action):
     """
     Transparent mapper from actions onto the mplayer.
     """
-    async def select_song(self, song_db, tag_db, songs):
-        songs = sorted(songs, key=lambda x: x['name'])
-        song_msg = format_song_list('Choose from the following songs...\n\n',
-                                    songs, SONG_FOOTER, cnt=1)
-        song_msg += 'Type __back__ to return to tags.'
-
-        while True:
-            try:
-                messages = [await self.bot.send_message(self.msg.channel, song_msg)]
-                user_select = await self.bot.wait_for_message(timeout=30, author=self.msg.author,
-                                                              channel=self.msg.channel)
-
-                if user_select:
-                    messages += [user_select]
-                    user_select.content = user_select.content.lower().strip()
-
-                if not user_select or user_select.content in ['done', 'exit', 'stop']:
-                    break
-
-                elif user_select.content == 'back':
-                    asyncio.ensure_future(self.select_tag(song_db, tag_db))
-                    return
-
-                elif user_select.content == 'next':
-                    # TODO: Paging of songs.
-                    pass
-
-                else:
-                    choice = int(user_select.content.replace('play ', '')) - 1
-                    if choice < 0 or choice >= len(tag_db):
-                        raise dice.exc.InvalidCommandArgs('Please select choice in [1, {}]'.format(len(tag_db)))
-
-                    self.args.loop = True
-                    self.args.vids = [songs[choice]['url']]
-                    self.bot.mplayer.initialize_settings(self.msg, self.args)
-                    asyncio.ensure_future(asyncio.gather(
-                        self.bot.mplayer.start(),
-                        self.bot.send_message(self.msg.channel, 'Song "{}" sent to player.'.format(songs[choice]['name'])),
-                    ))
-                    return
-            except ValueError:
-                await self.bot.send_message(self.msg.channel, 'Did not undertand play selection.')
-            finally:
-                user_select = None
-                asyncio.ensure_future(self.bot.delete_messages(messages))
-
-        await self.bot.send_message(self.msg.channel, 'Play db terminated.')
-
-    async def select_tag(self, song_db, tag_db):
-        """
-        Use the Songs db to lookup dynamically based on tags.
-        """
-        tag_msg = 'Select one of the following tags by number to explore:\n\n'
-        tag_list = sorted(list(tag_db.keys()))
-        for ind, tag in enumerate(tag_list, start=1):
-            tag_msg += '        **{}**) {} ({} songs)\n'.format(ind, tag, len(tag_db[tag]))
-        tag_msg += SONG_FOOTER
-
-        while True:
-            try:
-                print(tag_msg)
-                messages = [await self.bot.send_message(self.msg.channel, tag_msg)]
-                user_select = await self.bot.wait_for_message(timeout=30, author=self.msg.author,
-                                                              channel=self.msg.channel)
-
-                if user_select:
-                    messages += [user_select]
-                    user_select.content = user_select.content.lower().strip()
-
-                if not user_select or user_select.content in ['done', 'exit', 'stop']:
-                    break
-
-                elif user_select.content == 'next':
-                    pass
-                    # TODO: Paging of tags.
-                    #  entries = entries[LIMIT_SONGS:]
-                    #  num_entries = len(entries[:LIMIT_SONGS])
-                    #  page += 1
-                    #  cnt += LIMIT_SONGS
-                    #  reply = format_song_list('**__Songs DB__** Page {}\n\n'.format(page),
-                                                #  entries[:LIMIT_SONGS], SONG_FOOTER, cnt=cnt)
-
-                else:
-                    choice = int(user_select.content) - 1
-                    if choice < 0 or choice >= len(tag_db):
-                        await self.bot.send_message(self.msg.channel,
-                        'Please select choice in [1, {}]'.format(len(tag_db)))
-                        continue
-
-                    songs = [song_db[x] for x in tag_db[tag_list[choice]]]
-                    asyncio.ensure_future(self.select_song(song_db, tag_db, songs))
-                    return
-            except ValueError:
-                await self.bot.send_message(self.msg.channel, 'Did not undertand play selection.')
-            finally:
-                user_select = None
-                asyncio.ensure_future(self.bot.delete_messages(messages))
-
-        await self.bot.send_message(self.msg.channel, 'Play db terminated.')
-
     async def execute(self):
         mplayer = self.bot.mplayer
         new_vids = validate_videos(self.args.vids)
@@ -469,28 +371,11 @@ class Play(Action):
             mplayer.vids += new_vids
         elif self.args.loop:
             mplayer.loop = not mplayer.loop
-        elif self.args.db:
-            songs = Songs(args=self.args, msg=self.msg, bot=self.bot)
-            songs.load()
-            await self.select_tag(songs.song_db, songs.tag_db)
         else:
             if new_vids:
                 # New videos played so replace playlist
                 mplayer.initialize_settings(self.msg, self.args)
             await mplayer.start()
-
-
-def format_song_list(header, entries, footer, *, cnt=1):
-    """
-    Generate the management list of entries.
-    """
-    msg = header
-    for ent in entries:
-        msg += SONG_FMT.format(cnt, **ent)
-        cnt += 1
-    msg += footer
-
-    return msg
 
 
 # TODO: Deduplicate code in 'management interface', make reusable.
@@ -505,33 +390,20 @@ class Songs(Action):
         self.tag_db = {}
 
         self.load()
-        self.save()
 
     def load(self):
         """
         Load the song dbs from files.
         """
-        try:
-            with open(SONG_DB_FILE) as fin:
-                self.song_db = yaml.load(fin, Loader=Loader)
-        except FileNotFoundError:
-            self.song_db = {}
-        try:
-            with open(SONG_TAGS_FILE) as fin:
-                self.tag_db = yaml.load(fin, Loader=Loader)
-        except FileNotFoundError:
-            self.tag_db = {}
+        self.song_db = load_yaml(SONG_DB_FILE)
+        self.tag_db = load_yaml(SONG_TAGS_FILE)
 
     def save(self):
         """
         Save the song dbs to files.
         """
-        with open(SONG_DB_FILE, 'w') as fout:
-            yaml.dump(self.song_db, fout, Dumper=Dumper, encoding='UTF-8', indent=2,
-                      explicit_start=True, default_flow_style=False)
-        with open(SONG_TAGS_FILE, 'w') as fout:
-            yaml.dump(self.tag_db, fout, Dumper=Dumper, encoding='UTF-8', indent=2,
-                      explicit_start=True, default_flow_style=False)
+        write_yaml(SONG_DB_FILE, self.song_db)
+        write_yaml(SONG_TAGS_FILE, self.tag_db)
 
     def add(self, key, url, tags):
         """
@@ -547,7 +419,7 @@ class Songs(Action):
         }
         for tag in tags:
             try:
-                self.tag_db[tag] = sorted(list(set(self.tag_db[tag] + [key])))
+                self.tag_db[tag] = sorted(self.tag_db[tag] + [key])
             except KeyError:
                 self.tag_db[tag] = [key]
 
@@ -579,12 +451,12 @@ class Songs(Action):
         """
         cnt, page = 1, 1
         entries = sorted(list(self.song_db.values()), key=lambda x: x['name'])
-        num_entries = len(entries[:LIMIT_SONGS])
-        reply = format_song_list('**__Songs DB__** Page {}\n\n'.format(page),
-                                 entries[:LIMIT_SONGS], SONG_FOOTER, cnt=cnt)
 
         while entries:
             try:
+                num_entries = len(entries[:LIMIT_SONGS])
+                reply = format_song_list('**__Songs DB__** Page {}\n\n'.format(page),
+                                         entries[:LIMIT_SONGS], SONG_FOOTER, cnt=cnt)
                 messages = [await self.bot.send_message(self.msg.channel, reply)]
                 user_select = await self.bot.wait_for_message(timeout=30, author=self.msg.author,
                                                               channel=self.msg.channel)
@@ -594,33 +466,32 @@ class Songs(Action):
                     user_select.content = user_select.content.lower().strip()
 
                 if not user_select or user_select.content in ['done', 'exit', 'stop']:
+                    await self.bot.send_message(self.msg.channel, 'List terminated.')
                     break
 
-                elif 'play' in user_select.content:
+                elif user_select.content == 'next':
+                    entries = entries[LIMIT_SONGS:]
+                    page += 1
+                    cnt += LIMIT_SONGS
+
+                else:
                     choice = int(user_select.content.replace('play', '')) - 1
                     if choice < 0 or choice >= LIMIT_SONGS:
-                        raise dice.exc.InvalidCommandArgs('Please select choice in [1, {}]'.format(num_entries))
+                        raise ValueError
 
                     self.args.loop = True
                     self.args.vids = [entries[choice]['url']]
                     self.bot.mplayer.initialize_settings(self.msg, self.args)
                     await self.bot.mplayer.start()
                     break
-
-                elif user_select.content == 'next':
-                    entries = entries[LIMIT_SONGS:]
-                    num_entries = len(entries[:LIMIT_SONGS])
-                    page += 1
-                    cnt += LIMIT_SONGS
-                    reply = format_song_list('**__Songs DB__** Page {}\n\n'.format(page),
-                                             entries[:LIMIT_SONGS], SONG_FOOTER, cnt=cnt)
             except ValueError:
-                await self.bot.send_message(self.msg.channel, 'Did not undertand play selection.')
+                await self.bot.send_message(
+                    self.msg.channel,
+                    'Selection not understood. Make choice in [1, {}]'.format(num_entries)
+                )
             finally:
                 user_select = None
                 asyncio.ensure_future(self.bot.delete_messages(messages))
-
-        await self.bot.send_message(self.msg.channel, 'List terminated.')
 
     async def manage(self):
         """
@@ -632,7 +503,7 @@ class Songs(Action):
 
         while entries:
             try:
-                reply = format_song_list("Remove one of these songs? [1..{}]:\n".format(num_entries),
+                reply = format_song_list("Remove one of these songs? [1..{}]:\n\n".format(num_entries),
                                          entries[:LIMIT_SONGS], SONG_FOOTER, cnt=cnt)
                 messages = [await self.bot.send_message(self.msg.channel, reply)]
                 user_select = await self.bot.wait_for_message(timeout=30, author=self.msg.author,
@@ -643,13 +514,13 @@ class Songs(Action):
                     user_select.content = user_select.content.lower().strip()
 
                 if not user_select or user_select.content in ['done', 'exit', 'stop']:
+                    await self.bot.send_message(self.msg.channel, "Management terminated.")
                     break
 
                 elif user_select.content == 'next':
                     cnt += LIMIT_SONGS
                     entries = entries[LIMIT_SONGS:]
                     num_entries = len(entries[:LIMIT_SONGS])
-                    continue
 
                 else:
                     choice = int(user_select.content) - 1
@@ -658,13 +529,120 @@ class Songs(Action):
 
                     self.remove(entries[choice]['name'])
                     entries.remove(entries[choice])
+                    break
             except (KeyError, ValueError):
-                raise dice.exc.InvalidCommandArgs("Please check your usage.")
+                await self.bot.send_message(
+                    self.msg.channel,
+                    'Selection not understood. Make choice in [1, {}]'.format(num_entries)
+                )
             finally:
                 user_select = None
                 asyncio.ensure_future(self.bot.delete_messages(messages))
 
-        await self.bot.send_message(self.msg.channel, "Management terminated.")
+    async def select_song(self, songs):
+        all_songs = sorted(songs, key=lambda x: x['name'])
+        cnt = 1
+
+        while all_songs:
+            try:
+                page_songs = all_songs[:LIMIT_SONGS]
+                num_entries = len(page_songs)
+                song_msg = format_song_list('Choose from the following songs...\n\n',
+                                            page_songs, SONG_FOOTER, cnt=cnt)
+                song_msg += 'Type __back__ to return to tags.'
+
+                messages = [await self.bot.send_message(self.msg.channel, song_msg)]
+                user_select = await self.bot.wait_for_message(timeout=30, author=self.msg.author,
+                                                              channel=self.msg.channel)
+
+                if user_select:
+                    messages += [user_select]
+                    user_select.content = user_select.content.lower().strip()
+
+                if not user_select or user_select.content in ['done', 'exit', 'stop']:
+                    await self.bot.send_message(self.msg.channel, 'Play db terminated.')
+                    break
+
+                elif user_select.content == 'back':
+                    asyncio.ensure_future(self.select_tag())
+                    break
+
+                elif user_select.content == 'next':
+                    all_songs = all_songs[LIMIT_SONGS:]
+                    cnt += LIMIT_SONGS
+
+                else:
+                    choice = int(user_select.content.replace('play ', '')) - 1
+                    if choice < 0 or choice >= num_entries:
+                        raise ValueError
+
+                    self.args.loop = True
+                    self.args.vids = [page_songs[choice]['url']]
+                    self.bot.mplayer.initialize_settings(self.msg, self.args)
+                    asyncio.ensure_future(asyncio.gather(
+                        self.bot.mplayer.start(),
+                        self.bot.send_message(self.msg.channel, 'Song "{}" sent to player.'.format(page_songs[choice]['name'])),
+                    ))
+                    break
+            except ValueError:
+                await self.bot.send_message(
+                    self.msg.channel,
+                    'Selection not understood. Make choice in [1, {}]'.format(num_entries)
+                )
+            finally:
+                user_select = None
+                asyncio.ensure_future(self.bot.delete_messages(messages))
+
+    async def select_tag(self):
+        """
+        Use the Songs db to lookup dynamically based on tags.
+        """
+        all_tags = sorted(list(self.tag_db.keys()))
+        cnt = 1
+
+        while all_tags:
+            try:
+                page_tags = all_tags[:LIMIT_TAGS]
+                num_entries = len(page_tags)
+                tag_msg = 'Select one of the following tags by number to explore:\n\n'
+                for ind, tag in enumerate(page_tags, start=cnt):
+                    tag_msg += '        **{}**) {} ({} songs)\n'.format(ind, tag, len(self.tag_db[tag]))
+                tag_msg = tag_msg.rstrip()
+                tag_msg += SONG_FOOTER
+                messages = [await self.bot.send_message(self.msg.channel, tag_msg)]
+                user_select = await self.bot.wait_for_message(timeout=30, author=self.msg.author,
+                                                              channel=self.msg.channel)
+
+                if user_select:
+                    messages += [user_select]
+                    user_select.content = user_select.content.lower().strip()
+
+                if not user_select or user_select.content in ['done', 'exit', 'stop']:
+                    await self.bot.send_message(self.msg.channel, 'Play db terminated.')
+                    break
+
+                elif user_select.content == 'next':
+                    all_tags = all_tags[LIMIT_TAGS:]
+                    cnt += LIMIT_TAGS
+
+                else:
+                    choice = int(user_select.content) - 1
+                    if choice < 0 or choice >= num_entries:
+                        raise ValueError
+
+                    songs = [self.song_db[x] for x in self.tag_db[page_tags[choice]]]
+                    asyncio.ensure_future(self.select_song(songs))
+                    break
+            except ValueError:
+                await self.bot.send_message(
+                    self.msg.channel,
+                    'Selection not understood. Make choice in [1, {}]'.format(num_entries)
+                )
+            except dice.exc.InvalidCommandArgs as exc:
+                await self.bot.send_message(self.msg.channel, str(exc))
+            finally:
+                user_select = None
+                asyncio.ensure_future(self.bot.delete_messages(messages))
 
     async def search_names(self, term):
         """
@@ -713,6 +691,8 @@ class Songs(Action):
             await self.list()
         elif self.args.manage:
             await self.manage()
+        elif self.args.play:
+            await self.select_tag()
         elif self.args.search:
             await self.search_names(self.args.search)
         elif self.args.tag:
@@ -1258,3 +1238,42 @@ def validate_videos(list_vids):
             new_vids.append(globbed[0])
 
     return new_vids
+
+
+def format_song_list(header, entries, footer, *, cnt=1):
+    """
+    Generate the management list of entries.
+    """
+    msg = header
+    for ent in entries:
+        msg += SONG_FMT.format(cnt, **ent)
+        cnt += 1
+    msg = msg.rstrip()
+    msg += footer
+
+    return msg
+
+
+def load_yaml(fname):
+    """
+    Load a yaml file and return the dict. If not found, return an empty {}.
+    """
+    try:
+        with open(fname) as fin:
+            db = yaml.load(fin, Loader=Loader)
+    except FileNotFoundError:
+        db = {}
+
+    return db
+
+
+def write_yaml(fname, db):
+    """
+    Save a dictionary to a yaml file.
+
+    Raises:
+        OSError - Something prevented saving the file.
+    """
+    with open(fname, 'w') as fout:
+        yaml.dump(db, fout, Dumper=Dumper, encoding='UTF-8', indent=2,
+                  explicit_start=True, default_flow_style=False)

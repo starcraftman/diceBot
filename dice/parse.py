@@ -104,8 +104,6 @@ def subs_play(subs, prefix):
 {prefix}play -o
 {prefix}play --volume
         Set the volume: [0, 100]')
-{prefix}play --db
-        Play something stored in song db.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'play', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Play')
@@ -117,7 +115,6 @@ def subs_play(subs, prefix):
     sub.add_argument('-n', '--next', action="store_true", help='Next song in list.')
     sub.add_argument('-v', '--prev', action="store_true", help='Previous song in list.')
     sub.add_argument('-o', '--volume', default='zero', help='Set the volume: [0, 100]')
-    sub.add_argument('--db', action='store_true', help='Play song from db.')
     sub.add_argument('vids', nargs="*", default=[], help='A single youtube link to play.')
 
 
@@ -170,6 +167,9 @@ def subs_songs(subs, prefix):
 {prefix}songs --manage name/youtube_link name/local_name1
 {prefix}songs -m name/youtube_link name/local_name1
         Manage the songs in the db interactively.
+{prefix}songs --play
+{prefix}songs -p
+        Interactively via menus select a song from db to play.
 {prefix}songs --searche name_song
 {prefix}songs -s name_song
         Search for a name of song (loose match).
@@ -182,6 +182,7 @@ def subs_songs(subs, prefix):
     sub.add_argument('-a', '--add', nargs='+', help='Add a song to the mappings.')
     sub.add_argument('-l', '--list', action='store_true', help='Show all mappings.')
     sub.add_argument('-m', '--manage', action='store_true', help='Manage the mappings.')
+    sub.add_argument('-p', '--play', action='store_true', help='Select a song from db to play.')
     sub.add_argument('-s', '--search', nargs='+', help='Search the song names.')
     sub.add_argument('-t', '--tag', nargs='+', help='Search the song names.')
 
