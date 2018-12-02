@@ -81,7 +81,7 @@ def subs_play(subs, prefix):
     """ Subcommand parsing for timers """
     desc = """A simple music player for games.
 
-{prefix}play youtube_link youtube_link2 local_name ...
+{prefix}play youtube_link, song db name, local_name ...
         Play one or more youtube links or local files on server.
 {prefix}play -p
 {prefix}play --pause
@@ -111,6 +111,7 @@ def subs_play(subs, prefix):
     sub.add_argument('-l', '--loop', action="store_true", help='Toggle looping the music.')
     sub.add_argument('-p', '--pause', action="store_true", help='Toggle pausing the player.')
     sub.add_argument('-r', '--restart', action="store_true", help='Restart current song.')
+    sub.add_argument('--status', action="store_true", help='Show player status.')
     sub.add_argument('-s', '--stop', action="store_true", help='Stop the music!')
     sub.add_argument('-n', '--next', action="store_true", help='Next song in list.')
     sub.add_argument('-v', '--prev', action="store_true", help='Previous song in list.')

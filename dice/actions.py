@@ -180,13 +180,24 @@ class MPlayer(object):
         self.vids = []
         self.vid_index = 0
         self.volume = 50
-        self.loop = False
+        self.loop = True
         self.state = MPlayerState.STOPPED
 
         self.__error_channel = None
         # Parts of the discord library wrapped
         self.__voice = None
         self.__player = None
+
+    def __str__(self):
+        return """__**Player Status**__ :
+
+        Queue: {vids}
+        Index: {vid_index}
+        Volume: {volume}/100
+        Loop: {loop}
+        Status: {state}
+""".format(vids=['<' + x + '>' for x in self.vids], vid_index=self.vid_index, volume=self.volume,
+           loop=self.loop, state=self.status)
 
     def __repr__(self):
         return "MPlayer(bot={}, channel={}, error_channel={}, voice={}, player={},"\
@@ -195,7 +206,18 @@ class MPlayer(object):
                 self.vids, self.vid_index, self.loop, self.volume, self.state
             )
 
-    def initialize_settings(self, msg, args):
+    @property
+    def status(self):
+        """ Textual version of state. """
+        status = 'Stopped'
+        if self.state == MPlayerState.PAUSED:
+            status = 'Paused'
+        elif self.state == MPlayerState.PLAYING:
+            status = 'Playing'
+
+        return status
+
+    def initialize_settings(self, msg, vids):
         """
         Update current set videos and join requesting user in voice.
         """
@@ -205,8 +227,7 @@ class MPlayer(object):
             self.channel = discord.utils.get(msg.server.channels,
                                              type=discord.ChannelType.voice)
 
-        self.loop = args.loop
-        self.vids = validate_videos(args.vids)
+        self.vids = vids
 
     def set_volume(self, new_volume=None):
         """
@@ -306,7 +327,7 @@ class MPlayer(object):
         """
         Go to the previous song.
         """
-        if self.__player and len(self.vids) > 1:
+        if self.__player and len(self.vids) > 0:
             if self.loop and self.vid_index > 0:
                 self.vid_index = (self.vid_index - 1) % len(self.vids)
                 await self.start()
@@ -319,7 +340,7 @@ class MPlayer(object):
         """
         Go to the next song.
         """
-        if self.__player and len(self.vids) > 1:
+        if self.__player and len(self.vids) > 0:
             if self.loop or self.vid_index + 1 < len(self.vids):
                 self.vid_index = (self.vid_index + 1) % len(self.vids)
                 await self.start()
@@ -356,7 +377,11 @@ class Play(Action):
     """
     async def execute(self):
         mplayer = self.bot.mplayer
-        new_vids = validate_videos(self.args.vids)
+
+        msg = self.msg.content.replace(self.bot.prefix + 'play', '')
+        msg = re.sub(r'-+(volume|o)\s+\S+|-+\S+', '', msg)  # Strip possible flags
+        parts = re.split(r'\s*,\s*', msg)
+        new_vids = validate_videos([part.strip() for part in parts])
 
         if self.args.stop:
             mplayer.stop()
@@ -372,11 +397,15 @@ class Play(Action):
             mplayer.vids += new_vids
         elif self.args.loop:
             mplayer.loop = not mplayer.loop
+        elif self.args.status:
+            pass
         else:
-            if new_vids:
+            if self.args.vids:
                 # New videos played so replace playlist
-                mplayer.initialize_settings(self.msg, self.args)
+                mplayer.initialize_settings(self.msg, new_vids)
             await mplayer.start()
+
+        await self.bot.send_message(self.msg.channel, str(self.bot.mplayer))
 
 
 # TODO: Deduplicate code in 'management interface', make reusable.
@@ -479,11 +508,13 @@ class Songs(Action):
                     choice = int(user_select.content.replace('play', '')) - 1
                     if choice < 0 or choice >= LIMIT_SONGS:
                         raise ValueError
+                    selected = entries[choice]
 
-                    self.args.loop = True
-                    self.args.vids = [entries[choice]['url']]
-                    self.bot.mplayer.initialize_settings(self.msg, self.args)
-                    await self.bot.mplayer.start()
+                    self.bot.mplayer.initialize_settings(self.msg, validate_videos([selected['url']]))
+                    asyncio.ensure_future(asyncio.gather(
+                        self.bot.mplayer.start(),
+                        self.bot.send_message(self.msg.channel, '**Song Started**\n\n' + SONG_FMT.format(1, **selected)),
+                    ))
                     break
             except ValueError:
                 await self.bot.send_message(
@@ -575,13 +606,12 @@ class Songs(Action):
                     choice = int(user_select.content.replace('play ', '')) - 1
                     if choice < 0 or choice >= num_entries:
                         raise ValueError
+                    selected = page_songs[choice]
 
-                    self.args.loop = True
-                    self.args.vids = [page_songs[choice]['url']]
-                    self.bot.mplayer.initialize_settings(self.msg, self.args)
+                    self.bot.mplayer.initialize_settings(self.msg, validate_videos([selected['url']]))
                     asyncio.ensure_future(asyncio.gather(
                         self.bot.mplayer.start(),
-                        self.bot.send_message(self.msg.channel, 'Song "{}" sent to player.'.format(page_songs[choice]['name'])),
+                        self.bot.send_message(self.msg.channel, '**Song Started**\n\n' + SONG_FMT.format(1, **selected)),
                     ))
                     break
             except ValueError:
@@ -687,6 +717,9 @@ class Songs(Action):
             parts = [part.strip() for part in parts]
             key, url, tags = parts[0].lower().strip(), parts[1], [x.lower().strip() for x in parts[2:]]
             self.add(key, url, tags)
+
+            reply = '__Song Added__\n\n' + SONG_FMT.format(1, **self.song_db[key])
+            await self.bot.send_message(self.msg.channel, reply)
         if self.args.list:
             await self.list()
         elif self.args.manage:
@@ -1216,21 +1249,29 @@ def tokenize_dice_spec(spec):
 
 def validate_videos(list_vids):
     """
-    Validate the youtube links or local files.
+    Validate the videos asked to play. Accepted formats:
+        - youtube links
+        - names of songs in the song db
+        - names of files on the local HDD
 
     Raises:
         InvalidCommandArgs - A video link or name failed validation.
     """
+    song_db = load_yaml(SONG_DB_FILE)
     new_vids = []
 
     for vid in list_vids:
-        if "/" in vid:
+        if vid in song_db:
+            new_vids.append(song_db[vid]['url'])
+
+        elif "/" in vid:
             if "youtube.com" in vid or "youtu.be" in vid:
                 if vid[0] == "<" and vid[-1] == ">":
                     vid = vid[1:-1]
                 new_vids.append(vid)
             else:
                 raise dice.exc.InvalidCommandArgs("Only youtube links supported: " + vid)
+
         else:
             globbed = glob.glob(os.path.join(MUSIC_PATH, vid + "*"))
             if len(globbed) != 1:
