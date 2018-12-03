@@ -9,9 +9,9 @@ import os
 
 import yaml
 try:
-    from yaml import CLoader as Loader
+    from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
-    from yaml import Loader
+    from yaml import Loader, Dumper
 
 import dice.exc
 
@@ -71,6 +71,39 @@ def substr_ind(seq, line, *, skip_spaces=True, ignore_case=True):
             return [start, ind + 1]
 
     return []
+
+
+def emphasize_match(seq, line, fmt='__{}__'):
+    """
+    Emphasize the matched portion of string.
+    """
+    start, end = dice.util.substr_ind(seq, line)
+    matched = line[start:end]
+    return line.replace(matched, fmt.format(matched))
+
+
+def emphasize_match_one(seq, line, fmt='__{}__'):
+    """
+    Emphasize the matched portion of string once.
+
+    Went in a different direction, keeping for posterity.
+    """
+    prefix = fmt[:fmt.index('{')]
+    search_line = line
+    while dice.util.substr_ind(seq, search_line):
+        start, end = dice.util.substr_ind(seq, search_line)
+        if line[start - len(prefix):end] == prefix + line[start:end]:
+            search_line = search_line[end:]
+            continue
+        else:
+            break
+
+    offset = len(line) - len(search_line)
+    start += offset
+    end += offset
+    line = line[:start] + fmt.format(seq) + line[end:]
+
+    return line
 
 
 def rel_to_abs(*path_parts):
@@ -220,37 +253,32 @@ def msg_splitter(msg):
     return parts
 
 
-def emphasize_match(seq, line, fmt='__{}__'):
+def load_yaml(fname):
     """
-    Emphasize the matched portion of string.
+    Load a yaml file and return the dict. If not found, return an empty {}.
+    Does not raise any possible exception.
+
+    Returns: A dict object.
     """
-    start, end = dice.util.substr_ind(seq, line)
-    matched = line[start:end]
-    return line.replace(matched, fmt.format(matched))
+    try:
+        with open(fname) as fin:
+            obj = yaml.load(fin, Loader=Loader)
+    except FileNotFoundError:
+        obj = {}
+
+    return obj
 
 
-def emphasize_match_one(seq, line, fmt='__{}__'):
+def write_yaml(fname, obj):
     """
-    Emphasize the matched portion of string once.
+    Save a dictionary to a yaml file.
 
-    Went in a different direction, keeping for posterity.
+    Raises:
+        OSError - Something prevented saving the file.
     """
-    prefix = fmt[:fmt.index('{')]
-    search_line = line
-    while dice.util.substr_ind(seq, search_line):
-        start, end = dice.util.substr_ind(seq, search_line)
-        if line[start - len(prefix):end] == prefix + line[start:end]:
-            search_line = search_line[end:]
-            continue
-        else:
-            break
-
-    offset = len(line) - len(search_line)
-    start += offset
-    end += offset
-    line = line[:start] + fmt.format(seq) + line[end:]
-
-    return line
+    with open(fname, 'w') as fout:
+        yaml.dump(obj, fout, Dumper=Dumper, encoding='UTF-8', indent=2,
+                  explicit_start=True, default_flow_style=False)
 
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -226,181 +226,6 @@ async def test_cmd_timers_clear(f_bot):
     await asyncio.sleep(2)
 
 
-@pytest.mark.skip("Not sure best way to test")
-@pytest.mark.asyncio
-async def test_cmd_timers_manage(f_bot):
-    # TODO: Unimplemented
-    pass
-
-
-# TODO: dice.actions.Songs
-@pytest.mark.asyncio
-async def test_cmd_songs_save(f_bot):
-    db = {
-    }
-
-
-def test_fixed__str__():
-    die = dice.actions.FixedRoll('5')
-    assert str(die) == '(5)'
-    die.next_op = '__add__'
-    assert str(die) == '(5) + '
-    die.next_op = '__sub__'
-    assert str(die) == '(5) - '
-
-
-def test_fixed_spec():
-    assert dice.actions.FixedRoll('5').spec == '(5)'
-
-
-def test_fixed_roll():
-    assert dice.actions.FixedRoll('5').roll() == 5
-
-
-def test_fixed_num():
-    assert dice.actions.FixedRoll('5').num == 5
-
-
-def test_fixed_add():
-    fd1 = dice.actions.FixedRoll('5')
-    fd2 = dice.actions.FixedRoll('3')
-    assert (fd1 + fd2).num == 8
-
-
-def test_fixed_sub():
-    fd1 = dice.actions.FixedRoll('5')
-    fd2 = dice.actions.FixedRoll('3')
-    assert (fd1 - fd2).num == 2
-
-
-def test_dice__init__():
-    die = dice.actions.DiceRoll('2d6')
-    assert die.rolls == 2
-    assert die.dice == 6
-
-
-def test_dice__str__():
-    die = dice.actions.DiceRoll('2d6')
-    die.values = [2, 3]
-    assert str(die) == '(2 + 3)'
-
-
-def test_dice_num():
-    die = dice.actions.DiceRoll('2d6')
-    die.values = [2, 3]
-    assert die.num == 5
-
-
-def test_dice_roll():
-    die = dice.actions.DiceRoll('2d6')
-    die.roll()
-    assert die.num in list(range(2, 13))
-    for val in die.values:
-        assert val in list(range(1, 7))
-
-
-def test_dice_spec():
-    die = dice.actions.DiceRoll('2d6')
-    assert die.spec == '(2d6)'
-
-
-def test_dicekeephigh__init__():
-    die = dice.actions.DiceRollKeepHigh('3d6kh2')
-    assert die.keep == 2
-    assert die.rolls == 3
-    assert die.dice == 6
-
-    die = dice.actions.DiceRollKeepHigh('3d6k2')
-    assert die.keep == 2
-    assert die.rolls == 3
-    assert die.dice == 6
-
-
-def test_dicekeephigh__str__():
-    die = dice.actions.DiceRollKeepHigh('3d6kh2')
-    die.values = [3, 2, 5]
-    assert str(die) == '(3 + ~~2~~ + 5)'
-
-
-def test_dicekeephigh_num():
-    die = dice.actions.DiceRollKeepHigh('3d6kh2')
-    die.values = [3, 2, 5]
-    assert die.num == 8
-
-
-def test_dicekeephigh_spec():
-    die = dice.actions.DiceRollKeepHigh('3d6kh2')
-    assert die.spec == '(3d6kh2)'
-
-
-def test_dicekeeplow__init__():
-    die = dice.actions.DiceRollKeepLow('3d6kl2')
-    assert die.keep == 2
-    assert die.rolls == 3
-    assert die.dice == 6
-
-
-def test_dicekeeplow__str__():
-    die = dice.actions.DiceRollKeepLow('3d6kl2')
-    die.values = [3, 2, 5]
-    assert str(die) == '(3 + 2 + ~~5~~)'
-
-
-def test_dicekeeplow_num():
-    die = dice.actions.DiceRollKeepLow('3d6kl2')
-    die.values = [3, 2, 5]
-    assert die.num == 5
-
-
-def test_dicekeeplow_spec():
-    die = dice.actions.DiceRollKeepLow('3d6kl2')
-    assert die.spec == '(3d6kl2)'
-
-
-def test_throw__init__():
-    die = dice.actions.DiceRoll('2d6', dice.actions.OP_DICT['-'])
-    die2 = dice.actions.FixedRoll('4')
-    throw = dice.actions.Throw([die, die2])
-    assert throw.dice == [die, die2]
-
-
-def test_throw_add_dice():
-    die = dice.actions.FixedRoll('4')
-    throw = dice.actions.Throw()
-    throw.add_dice([die])
-    assert throw.dice == [die]
-
-
-@pytest.mark.asyncio
-async def test_throw_next(event_loop):
-    die = dice.actions.DiceRoll('2d6', dice.actions.OP_DICT['+'])
-    die2 = dice.actions.FixedRoll('1')
-    throw = dice.actions.Throw([die, die2])
-    await throw.next(event_loop)
-
-    total = 0
-    for die in throw.dice:
-        total += die.num
-    assert total in list(range(3, 14))
-
-
-def test_parse_dice_spec():
-    assert dice.actions.parse_dice_spec('2d6') == (2, 6)
-    assert dice.actions.parse_dice_spec('2D6') == (2, 6)
-
-
-def test_tokenize_dice_spec():
-    spec = '4D6KH3 + 2D6 - 4'
-
-    dies = dice.actions.tokenize_dice_spec(spec)
-    assert isinstance(dies[0], dice.actions.DiceRollKeepHigh)
-    assert dies[0].next_op == dice.actions.OP_DICT['+']
-    assert isinstance(dies[1], dice.actions.DiceRoll)
-    assert dies[1].next_op == dice.actions.OP_DICT['-']
-    assert isinstance(dies[2], dice.actions.FixedRoll)
-    assert len(dies) == 3
-
-
 def test_parse_time_spec():
     time_spec = "1:15:30"
     assert dice.actions.parse_time_spec(time_spec) == 3600 + 900 + 30
@@ -455,15 +280,40 @@ def test_validate_videos_local_found():
         os.rmdir(os.path.dirname(fname))
 
 
-def test_fmt_music_entry():
-    ent = {
-        'name': 'a_name',
-        'tags': [
-            'a_tag_1',
-            'a_tag_2',
-        ],
-        'url': 'a_link',
-    }
-    expect = 'a_name - a_link - a_tag_1, a_tag_2\n'
+def test_format_song_list():
+    header = 'A header\n\n'
+    footer = '\n\nA footer'
+    entries = [
+        {
+            'name': 'entry1',
+            'tags': ['tag1', 'tag2'],
+            'url': 'url1',
+        },
+        {
+            'name': 'entry2',
+            'tags': ['tag2'],
+            'url': 'url1',
+        },
+        {
+            'name': 'entry3',
+            'tags': ['tag2', 'tag3'],
+            'url': 'url1',
+        },
+    ]
+    expect = """A header
 
-    assert dice.actions.fmt_music_entry(ent) == expect
+        __Song 1__: entry1
+        __URL__: <url1>
+        __Tags__: ['tag1', 'tag2']
+
+        __Song 2__: entry2
+        __URL__: <url1>
+        __Tags__: ['tag2']
+
+        __Song 3__: entry3
+        __URL__: <url1>
+        __Tags__: ['tag2', 'tag3']
+
+A footer"""
+
+    assert dice.actions.format_song_list(header, entries, footer) == expect

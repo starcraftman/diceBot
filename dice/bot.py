@@ -34,6 +34,7 @@ finally:
 
 import dice.actions
 import dice.exc
+import dice.music
 import dice.parse
 import dice.util
 
@@ -90,7 +91,7 @@ class DiceBot(discord.Client):
         self.emoji = EmojiResolver()
         self.parser = dice.parse.make_parser(prefix)
         self.start_date = datetime.datetime.utcnow().replace(microsecond=0)
-        self.mplayer = dice.actions.MPlayer(self)
+        self.mplayer = dice.music.MPlayer(self)
 
     @property
     def uptime(self):  # pragma: no cover

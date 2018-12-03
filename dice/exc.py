@@ -41,27 +41,22 @@ class UserException(DiceException):
 
     Not unexpected but can indicate a problem.
     """
-    pass
 
 
 class ArgumentParseError(UserException):
     """ Error raised on failure to parse arguments. """
-    pass
 
 
 class ArgumentHelpError(UserException):
     """ Error raised on request to print help for command. """
-    pass
 
 
 class InvalidCommandArgs(UserException):
     """ Unable to process command due to bad arguements.  """
-    pass
 
 
 class InvalidPerms(UserException):
     """ Unable to process command due to insufficient permissions.  """
-    pass
 
 
 class MoreThanOneMatch(UserException):
@@ -103,7 +98,6 @@ class NoMatch(UserException):
 
 class CmdAborted(UserException):
     """ Raised to cancel a multistep command. """
-    pass
 
 
 class InternalException(DiceException):
@@ -124,28 +118,24 @@ class ColOverflow(InternalException):
 
 class MissingConfigFile(InternalException):
     """ Thrown if a config isn't set properly.  """
-    pass
 
 
 class MsgTooLong(InternalException):
     """
     Reached Discord's maximum message length.
     """
-    pass
 
 
 class NoMoreTargets(InternalException):
     """
     There are no more fort targets.
     """
-    pass
 
 
 class RemoteError(InternalException):
     """
     Can no longer communicate with a remote that is required.
     """
-    pass
 
 
 class SheetParsingError(InternalException):

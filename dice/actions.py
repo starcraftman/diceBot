@@ -6,36 +6,22 @@ All actions have async execute methods.
 from __future__ import absolute_import, print_function
 import asyncio
 import datetime
-import functools
 import glob
 import logging
 import math
 import os
-import random
 import re
 import sys
 
 import aiohttp
 import discord
-import yaml
-try:
-    from yaml import CLoader as Loader, CDumper as Dumper
-except ImportError:
-    from yaml import Loader, Dumper
-import youtube_dl
+import numpy.random as rand
 
 import dice.exc
+import dice.roll
 import dice.tbl
 import dice.util
 
-
-MAX_DIE_STR = 20
-OP_DICT = {
-    '__add__': '+',
-    '__sub__': '-',
-    '+': '__add__',
-    '-': '__sub__',
-}
 TIMERS = {}
 TIMER_OFFSETS = ["60:00", "15:00", "5:00", "1:00"]
 TIMER_MSG_TEMPLATE = "{}: Timer '{}'"
@@ -49,9 +35,9 @@ MUSIC_PATH = "extras/music"
 PONI_URL = "https://derpibooru.org/search.json?q="
 SONG_DB_FILE = os.path.abspath(os.path.join("data", "songs.yml"))
 SONG_TAGS_FILE = os.path.abspath(os.path.join("data", "song_tags.yml"))
-SONG_FMT = """      __Song {}__: {name}
-      __URL__: <{url}>
-      __Tags__: {tags}
+SONG_FMT = """        __Song {}__: {name}
+        __URL__: <{url}>
+        __Tags__: {tags}
 
 """
 SONG_FOOTER = """
@@ -126,7 +112,7 @@ class Help(Action):
             await self.bot.delete_message(self.msg)
         except discord.Forbidden as exc:
             self.log.error("Failed to delete msg on: {}/{}\n{}".format(
-                           self.msg.channel.server, self.msg.channel, exc))
+                self.msg.channel.server, self.msg.channel, exc))
 
 
 class Status(Action):
@@ -160,215 +146,6 @@ class Math(Action):
             resp += [line + " = " + str(eval(line))]
 
         await self.bot.send_message(self.msg.channel, '\n'.join(resp))
-
-
-class MPlayerState:
-    """ MPlayer state enum. """
-    STOPPED = 0
-    PLAYING = 1
-    PAUSED = 2
-
-
-# TODO: Tests? This is just a wrapper so should be covered by discord.py
-class MPlayer(object):
-    """
-    Music player interface.
-    """
-    def __init__(self, bot):
-        self.bot = bot
-        self.channel = None
-        self.vids = []
-        self.vid_index = 0
-        self.volume = 50
-        self.loop = True
-        self.state = MPlayerState.STOPPED
-
-        self.__error_channel = None
-        # Parts of the discord library wrapped
-        self.__voice = None
-        self.__player = None
-
-    def __str__(self):
-        return """__**Player Status**__ :
-
-        Queue: {vids}
-        Index: {vid_index}
-        Volume: {volume}/100
-        Loop: {loop}
-        Status: {state}
-""".format(vids=['<' + x + '>' for x in self.vids], vid_index=self.vid_index, volume=self.volume,
-           loop=self.loop, state=self.status)
-
-    def __repr__(self):
-        return "MPlayer(bot={}, channel={}, error_channel={}, voice={}, player={},"\
-            " vids={}, vid_index={}, loop={}, volume={}, state={})".format(
-                self.bot, self.channel, self.__error_channel, self.__voice, self.__player,
-                self.vids, self.vid_index, self.loop, self.volume, self.state
-            )
-
-    @property
-    def status(self):
-        """ Textual version of state. """
-        status = 'Stopped'
-        if self.state == MPlayerState.PAUSED:
-            status = 'Paused'
-        elif self.state == MPlayerState.PLAYING:
-            status = 'Playing'
-
-        return status
-
-    def initialize_settings(self, msg, vids):
-        """
-        Update current set videos and join requesting user in voice.
-        """
-        self.channel = msg.author.voice.voice_channel
-        self.__error_channel = msg.channel
-        if not self.channel:
-            self.channel = discord.utils.get(msg.server.channels,
-                                             type=discord.ChannelType.voice)
-
-        self.vids = vids
-
-    def set_volume(self, new_volume=None):
-        """
-        Set the volume for the bot.
-        """
-        if not new_volume:
-            new_volume = self.volume
-
-        try:
-            new_volume = int(new_volume)
-            if new_volume < 0 or new_volume > 100:
-                raise ValueError
-        except ValueError:
-            raise dice.exc.InvalidCommandArgs("Volume must be between [1, 100]")
-
-        self.volume = new_volume
-        if self.__player:
-            self.__player.volume = new_volume / 100
-
-    async def update_voice_channel(self):
-        """
-        Join the right channel before beginning transmission.
-        """
-        if self.__voice:
-            if self.channel != self.__voice.channel:
-                await self.__voice.move_to(self.channel)
-        else:
-            self.__voice = await self.bot.join_voice_channel(self.channel)
-
-    async def start(self):
-        """
-        Start the song currently selected.
-
-        Raises:
-            InvalidCommandArgs - No videos to play.
-        """
-        if not self.vids:
-            raise dice.exc.InvalidCommandArgs("No videos to play!")
-
-        self.stop()
-        await self.update_voice_channel()
-
-        vid = self.vids[self.vid_index]
-        try:
-            if "youtu" in vid:
-                self.__player = await self.__voice.create_ytdl_player(vid)
-            else:
-                self.__player = self.__voice.create_ffmpeg_player(vid)
-            self.__player.start()
-            self.set_volume()
-            self.state = MPlayerState.PLAYING
-        except youtube_dl.utils.DownloadError as exc:
-            if self.__error_channel:
-                msg = "Player stopped. Error donwloading video: copyright?\n" + dice.tbl.wrap_markdown(str(exc))
-                self.stop()
-                await self.bot.send_message(self.__error_channel, msg)
-        except youtube_dl.utils.YoutubeDLError as exc:
-            if self.__error_channel:
-                msg = "Player stopped. General YoutubeDL error.\n" + dice.tbl.wrap_markdown(str(exc))
-                self.stop()
-                await self.bot.send_message(self.__error_channel, msg)
-
-    def pause(self):
-        """
-        Toggle player pause function.
-        """
-        if self.state == MPlayerState.PLAYING:
-            self.__player.pause()
-            self.state = MPlayerState.PAUSED
-        elif self.state == MPlayerState.PAUSED:
-            self.__player.resume()
-            self.state = MPlayerState.PLAYING
-
-    def stop(self):
-        """
-        Stop playing the stream.
-        """
-        try:
-            self.state = MPlayerState.STOPPED
-            self.__player.stop()
-        except AttributeError:
-            pass
-
-    async def quit(self):
-        """
-        Ensure player stopped and quit the voice channel.
-        """
-        try:
-            self.stop()
-            await self.__voice.disconnect()
-            self.__player = None
-            self.__voice = None
-        except AttributeError:
-            pass
-
-    async def prev(self):
-        """
-        Go to the previous song.
-        """
-        if self.__player and len(self.vids) > 0:
-            if self.loop and self.vid_index > 0:
-                self.vid_index = (self.vid_index - 1) % len(self.vids)
-                await self.start()
-            else:
-                self.vid_index = 0
-                self.stop()
-                raise dice.exc.InvalidCommandArgs("Loop is not set, queue finished. Stopping.")
-
-    async def next(self):
-        """
-        Go to the next song.
-        """
-        if self.__player and len(self.vids) > 0:
-            if self.loop or self.vid_index + 1 < len(self.vids):
-                self.vid_index = (self.vid_index + 1) % len(self.vids)
-                await self.start()
-            else:
-                self.vid_index = 0
-                self.stop()
-                raise dice.exc.InvalidCommandArgs("Loop is not set, queue finished. Stopping.")
-
-    async def monitor(self, sleep_time=3):
-        """
-        Simple monitor task that lives as long as the bot runs.
-        """
-        last_activity = datetime.datetime.utcnow()
-
-        while True:
-            try:
-                if self.__player and self.state == MPlayerState.PLAYING:
-                    last_activity = datetime.datetime.utcnow()
-
-                if self.state == MPlayerState.PLAYING and self.__player.is_done():
-                    await self.next()
-
-                if (datetime.datetime.utcnow() - last_activity).seconds > 300:
-                    await self.quit()
-            except AttributeError:
-                pass
-
-            await asyncio.sleep(sleep_time)
 
 
 class Play(Action):
@@ -425,15 +202,15 @@ class Songs(Action):
         """
         Load the song dbs from files.
         """
-        self.song_db = load_yaml(SONG_DB_FILE)
-        self.tag_db = load_yaml(SONG_TAGS_FILE)
+        self.song_db = dice.util.load_yaml(SONG_DB_FILE)
+        self.tag_db = dice.util.load_yaml(SONG_TAGS_FILE)
 
     def save(self):
         """
         Save the song dbs to files.
         """
-        write_yaml(SONG_DB_FILE, self.song_db)
-        write_yaml(SONG_TAGS_FILE, self.tag_db)
+        dice.util.write_yaml(SONG_DB_FILE, self.song_db)
+        dice.util.write_yaml(SONG_TAGS_FILE, self.tag_db)
 
     def add(self, key, url, tags):
         """
@@ -748,7 +525,7 @@ class Poni(Action):
                 total_imgs = resp_json['total']
 
             if total_imgs:
-                total_ind = random.randint(1, total_imgs)
+                total_ind = rand.randint(1, total_imgs)
                 page_ind = math.ceil(total_ind / 15)
                 img_ind = total_ind % 15 - 1
 
@@ -776,209 +553,11 @@ class Roll(Action):
             if match:
                 times, line = int(match.group(1)), match.group(2)
 
-            throw = Throw(tokenize_dice_spec(line))
+            throw = dice.roll.Throw(dice.roll.tokenize_dice_spec(line))
             for _ in range(times):
                 resp += [line + " = {}".format(await throw.next(self.bot.loop))]
 
         await self.bot.send_message(self.msg.channel, '\n'.join(resp))
-
-
-class Dice(object):
-    """
-    Overall interface for a dice.
-    """
-    def __init__(self, next_op=""):
-        self.values = []
-        self.next_op = next_op  # Either "__add__" or "__sub__"
-        self.acu = ""  # Slot to accumulate text, used in reduction
-
-    @property
-    def num(self):
-        """
-        The sum of the dice roll(s) for the spec.
-        """
-        return functools.reduce(lambda x, y: x + y, self.values)
-
-    @property
-    def spec(self):
-        """
-        The specification of how to roll the dice.
-        """
-        return str(self)
-
-    @property
-    def trailing_op(self):
-        return ' {} '.format(OP_DICT[self.next_op]) if self.next_op else ""
-
-    def __str__(self):
-        """
-        The individual roles displayed in a string.
-        """
-        if len(self.values) > MAX_DIE_STR:
-            line = "({}, ..., {})".format(self.values[0], self.values[-1])
-        else:
-            line = "({})".format(" + ".join([str(x) for x in self.values]))
-        return line + self.trailing_op
-
-    def __add__(self, other):
-        """
-        Add one dice to another dice. Always returns a FixedRoll (i.e. fixed Dice).
-        """
-        if not isinstance(other, Dice):
-            raise ValueError("Can only add Dice")
-
-        new_roll = FixedRoll(self.num + other.num, other.next_op)
-        new_roll.acu = self.acu + str(other)
-        return new_roll
-
-    def __sub__(self, other):
-        """
-        Subtract one dice from another dice. Always returns a FixedRoll (i.e. fixed Dice).
-        """
-        if not isinstance(other, Dice):
-            raise ValueError("Can only add Dice")
-
-        new_roll = FixedRoll(self.num - other.num, other.next_op)
-        new_roll.acu = self.acu + str(other)
-        return new_roll
-
-    def roll(self):
-        """
-        Perform the roll as specified.
-        """
-        raise NotImplementedError
-
-
-class FixedRoll(Dice):
-    """
-    A fixed dice roll, always returns a constant number.
-    """
-    def __init__(self, num, next_op=""):
-        super().__init__(next_op)
-        self.values = [int(num)]
-        self.dice = self.values[0]
-        self.rolls = 1
-
-    def roll(self):
-        return self.num
-
-
-class DiceRoll(Dice):
-    """
-    A standard dice roll. Roll rolls times a dice of any number of sides from [1, inf].
-    """
-    def __init__(self, spec, next_op=""):
-        super().__init__(next_op)
-        self.rolls, self.dice = parse_dice_spec(spec)
-
-    @property
-    def spec(self):
-        return "({}d{})".format(self.rolls, self.dice)
-
-    def roll(self):
-        self.values = [random.randint(1, self.dice) for _ in range(self.rolls)]
-        return self.num
-
-
-class DiceRollKeepHigh(DiceRoll):
-    """
-    Same as a dice roll but only keep n high rolls.
-    """
-    def __init__(self, spec, next_op=""):
-        super().__init__(spec[:spec.rindex('k')], next_op)
-        self.keep = 1
-        match = re.match(r'.*kh?(\d+)', spec)
-        if match:
-            self.keep = int(match.group(1))
-
-    def __str__(self):
-        if len(self.values) > MAX_DIE_STR:
-            return "({}, ..., {})".format(self.values[0], self.values[-1]) + self.trailing_op
-
-        emphasize = sorted(self.values)[:-self.keep]
-        line = ''
-        for val in self.values:
-            if val in emphasize:
-                emphasize.remove(val)
-                val = "~~{}~~".format(val)
-            line += "{} + ".format(val)
-
-        return '(' + line[:-3] + ')' + self.trailing_op
-
-    @property
-    def spec(self):
-        return "({}d{}kh{})".format(self.rolls, self.dice, self.keep)
-
-    @property
-    def num(self):
-        vals = sorted(self.values)[-self.keep:]
-        return functools.reduce(lambda x, y: x + y, vals)
-
-
-class DiceRollKeepLow(DiceRoll):
-    """
-    Same as a dice roll but only keep n low rolls.
-    """
-    def __init__(self, spec, next_op=""):
-        super().__init__(spec[:spec.rindex('kl')], next_op)
-        self.keep = 1
-        match = re.match(r'.*kl(\d+)', spec)
-        if match:
-            self.keep = int(match.group(1))
-
-    def __str__(self):
-        if len(self.values) > MAX_DIE_STR:
-            return "({}, ..., {})".format(self.values[0], self.values[-1]) + self.trailing_op
-
-        line = ''
-        emphasize = sorted(self.values)[self.keep:]
-        for val in self.values:
-            if val in emphasize:
-                emphasize.remove(val)
-                val = "~~{}~~".format(val)
-            line += "{} + ".format(val)
-
-        return '(' + line[:-3] + ')' + self.trailing_op
-
-    @property
-    def spec(self):
-        return "({}d{}kl{})".format(self.rolls, self.dice, self.keep)
-
-    @property
-    def num(self):
-        vals = sorted(self.values)[:self.keep]
-        return functools.reduce(lambda x, y: x + y, vals)
-
-
-class Throw(object):
-    """
-    Throws 1 or more Dice. Acts as a simple container.
-    Can be used primarily to reroll a complex dice setup.
-    """
-    def __init__(self, die=None):
-        self.dice = die
-        if not self.dice:
-            self.dice = []
-
-    def add_dice(self, die):
-        """ Add one or more dice to be thrown. """
-        self.dice += die
-
-    async def next(self, loop):
-        """ Throw the dice and return the individual rolls and total. """
-        for die in self.dice:
-            if die.rolls > 1000000:
-                msg = "{} is excessive.\n\n\
-I won't waste my otherworldly resources on it, insufferable mortal.".format(die.spec[1:-1])
-                raise dice.exc.InvalidCommandArgs(msg)
-            await loop.run_in_executor(None, die.roll)
-
-        self.dice[0].acu = str(self.dice[0])
-        tot = functools.reduce(lambda x, y: getattr(x, x.next_op)(y), self.dice)
-
-        response = "{} = {}".format(tot.acu, tot.num)
-
-        return response
 
 
 class Timer(Action):
@@ -1066,7 +645,7 @@ class Timer(Action):
                         await self.bot.delete_message(self.sent_msg)
                     except discord.Forbidden as exc:
                         self.log.error("Failed to delete msg on: {}/{}\n{}".format(
-                                       self.msg.channel.server, self.msg.channel, exc))
+                            self.msg.channel.server, self.msg.channel, exc))
                 self.sent_msg = await self.bot.send_message(self.msg.channel, msg)
                 del_cnt += 1
 
@@ -1150,40 +729,10 @@ class Timers(Action):
     async def execute(self):
         if self.args.clear:
             remove_user_timers(TIMERS, self.msg.author.name)
-            return
         elif self.args.manage:
             await self.manage_timers()
-            return
-
-        await self.bot.send_message(self.msg.channel, self.timer_summary())
-
-
-def parse_dice_spec(spec):
-    """
-    Parse a SINGLE dice spec of form 2d6.
-    """
-    terms = str(spec).lower().split('d')
-    terms.reverse()
-
-    if len(terms) < 1:
-        raise dice.exc.InvalidCommandArgs("Cannot determine dice.")
-
-    try:
-        sides = int(terms[0])
-        if sides < 1:
-            raise dice.exc.InvalidCommandArgs("Invalid number for dice (d__6__). Number must be [1, +∞]")
-        if terms[1] == '':
-            rolls = 1
         else:
-            rolls = int(terms[1])
-            if rolls < 1:
-                raise dice.exc.InvalidCommandArgs("Invalid number for rolls (__r__d6). Number must be [1, +∞] or blank (1).")
-    except IndexError:
-        rolls = 1
-    except ValueError:
-        raise dice.exc.InvalidCommandArgs("Invalid number for rolls or dice. Please clarify: " + spec)
-
-    return (rolls, sides)
+            await self.bot.send_message(self.msg.channel, self.timer_summary())
 
 
 def parse_time_spec(time_spec):
@@ -1216,37 +765,6 @@ def remove_user_timers(timers, msg_author):
         timers[key_to_remove].cancel = True
 
 
-def tokenize_dice_spec(spec):
-    """
-    Tokenize a single string into multiple Dice.
-    String should be of form:
-
-        4d6 + 10d6kh2 - 4
-    """
-    tokens = []
-    spec = re.sub(r'([+-])', r' \1 ', spec.lower())
-    for roll in re.split(r'\s+', spec):
-        if roll in ['+', '-'] and tokens:
-            tokens[-1].next_op = OP_DICT[roll]
-            continue
-
-        if 'kh' in roll and 'kl' in roll:
-            raise dice.exc.InvalidCommandArgs("__kh__ and __kl__ are mutually exclusive. Pick one muppet!")
-        elif 'kl' in roll:
-            tokens += [DiceRollKeepLow(roll)]
-            continue
-        elif re.match(r'.*\dkh?', roll):
-            tokens += [DiceRollKeepHigh(roll)]
-            continue
-
-        try:
-            tokens += [FixedRoll(int(roll))]
-        except ValueError:
-            tokens += [DiceRoll(roll)]
-
-    return tokens
-
-
 def validate_videos(list_vids):
     """
     Validate the videos asked to play. Accepted formats:
@@ -1257,7 +775,7 @@ def validate_videos(list_vids):
     Raises:
         InvalidCommandArgs - A video link or name failed validation.
     """
-    song_db = load_yaml(SONG_DB_FILE)
+    song_db = dice.util.load_yaml(SONG_DB_FILE)
     new_vids = []
 
     for vid in list_vids:
@@ -1293,28 +811,3 @@ def format_song_list(header, entries, footer, *, cnt=1):
     msg += footer
 
     return msg
-
-
-def load_yaml(fname):
-    """
-    Load a yaml file and return the dict. If not found, return an empty {}.
-    """
-    try:
-        with open(fname) as fin:
-            db = yaml.load(fin, Loader=Loader)
-    except FileNotFoundError:
-        db = {}
-
-    return db
-
-
-def write_yaml(fname, db):
-    """
-    Save a dictionary to a yaml file.
-
-    Raises:
-        OSError - Something prevented saving the file.
-    """
-    with open(fname, 'w') as fout:
-        yaml.dump(db, fout, Dumper=Dumper, encoding='UTF-8', indent=2,
-                  explicit_start=True, default_flow_style=False)
