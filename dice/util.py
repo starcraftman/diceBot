@@ -2,11 +2,15 @@
 Utility functions, mainly matching now.
 """
 from __future__ import absolute_import, print_function
+import datetime
 import logging
 import logging.handlers
 import logging.config
 import os
+import math
+import random
 
+import numpy.random
 import yaml
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
@@ -279,6 +283,30 @@ def write_yaml(fname, obj):
     with open(fname, 'w') as fout:
         yaml.dump(obj, fout, Dumper=Dumper, encoding='UTF-8', indent=2,
                   explicit_start=True, default_flow_style=False)
+
+
+def seed_random(seed=None):
+    """
+    Seed random library and numpy.random with a common seed.
+
+    Args:
+        seed: The seed to used, if not passed derive from timestamp.
+    """
+    if not seed:
+        now = datetime.datetime.utcnow().timestamp()
+        seconds = int(math.floor(now))
+        micro = int((now - seconds) * 1000000)
+
+        if micro > 500000:
+            seconds -= micro
+        else:
+            seconds += micro
+        seed = seconds
+
+    numpy.random.seed(seed)
+    random.seed(seed)
+
+    return seed
 
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

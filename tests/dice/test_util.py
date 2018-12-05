@@ -2,6 +2,8 @@
 Test util the grab all module.
 """
 from __future__ import absolute_import, print_function
+import datetime
+import math
 import os
 
 import mock
@@ -110,3 +112,16 @@ def test_emphasize_match_one():
     assert result == '__7__, 5, 2, __7__'
     result = dice.util.emphasize_match_one('2', result)
     assert result == '__7__, 5, __2__, __7__'
+
+
+def test_seed_random_derived():
+    now = datetime.datetime.utcnow().timestamp()
+    seconds = int(math.floor(now))
+
+    derived = dice.util.seed_random()
+    assert derived < (seconds + 500000)
+    assert derived > (seconds - 500000)
+
+
+def test_seed_random_fixed():
+    assert dice.util.seed_random(5) == 5

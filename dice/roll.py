@@ -17,6 +17,7 @@ OP_DICT = {
     '-': '__sub__',
 }
 
+
 # TODO: Remove OP_DICT and associated, replace by always adding and when subtraction
 #       requested simply multiply num on request by -1.
 #       That is default op always +, and explicit ops get put on right operand.

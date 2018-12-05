@@ -347,6 +347,9 @@ def main():  # pragma: no cover
     """ Entry here! """
     try:
         dice.util.init_logging()
+        seeded = dice.util.seed_random()
+        logging.getLogger('dice.bot').warning('Seeding numpy/random with: %s', str(seeded))
+        print('Seeding numpy/random with: ' + str(seeded))
         bot = DiceBot("!")
 
         # BLOCKING: N.o. e.s.c.a.p.e.
