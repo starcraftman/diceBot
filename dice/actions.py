@@ -22,6 +22,7 @@ import dice.roll
 import dice.tbl
 import dice.util
 
+CHECK_TIMER_GAP = 5
 TIMERS = {}
 TIMER_OFFSETS = ["60:00", "15:00", "5:00", "1:00"]
 TIMER_MSG_TEMPLATE = "{}: Timer '{}'"
@@ -111,8 +112,8 @@ class Help(Action):
         try:
             await self.bot.delete_message(self.msg)
         except discord.Forbidden as exc:
-            self.log.error("Failed to delete msg on: {}/{}\n{}".format(
-                self.msg.channel.server, self.msg.channel, exc))
+            self.log.error("Failed to delete msg on: %s/%s\n%s",
+                           self.msg.channel.server, self.msg.channel, str(exc))
 
 
 class Status(Action):
@@ -590,7 +591,7 @@ class Timer(Action):
         """
         Unique key to store timer.
         """
-        return self.msg.author.name + str(self.start)
+        return self.msg.author.name + '_' + str(self.start)
 
     @property
     def description(self):
@@ -626,7 +627,7 @@ class Timer(Action):
 
         return triggers
 
-    async def check_timer(self, sleep_time=5):
+    async def check_timer(self, sleep_time):
         """
         Perform a check on the triggers of this timer.
 
@@ -644,8 +645,8 @@ class Timer(Action):
                     try:
                         await self.bot.delete_message(self.sent_msg)
                     except discord.Forbidden as exc:
-                        self.log.error("Failed to delete msg on: {}/{}\n{}".format(
-                            self.msg.channel.server, self.msg.channel, exc))
+                        self.log.error("Failed to delete msg on: %s/%s\n%s",
+                                       self.msg.channel.server, self.msg.channel, str(exc))
                 self.sent_msg = await self.bot.send_message(self.msg.channel, msg)
                 del_cnt += 1
 
@@ -661,7 +662,7 @@ class Timer(Action):
 
     async def execute(self):
         self.sent_msg = await self.bot.send_message(self.msg.channel, "Starting timer for: " + self.args.time)
-        await self.check_timer(1)
+        await self.check_timer(CHECK_TIMER_GAP)
 
 
 class Timers(Action):

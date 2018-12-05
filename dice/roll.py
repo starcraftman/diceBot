@@ -17,7 +17,9 @@ OP_DICT = {
     '-': '__sub__',
 }
 
-
+# TODO: Remove OP_DICT and associated, replace by always adding and when subtraction
+#       requested simply multiply num on request by -1.
+#       That is default op always +, and explicit ops get put on right operand.
 class Dice(object):
     """
     Overall interface for a dice.
@@ -43,6 +45,9 @@ class Dice(object):
 
     @property
     def trailing_op(self):
+        """
+        The operation to combine this dice with next.
+        """
         return ' {} '.format(OP_DICT[self.next_op]) if self.next_op else ""
 
     def __str__(self):
@@ -190,14 +195,23 @@ class Throw(object):
     Throws 1 or more Dice. Acts as a simple container.
     Can be used primarily to reroll a complex dice setup.
     """
-    def __init__(self, die=None):
-        self.dice = die
+    def __init__(self, n_dice=None):
+        self.dice = n_dice
         if not self.dice:
             self.dice = []
 
-    def add_dice(self, die):
-        """ Add one or more dice to be thrown. """
-        self.dice += die
+    def add_dice(self, n_dice):
+        """
+        Add one or more dice to be thrown.
+
+        Args:
+            dice: A list of Dice.
+        """
+        for die in n_dice:
+            if not issubclass(die.__class__, Dice):
+                raise ValueError("Must add subclass of Dice")
+
+        self.dice += n_dice
 
     async def next(self, loop):
         """ Throw the dice and return the individual rolls and total. """

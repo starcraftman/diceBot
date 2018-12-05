@@ -10,12 +10,12 @@ import pytest
 
 try:
     import uvloop
-    LOOP = uvloop.new_event_loop
-    loop = LOOP()
-    loop.set_debug(True)
-    print("Test loop policy:", str(loop))
+    LOOP = uvloop.new_event_loop()
+    LOOP.set_debug(True)
+    print("Test loop policy:", str(LOOP))
+    del LOOP
 except ImportError:
-    print("Missing: uvloop")
+    print("Run: python setup.py deps")
     sys.exit(1)
 
 
@@ -45,7 +45,7 @@ def event_loop():
         1) Mark with pytest.mark.asyncio
         2) event_loop.run_until_complete(asyncio.gather(futures))
     """
-    loop = LOOP()
+    loop = uvloop.new_event_loop()
     loop.set_debug(True)
 
     yield loop

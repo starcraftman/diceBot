@@ -10,6 +10,7 @@ from __future__ import absolute_import, print_function
 import asyncio
 
 import os
+import mock
 import pytest
 
 import dice.actions
@@ -164,50 +165,54 @@ async def test_cmd_status(f_bot):
 
 @pytest.mark.asyncio
 async def test_cmd_timer_seconds(f_bot):
-    msg = fake_msg_gears("!timer 1")
+    with mock.patch('dice.actions.CHECK_TIMER_GAP', 1):
+        msg = fake_msg_gears("!timer 1")
 
-    await action_map(msg, f_bot).execute()
-    await asyncio.sleep(2)
+        await action_map(msg, f_bot).execute()
+        await asyncio.sleep(2)
 
-    expect = "GearsandCogs: Timer 'GearsandCogs 1' has expired. Do something meatbag!"
-    f_bot.send_message.assert_called_with(msg.channel, expect)
+        expect = "GearsandCogs: Timer 'GearsandCogs 1' has expired. Do something meatbag!"
+        f_bot.send_message.assert_called_with(msg.channel, expect)
 
 
 @pytest.mark.asyncio
 async def test_cmd_timer_with_description(f_bot):
-    msg = fake_msg_gears("!timer 1 -d A simple description")
+    with mock.patch('dice.actions.CHECK_TIMER_GAP', 1):
+        msg = fake_msg_gears("!timer 1 -d A simple description")
 
-    await action_map(msg, f_bot).execute()
-    await asyncio.sleep(2)
+        await action_map(msg, f_bot).execute()
+        await asyncio.sleep(2)
 
-    expect = "GearsandCogs: Timer 'A simple description' has expired. Do something meatbag!"
-    f_bot.send_message.assert_called_with(msg.channel, expect)
+        expect = "GearsandCogs: Timer 'A simple description' has expired. Do something meatbag!"
+        f_bot.send_message.assert_called_with(msg.channel, expect)
 
 
 @pytest.mark.asyncio
 async def test_cmd_timer_with_warnings(f_bot):
-    msg = fake_msg_gears("!timer 3 -w 2")
+    with mock.patch('dice.actions.CHECK_TIMER_GAP', 1):
+        msg = fake_msg_gears("!timer 3 -w 2")
 
-    await action_map(msg, f_bot).execute()
-    await asyncio.sleep(2)
-    expect = "GearsandCogs: Timer 'GearsandCogs 3' has 0:00:02 time remaining!"
-    f_bot.send_message.assert_called_with(msg.channel, expect)
-    await asyncio.sleep(2)
+        await action_map(msg, f_bot).execute()
+        await asyncio.sleep(2)
+        expect = "GearsandCogs: Timer 'GearsandCogs 3' has 0:00:02 time remaining!"
+        f_bot.send_message.assert_called_with(msg.channel, expect)
+        await asyncio.sleep(2)
 
 
 @pytest.mark.asyncio
 async def test_cmd_timers(f_bot):
-    msg = fake_msg_gears("!timer 4 -w 2")
-    msg2 = fake_msg_gears("!timers")
+    with mock.patch('dice.actions.CHECK_TIMER_GAP', 1):
+        msg = fake_msg_gears("!timer 4 -w 2")
+        msg2 = fake_msg_gears("!timers")
 
-    await action_map(msg, f_bot).execute()
-    await action_map(msg, f_bot).execute()
-    await action_map(msg2, f_bot).execute()
+        await action_map(msg, f_bot).execute()
+        await action_map(msg, f_bot).execute()
+        await action_map(msg2, f_bot).execute()
 
-    capture = str(f_bot.send_message.call_args).replace("\\n", "\n")
-    assert "Timer #1 with description: **GearsandCogs 4**" in capture
-    assert "Timer #2 with description: **GearsandCogs 4**" in capture
-    await asyncio.sleep(2)
+        capture = str(f_bot.send_message.call_args).replace("\\n", "\n")
+        assert "Timer #1 with description: **GearsandCogs 4**" in capture
+        assert "Timer #2 with description: **GearsandCogs 4**" in capture
+        await asyncio.sleep(2)
 
 
 @pytest.mark.asyncio
