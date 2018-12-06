@@ -163,14 +163,11 @@ class TurnOrder(object):
 
     def resolve_collision(self, user, dupe_inits):
         """
-        Find existing user with same init, roll both until we can differenciate.
+        Find existing user with same init, roll both until we can differentiate.
 
         Returns:
             user - With new init if needed changing.
         """
-        if not dupe_inits:
-            return user
-
         dupe_init = dupe_inits[0]
         conflict = [x for x in self.users if x.init == dupe_init and x != user][0]
 
