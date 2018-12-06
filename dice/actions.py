@@ -98,6 +98,7 @@ class Help(Action):
             ['Command', 'Effect'],
             ['{prefix}math', 'Do some math operations'],
             ['{prefix}m', 'Alias for `!math`'],
+            ['{prefix}play', 'Play songs from youtube and server.'],
             ['{prefix}poni', 'Pony?!?!'],
             ['{prefix}roll', 'Roll a dice like: 2d6 + 5'],
             ['{prefix}r', 'Alias for `!roll`'],
@@ -105,6 +106,7 @@ class Help(Action):
             ['{prefix}status', 'Show status of bot including uptime'],
             ['{prefix}timer', 'Set a timer for HH:MM:SS in future'],
             ['{prefix}timers', 'See the status of all YOUR active timers'],
+            ['{prefix}turn', 'Manager turn order for pen and paper combat'],
             ['{prefix}help', 'This help message'],
         ]
         lines = [[line[0].format(prefix=prefix), line[1]] for line in lines]
