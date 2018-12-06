@@ -11,10 +11,6 @@ import dice.exc
 COLLIDE_INCREMENT = 0.01
 
 
-class UserNameCollisionError(Exception):
-    """ Two TurnUser's have same name. """
-
-
 def break_init_tie(user1, user2):
     """
     Resolve a tie of two player inits according to Pathfinder rules.
@@ -39,6 +35,35 @@ def break_init_tie(user1, user2):
         loser = user1 if user1 < user2 else user2
 
     return (winner, loser)
+
+
+def parse_turn_users(parts):
+    """
+    Parse usrs based on possible specification.
+    Expected parts: [username, offset, username, offset/premade_roll, ...]
+
+    Raises:
+        InvalidCommandArgs - Improper parts.
+
+    Returns:
+        Parsed TurnUsers in a list.
+    """
+    if len(parts) % 2:
+        raise dice.exc.InvalidCommandArgs("Improperly formatted turn command.")
+
+    users = []
+    while parts:
+        try:
+            name = parts[0].strip()
+            roll = None
+            offset = int(parts[1])
+        except ValueError:
+            offset, roll = [int(x) for x in parts[1].split('/')]
+
+        parts = parts[2:]
+        users += [dice.turn.TurnUser(name, offset, roll)]
+
+    return users
 
 
 @total_ordering
@@ -166,7 +191,7 @@ class TurnOrder(object):
         Add a user to the turn order, resolve if collision.
         """
         if self.does_name_exist(user.name):
-            raise UserNameCollisionError("Cannot have two users with same name.")
+            raise dice.exc.InvalidCommandArgs("Cannot have two users with same name.")
 
         dupes = self.duplicate_inits(user)
         while dupes:
@@ -187,7 +212,7 @@ class TurnOrder(object):
         """
         Remove a user from the turn order and adjust index.
         """
-        if not self.cur_user or self.cur_user.name == name:
+        if self.cur_user and self.cur_user.name == name:
             self.next()
 
         cnt = 0
@@ -195,6 +220,9 @@ class TurnOrder(object):
             if user.name == name:
                 break
             cnt += 1
+
+        if cnt == len(self.users):
+            raise dice.exc.InvalidCommandArgs("User not found: " + name)
 
         del self.users[cnt]
 

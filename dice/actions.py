@@ -20,6 +20,7 @@ import numpy.random as rand
 import dice.exc
 import dice.roll
 import dice.tbl
+import dice.turn
 import dice.util
 
 CHECK_TIMER_GAP = 5
@@ -49,6 +50,7 @@ Type __play 1__ to play entry 1 (if applicable).
 """
 LIMIT_SONGS = 10
 LIMIT_TAGS = 20
+TURN_ORDER = None
 
 
 async def bot_shutdown(bot, sleep_time=30):  # pragma: no cover
@@ -734,6 +736,49 @@ class Timers(Action):
             await self.manage_timers()
         else:
             await self.bot.send_message(self.msg.channel, self.timer_summary())
+
+
+class Turn(Action):
+    """
+    Manipulate a global turn order tracker.
+    """
+    async def execute(self):
+        global TURN_ORDER
+        msg = 'No turn order to report.'
+
+        if not TURN_ORDER and (self.args.next or self.args.remove):
+            raise dice.exc.InvalidCommandArgs('Please add some users first.')
+
+        if self.args.clear:
+            TURN_ORDER = None
+            msg = 'Turn order cleared.'
+
+        elif self.args.next:
+            current = TURN_ORDER.next()
+            msg = str(current)
+
+        elif self.args.add:
+            parts = ' '.join(self.args.add).split(',')
+            users = dice.turn.parse_turn_users(parts)
+
+            if not TURN_ORDER:
+                TURN_ORDER = dice.turn.TurnOrder()
+            TURN_ORDER.add_all(users)
+
+            msg = str(TURN_ORDER)
+
+        elif self.args.remove:
+            users = ' '.join(self.args.remove).split(',')
+            for user in users:
+                TURN_ORDER.remove(user)
+
+            msg = 'Removed the following users:\n'
+            msg += '\n  - ' + '\n  - '.join(users)
+
+        elif TURN_ORDER:
+            msg = str(TURN_ORDER)
+
+        await self.bot.send_message(self.msg.channel, msg)
 
 
 def parse_time_spec(time_spec):

@@ -231,6 +231,108 @@ async def test_cmd_timers_clear(f_bot):
     await asyncio.sleep(2)
 
 
+@pytest.mark.asyncio
+async def test_cmd_turn_no_turn_order(f_bot):
+    msg = fake_msg_gears("!turn --next")
+
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        await action_map(msg, f_bot).execute()
+
+
+@pytest.mark.asyncio
+async def test_cmd_turn_no_flags(f_bot):
+    try:
+        msg = fake_msg_gears("!turn --add Chris, 7/21, Orc, 2/10, Dwarf, 3/12")
+        msg2 = fake_msg_gears("!turn")
+
+        await action_map(msg, f_bot).execute()
+        await action_map(msg2, f_bot).execute()
+
+        expect = """__**Turn Order**__
+
+    Chris (7): 21.00
+    Dwarf (3): 12.00
+    Orc (2): 10.00
+"""
+        f_bot.send_message.assert_called_with(msg2.channel, expect)
+    finally:
+        await action_map(fake_msg_gears('!turn --clear'), f_bot).execute()
+
+
+@pytest.mark.asyncio
+async def test_cmd_turn_add(f_bot):
+    try:
+        msg = fake_msg_gears("!turn --add Chris, 7, Orc, 2")
+        msg2 = fake_msg_gears("!turn --add Dwarf, 3/20")
+
+        await action_map(msg, f_bot).execute()
+        await action_map(msg2, f_bot).execute()
+
+        assert dice.actions.TURN_ORDER
+        capture = str(f_bot.send_message.call_args).replace("\\n", "\n")
+        for name in ['Chris', 'Orc', 'Dwarf']:
+            assert name in capture
+    finally:
+        await action_map(fake_msg_gears('!turn --clear'), f_bot).execute()
+
+
+@pytest.mark.asyncio
+async def test_cmd_turn_clear(f_bot):
+    msg = fake_msg_gears("!turn --add Chris, 7, Orc, 2")
+    msg2 = fake_msg_gears("!turn --clear")
+
+    await action_map(msg, f_bot).execute()
+    assert dice.actions.TURN_ORDER is not None
+    await action_map(msg2, f_bot).execute()
+
+    f_bot.send_message.assert_called_with(msg2.channel, 'Turn order cleared.')
+    assert dice.actions.TURN_ORDER is None
+
+
+@pytest.mark.asyncio
+async def test_cmd_turn_next(f_bot):
+    try:
+        msg = fake_msg_gears("!turn --add Chris, 7/21, Orc, 2/10, Dwarf, 3/12")
+        msg2 = fake_msg_gears("!turn --next")
+
+        await action_map(msg, f_bot).execute()
+        await action_map(msg2, f_bot).execute()
+
+        f_bot.send_message.assert_called_with(msg2.channel, 'Chris (7): 21.00')
+    finally:
+        await action_map(fake_msg_gears('!turn --clear'), f_bot).execute()
+
+
+@pytest.mark.asyncio
+async def test_cmd_turn_remove_exists(f_bot):
+    try:
+        msg = fake_msg_gears("!turn --add Chris, 7/21, Orc, 2/10, Dwarf, 3/12")
+        msg2 = fake_msg_gears("!turn --remove Orc")
+        msg3 = fake_msg_gears("!turn")
+
+        await action_map(msg, f_bot).execute()
+        await action_map(msg2, f_bot).execute()
+        await action_map(msg3, f_bot).execute()
+
+        capture = str(f_bot.send_message.call_args).replace("\\n", "\n")
+        assert 'Orc' not in capture
+    finally:
+        await action_map(fake_msg_gears('!turn --clear'), f_bot).execute()
+
+
+@pytest.mark.asyncio
+async def test_cmd_turn_remove_not_exists(f_bot):
+    try:
+        msg = fake_msg_gears("!turn --add Chris, 7/21, Orc, 2/10, Dwarf, 3/12")
+        msg2 = fake_msg_gears("!turn --remove Cedric")
+
+        await action_map(msg, f_bot).execute()
+        with pytest.raises(dice.exc.InvalidCommandArgs):
+            await action_map(msg2, f_bot).execute()
+    finally:
+        await action_map(fake_msg_gears('!turn --clear'), f_bot).execute()
+
+
 def test_parse_time_spec():
     time_spec = "1:15:30"
     assert dice.actions.parse_time_spec(time_spec) == 3600 + 900 + 30

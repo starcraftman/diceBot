@@ -196,6 +196,34 @@ def subs_status(subs, prefix):
 
 
 @register_parser
+def subs_turn(subs, prefix):
+    """ Subcommand parsing for turn """
+    desc = """Manage the turn order.
+
+{prefix}turn
+        Show the complete current turn order.
+{prefix}turn --add a_name, init_offset/optional_roll, second_name, init_offset, ...
+{prefix}turn -a a_name, init_offset/optional_roll, second_name, init_offset, ...
+        Add a user to the existing turn order.
+{prefix}turn --clear
+{prefix}turn -c
+        Clear the existing turn order.
+{prefix}turn --next
+{prefix}turn -n
+        Select the next person in order.
+{prefix}turn --remove a user, another user
+{prefix}turn -r a user, another user
+        Remove a user from the turn order.
+    """.format(prefix=prefix)
+    sub = subs.add_parser(prefix + 'turn', description=desc, formatter_class=RawHelp)
+    sub.set_defaults(cmd='Turn')
+    sub.add_argument('-a', '--add', nargs='+', help='Add a user to the turn order.')
+    sub.add_argument('-c', '--clear', action='store_true', help='Clear the turn order.')
+    sub.add_argument('-n', '--next', action='store_true', help='Add a user to the turn order.')
+    sub.add_argument('-r', '--remove', nargs='+', help='Remove a user.')
+
+
+@register_parser
 def subs_timer(subs, prefix):
     """ Subcommand parsing for timer """
     desc = """Set timers to remind you of things later!

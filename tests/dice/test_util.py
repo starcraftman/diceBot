@@ -120,7 +120,7 @@ def test_seed_random_derived():
 
     derived = dice.util.seed_random()
     assert derived < (seconds + 500000)
-    assert derived > (seconds - 500000)
+    assert derived > (seconds - 1000000)
 
 
 def test_seed_random_fixed():

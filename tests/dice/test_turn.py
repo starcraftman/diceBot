@@ -3,6 +3,7 @@ Tests for the turn order functions.
 """
 import pytest
 
+import dice.exc
 import dice.turn
 from dice.turn import TurnUser, TurnOrder
 
@@ -127,7 +128,7 @@ def test_torder_does_name_exist():
     user2.init = 10
 
     order.add(user)
-    with pytest.raises(dice.turn.UserNameCollisionError):
+    with pytest.raises(dice.exc.InvalidCommandArgs):
         order.add(user2)
 
 
