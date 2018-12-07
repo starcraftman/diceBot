@@ -99,10 +99,10 @@ def test_torder__str__():
 
     expect = """__**Turn Order**__
 
---> Chris (7): 27.00
-    Orc (2): 10.00
-"""
-
+```  name    | mod. | init
+--------- | ---- | -----
+> Chris < | +7   | 27.00
+Orc       | +2   | 10.00```"""
     assert str(order) == expect
 
 

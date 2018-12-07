@@ -7,6 +7,7 @@ from functools import total_ordering
 import numpy.random as rand
 
 import dice.exc
+import dice.tbl
 
 COLLIDE_INCREMENT = 0.01
 
@@ -126,9 +127,15 @@ class TurnOrder(object):
     def __str__(self):
         msg = '__**Turn Order**__\n\n'
 
+        rows = [['name', 'mod.', 'init']]
         for user in self.users:
-            prefix = '--> ' if self.cur_user and user == self.cur_user else '    '
-            msg += '{}{}\n'.format(prefix, user)
+            name = '> {} <'.format(user.name) if self.cur_user and user == self.cur_user else user.name
+            offset = '{}{}'.format('+' if user.offset >= 0 else '-', user.offset)
+            init = '{:0.2f}'.format(user.init)
+            rows += [[name, offset, init]]
+
+        msg += dice.tbl.wrap_markdown(dice.tbl.format_table(rows, header=True))
+        print(msg)
 
         return msg
 

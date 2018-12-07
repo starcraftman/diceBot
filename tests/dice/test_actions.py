@@ -250,10 +250,11 @@ async def test_cmd_turn_no_flags(f_bot):
 
         expect = """__**Turn Order**__
 
-    Chris (7): 21.00
-    Dwarf (3): 12.00
-    Orc (2): 10.00
-"""
+```name  | mod. | init
+----- | ---- | -----
+Chris | +7   | 21.00
+Dwarf | +3   | 12.00
+Orc   | +2   | 10.00```"""
         f_bot.send_message.assert_called_with(msg2.channel, expect)
     finally:
         await action_map(fake_msg_gears('!turn --clear'), f_bot).execute()
