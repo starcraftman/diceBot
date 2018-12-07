@@ -135,7 +135,6 @@ class TurnOrder(object):
             rows += [[name, offset, init]]
 
         msg += dice.tbl.wrap_markdown(dice.tbl.format_table(rows, header=True))
-        print(msg)
 
         return msg
 
