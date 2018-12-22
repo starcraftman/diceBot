@@ -98,6 +98,7 @@ class Help(Action):
             ['Command', 'Effect'],
             ['{prefix}math', 'Do some math operations'],
             ['{prefix}m', 'Alias for `!math`'],
+            ['{prefix}n', 'Alias for `!turn --next`'],
             ['{prefix}play', 'Play songs from youtube and server.'],
             ['{prefix}poni', 'Pony?!?!'],
             ['{prefix}roll', 'Roll a dice like: 2d6 + 5'],
@@ -160,11 +161,6 @@ class Play(Action):
     async def execute(self):
         mplayer = self.bot.mplayer
 
-        msg = self.msg.content.replace(self.bot.prefix + 'play', '')
-        msg = re.sub(r'-+(volume|o)\s+\S+|-+\S+', '', msg)  # Strip possible flags
-        parts = re.split(r'\s*,\s*', msg)
-        new_vids = validate_videos([part.strip() for part in parts])
-
         if self.args.stop:
             mplayer.stop()
         elif self.args.pause:
@@ -175,17 +171,20 @@ class Play(Action):
             await mplayer.prev()
         elif self.args.volume != 'zero':
             mplayer.set_volume(self.args.volume)
-        elif self.args.append:
-            mplayer.vids += new_vids
         elif self.args.loop:
             mplayer.loop = not mplayer.loop
         elif self.args.status:
             pass
-        else:
-            if self.args.vids:
+        elif self.args.vids:
+            parts = [part.strip() for part in re.split(r'\s*,\s*', ' '.join(self.args.vids))]
+            new_vids = validate_videos(parts)
+
+            if self.args.append:
+                mplayer.vids += new_vids
+            else:
                 # New videos played so replace playlist
                 mplayer.initialize_settings(self.msg, new_vids)
-            await mplayer.start()
+                await mplayer.start()
 
         await self.bot.send_message(self.msg.channel, str(self.bot.mplayer))
 
