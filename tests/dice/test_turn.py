@@ -223,3 +223,12 @@ def test_torder_remove():
     assert user in order.users
     assert user2 not in order.users
     assert order.cur_user == user
+
+
+def test_parse_turn_users():
+    tokens = ['Chris/7', 'Noggles/3/20']
+    users = dice.turn.parse_turn_users(tokens)
+
+    assert users[0].name == 'Chris'
+    assert users[0].offset == 7
+    assert dice.turn.TurnUser('Noggles', 3, 20) == users[1]
