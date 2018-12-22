@@ -50,19 +50,22 @@ def parse_turn_users(parts):
         Parsed TurnUsers in a list.
     """
     users = []
-    while parts:
-        roll = None
-        subparts = parts[0].split('/')
+    try:
+        while parts:
+            roll = None
+            subparts = parts[0].split('/')
 
-        if len(subparts) == 3:
-            name, offset, roll = subparts[0].strip(), int(subparts[1]), int(subparts[2])
-        elif len(subparts) == 2:
-            name, offset = subparts[0].strip(), int(subparts[1])
-        else:
-            raise dice.exc.InvalidCommandArgs("Improperly formatted turn, missing information.")
+            if len(subparts) == 3:
+                name, offset, roll = subparts[0].strip(), int(subparts[1]), int(subparts[2])
+            elif len(subparts) == 2:
+                name, offset = subparts[0].strip(), int(subparts[1])
+            else:
+                raise dice.exc.InvalidCommandArgs("Improperly formatted turn, missing information.")
 
-        users += [dice.turn.TurnUser(name, offset, roll)]
-        parts = parts[1:]
+            users += [dice.turn.TurnUser(name, offset, roll)]
+            parts = parts[1:]
+    except ValueError:
+        raise dice.exc.InvalidCommandArgs("Improperply formatted turn, possible value error.")
 
     return users
 

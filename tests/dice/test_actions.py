@@ -242,7 +242,7 @@ async def test_cmd_turn_no_turn_order(f_bot):
 @pytest.mark.asyncio
 async def test_cmd_turn_no_flags(f_bot):
     try:
-        msg = fake_msg_gears("!turn --add Chris, 7/21, Orc, 2/10, Dwarf, 3/12")
+        msg = fake_msg_gears("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
         msg2 = fake_msg_gears("!turn")
 
         await action_map(msg, f_bot).execute()
@@ -263,8 +263,8 @@ Orc   | +2   | 10.00```"""
 @pytest.mark.asyncio
 async def test_cmd_turn_add(f_bot):
     try:
-        msg = fake_msg_gears("!turn --add Chris, 7, Orc, 2")
-        msg2 = fake_msg_gears("!turn --add Dwarf, 3/20")
+        msg = fake_msg_gears("!turn --add Chris/7, Orc/2")
+        msg2 = fake_msg_gears("!turn --add Dwarf/3/20")
 
         await action_map(msg, f_bot).execute()
         await action_map(msg2, f_bot).execute()
@@ -279,7 +279,7 @@ async def test_cmd_turn_add(f_bot):
 
 @pytest.mark.asyncio
 async def test_cmd_turn_clear(f_bot):
-    msg = fake_msg_gears("!turn --add Chris, 7, Orc, 2")
+    msg = fake_msg_gears("!turn --add Chris/7, Orc/2")
     msg2 = fake_msg_gears("!turn --clear")
 
     await action_map(msg, f_bot).execute()
@@ -293,7 +293,7 @@ async def test_cmd_turn_clear(f_bot):
 @pytest.mark.asyncio
 async def test_cmd_turn_next(f_bot):
     try:
-        msg = fake_msg_gears("!turn --add Chris, 7/21, Orc, 2/10, Dwarf, 3/12")
+        msg = fake_msg_gears("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
         msg2 = fake_msg_gears("!turn --next")
 
         await action_map(msg, f_bot).execute()
@@ -307,7 +307,7 @@ async def test_cmd_turn_next(f_bot):
 @pytest.mark.asyncio
 async def test_cmd_turn_remove_exists(f_bot):
     try:
-        msg = fake_msg_gears("!turn --add Chris, 7/21, Orc, 2/10, Dwarf, 3/12")
+        msg = fake_msg_gears("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
         msg2 = fake_msg_gears("!turn --remove Orc")
         msg3 = fake_msg_gears("!turn")
 
@@ -324,7 +324,7 @@ async def test_cmd_turn_remove_exists(f_bot):
 @pytest.mark.asyncio
 async def test_cmd_turn_remove_not_exists(f_bot):
     try:
-        msg = fake_msg_gears("!turn --add Chris, 7/21, Orc, 2/10, Dwarf, 3/12")
+        msg = fake_msg_gears("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
         msg2 = fake_msg_gears("!turn --remove Cedric")
 
         await action_map(msg, f_bot).execute()

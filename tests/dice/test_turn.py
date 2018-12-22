@@ -29,6 +29,25 @@ def test_break_init_tie_offset_same():
     assert winner.init > loser.init
 
 
+def test_parse_turn_users():
+    tokens = ['Chris/7', 'Noggles/3/20']
+    users = dice.turn.parse_turn_users(tokens)
+
+    assert users[0].name == 'Chris'
+    assert users[0].offset == 7
+    assert dice.turn.TurnUser('Noggles', 3, 20) == users[1]
+
+
+def test_parse_turn_users_errors():
+    tokens = ['Chris/notNumber']
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        dice.turn.parse_turn_users(tokens)
+
+    tokens = ['Chris']
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        dice.turn.parse_turn_users(tokens)
+
+
 def test_tuser_roll_create():
     user = TurnUser('Chris', 7)
     assert user.init in list(range(7, 28))
@@ -223,12 +242,3 @@ def test_torder_remove():
     assert user in order.users
     assert user2 not in order.users
     assert order.cur_user == user
-
-
-def test_parse_turn_users():
-    tokens = ['Chris/7', 'Noggles/3/20']
-    users = dice.turn.parse_turn_users(tokens)
-
-    assert users[0].name == 'Chris'
-    assert users[0].offset == 7
-    assert dice.turn.TurnUser('Noggles', 3, 20) == users[1]
