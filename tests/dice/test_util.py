@@ -125,3 +125,21 @@ def test_seed_random_derived():
 
 def test_seed_random_fixed():
     assert dice.util.seed_random(5) == 5
+
+
+def test_is_valid_yt():
+    links = ['https://www.youtube.com/watch?v=j4dMnAPZu70', 'https://youtube.com/watch?v=j4dMnAPZu70',
+             'https://youtu.be/j4dMnAPZu70', 'https://y2u.be/j4dMnAPZu70']
+    for link in links:
+        assert dice.util.is_valid_yt(link)
+
+
+def test_is_valid_url():
+    valid = ['http://www.google.ca', 'https://www.google.ca', 'https://google.ca', 'google.ca',
+             'google.ca/subdomain']
+    for link in valid:
+        assert dice.util.is_valid_url(link)
+
+    not_valid = ['word', 'word/sub', 'extras/music/no.mp3', '.com', '/tmp/music/found.mp3']
+    for link in not_valid:
+        assert not dice.util.is_valid_url(link)

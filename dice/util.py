@@ -9,6 +9,7 @@ import logging.config
 import os
 import math
 import random
+import re
 
 import numpy.random
 import yaml
@@ -21,6 +22,9 @@ import dice.exc
 
 BOT = None
 MSG_LIMIT = 1985  # Number chars before message truncation
+IS_YT = re.compile(r'https?://((www.)?youtube.com/watch\?|youtu.be/|y2u.be/)\S+',
+                   re.ASCII | re.IGNORECASE)
+IS_URL = re.compile(r'(https?://)?(\w+\.)+(com|org|net|ca|be)(/\S+)*', re.ASCII | re.IGNORECASE)
 
 
 class ModFormatter(logging.Formatter):
@@ -307,6 +311,14 @@ def seed_random(seed=None):
     random.seed(seed)
 
     return seed
+
+
+def is_valid_yt(url):
+    return IS_URL.match(url) and IS_YT.match(url)
+
+
+def is_valid_url(url):
+    return IS_URL.match(url)
 
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

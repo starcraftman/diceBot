@@ -826,16 +826,17 @@ def validate_videos(list_vids):
     new_vids = []
 
     for vid in list_vids:
+        if vid[0] == '<' and vid[-1] == '>':
+            vid = vid[1:-1]
+
         if vid in song_db:
             new_vids.append(song_db[vid]['url'])
 
-        elif "/" in vid:
-            if "youtube.com" in vid or "youtu.be" in vid:
-                if vid[0] == "<" and vid[-1] == ">":
-                    vid = vid[1:-1]
-                new_vids.append(vid)
-            else:
-                raise dice.exc.InvalidCommandArgs("Only youtube links supported: " + vid)
+        elif dice.util.is_valid_yt(vid):
+            new_vids.append(vid)
+
+        elif dice.util.is_valid_url(vid):
+            raise dice.exc.InvalidCommandArgs("Only youtube links supported: " + vid)
 
         else:
             globbed = glob.glob(os.path.join(MUSIC_PATH, vid + "*"))

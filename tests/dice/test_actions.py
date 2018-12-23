@@ -357,9 +357,9 @@ def test_validate_videos_not_youtube():
 
 
 def test_validate_videos_youtube_strip_angles():
-    links = ['<https://youtube.com/watch=1234>']
+    links = ['<https://youtube.com/watch?v=1234>']
 
-    assert dice.actions.validate_videos(links) == ['https://youtube.com/watch=1234']
+    assert dice.actions.validate_videos(links) == ['https://youtube.com/watch?v=1234']
 
 
 def test_validate_videos_local_not_found():

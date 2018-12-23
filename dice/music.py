@@ -36,6 +36,13 @@ class MPlayer(object):
         self.__player = None
 
     def __str__(self):
+        str_vids = []
+        for vid in self.vids:
+            if dice.util.is_valid_url(vid):
+                str_vids += ['<' + vid + '>']
+            else:
+                str_vids += [vid]
+
         return """__**Player Status**__ :
 
         Queue: {vids}
@@ -43,7 +50,7 @@ class MPlayer(object):
         Volume: {volume}/100
         Loop: {loop}
         Status: {state}
-""".format(vids=['<' + x + '>' for x in self.vids], vid_index=self.vid_index, volume=self.volume,
+""".format(vids=str_vids, vid_index=self.vid_index, volume=self.volume,
            loop=self.loop, state=self.status)
 
     def __repr__(self):
