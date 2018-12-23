@@ -203,7 +203,7 @@ class MPlayer(object):
                 self.stop()
                 raise dice.exc.InvalidCommandArgs("Loop is not set, queue finished. Stopping.")
 
-    async def monitor(self, sleep_time=3):
+    async def monitor(self, sleep_time=5):
         """
         Simple monitor task that lives as long as the bot runs.
         """
@@ -217,7 +217,7 @@ class MPlayer(object):
                 if self.state == MPlayerState.PLAYING and self.__player.is_done():
                     await self.next()
 
-                if (datetime.datetime.utcnow() - last_activity).seconds > 300:
+                if (datetime.datetime.utcnow() - last_activity).seconds > 120:
                     await self.quit()
             except AttributeError:
                 pass
