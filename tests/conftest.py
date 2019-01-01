@@ -7,6 +7,7 @@ import sys
 
 import aiomock
 import pytest
+import sqlalchemy.exc
 
 try:
     import uvloop
@@ -17,6 +18,10 @@ try:
 except ImportError:
     print("Run: python setup.py deps")
     sys.exit(1)
+
+import dicedb
+import dicedb.schema
+from dicedb.schema import (DUser, SavedRoll)
 
 
 # @pytest.yield_fixture(scope='function', autouse=True)
@@ -173,6 +178,14 @@ def fake_msg_newuser(content):
     return Message(content, aut, srv, srv.channels[1], None)
 
 
+def fake_msg(content, user_id='1', name='User1'):
+    """ Generate fake message with GearsandCogs as author. """
+    srv = fake_servers()[0]
+    roles = [Role('Everyone', srv), Role('Fighter', srv)]
+    aut = Member(name, roles, id=user_id)
+    return Message(content, aut, srv, srv.channels[1], None)
+
+
 @pytest.fixture
 def f_bot():
     """
@@ -249,3 +262,63 @@ def f_mplayer_db():
     }
 
     yield fake_mplayer_db
+
+
+@pytest.fixture
+def session():
+    session = dicedb.Session()
+
+    yield dicedb.Session()
+
+    session.close()
+
+
+@pytest.fixture
+def db_cleanup(session):
+    dicedb.schema.empty_tables(session)
+
+
+@pytest.fixture
+def f_dusers(session):
+    """
+    Fixture to insert some test DUsers.
+    """
+    dusers = (
+        DUser(id='1', display_name='User1'),
+        DUser(id='2', display_name='User2'),
+        DUser(id='3', display_name='User3'),
+    )
+    try:
+        session.add_all(dusers)
+        session.commit()
+    except sqlalchemy.exc.IntegrityError:
+        pass
+
+    yield dusers
+
+    for matched in session.query(DUser):
+        session.delete(matched)
+    session.commit()
+
+
+@pytest.fixture
+def f_saved_rolls(session, f_dusers):
+    """
+    Fixture to insert some test SavedRolls.
+
+    Remember to put DUsers in.
+    """
+    rolls = (
+        SavedRoll(name='Crossbow', roll_str='d20 + 7, d8', user_id=f_dusers[0].id),
+        SavedRoll(name='Staff', roll_str='d20 + 2, d6', user_id=f_dusers[0].id),
+        SavedRoll(name='LongSword', roll_str='d20 + 7, d8+4', user_id=f_dusers[1].id),
+        SavedRoll(name='Dagger', roll_str='d20 + 5, d4 + 3', user_id=f_dusers[2].id),
+    )
+    session.add_all(rolls)
+    session.commit()
+
+    yield rolls
+
+    for matched in session.query(DUser):
+        session.delete(matched)
+    session.commit()

@@ -131,12 +131,21 @@ def subs_roll(subs, prefix):
         Roll 4d6, keep the 3 __highest__ rolls.
 {prefix}roll 4d6kl2
         Roll 4d6, keep the 2 __lowest__ rolls.
-{prefix}roll 6 * (4d6)
-        Roll 4d6, __6__ times.
+{prefix}roll 6: 4d6, 2: 3d6 + 2d10 + 5
+        Roll 4d6, __6__ times, 3d6 + 2d10 + 5 __2__ times.
+{prefix}roll -s NameNoSpace 3d6 + 20
+        Save to name 'NameNoSpace' the roll: 3d6 + 20. Any valid roll can be saved.
+{prefix}roll -r NameNoSpace
+        Remove NameNoSpace from saved rolls.
+{prefix}roll NameNoSpace
+        Roll the saved roll associated with NameNoSpace.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'roll', aliases=[prefix + 'r'], description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Roll')
-    sub.add_argument('spec', nargs='+', help='The dice rolls specified.')
+    sub.add_argument('spec', nargs='*', help='The dice rolls specified.')
+    sub.add_argument('-l', '--list', action='store_true', help='List all saved rolls.')
+    sub.add_argument('-r', '--remove', help='Remove a saved dice.')
+    sub.add_argument('-s', '--save', help='Save roll with this name.')
 
 
 @register_parser

@@ -12,6 +12,7 @@ import dice.tbl
 COLLIDE_INCREMENT = 0.01
 
 
+# TODO: Implement simple turn upkeep for status effects/summons.
 def break_init_tie(user1, user2):
     """
     Resolve a tie of two player inits according to Pathfinder rules.

@@ -17,7 +17,7 @@ import dice.actions
 import dice.bot
 import dice.parse
 
-from tests.conftest import fake_msg_gears
+from tests.conftest import fake_msg_gears, fake_msg
 
 
 def action_map(fake_message, fake_bot):
@@ -119,7 +119,7 @@ async def test_cmd_math_fail(f_bot):
 
 @pytest.mark.asyncio
 async def test_cmd_roll(f_bot):
-    msg = fake_msg_gears("!roll 3 * (2d6 + 3)")
+    msg = fake_msg_gears("!roll 3: 2d6 + 3")
 
     await action_map(msg, f_bot).execute()
 
@@ -135,7 +135,7 @@ async def test_cmd_roll(f_bot):
 
 @pytest.mark.asyncio
 async def test_cmd_roll_alias(f_bot):
-    msg = fake_msg_gears("!r 3 * (2d6 + 3)")
+    msg = fake_msg_gears("!r 3: 2d6 + 3")
 
     await action_map(msg, f_bot).execute()
 
@@ -147,6 +147,52 @@ async def test_cmd_roll_alias(f_bot):
     assert act[0:2] == ["__Dice Rolls__", ""]
     for line in act[2:]:
         assert line.startswith("2d6 + 3 = (")
+
+
+@pytest.mark.asyncio
+async def test_cmd_roll_list(f_bot, f_saved_rolls):
+    expect = """__**Saved Rolls**__:
+
+__Crossbow__: d20 + 7, d8
+__Staff__: d20 + 2, d6"""
+
+    msg = fake_msg("!roll --list")
+
+    await action_map(msg, f_bot).execute()
+
+    assert expect in str(f_bot.send_message.call_args).replace("\\n", "\n")
+
+
+@pytest.mark.asyncio
+async def test_cmd_roll_remove(f_bot, f_saved_rolls):
+    removed = '__Crossbow__: d20 + 7, d8'
+
+    msg_list = fake_msg("!roll --list")
+    msg = fake_msg("!roll --remove bow")
+
+    await action_map(msg_list, f_bot).execute()
+    assert removed in str(f_bot.send_message.call_args).replace("\\n", "\n")
+
+    await action_map(msg, f_bot).execute()
+
+    await action_map(msg_list, f_bot).execute()
+    assert removed not in str(f_bot.send_message.call_args).replace("\\n", "\n")
+
+
+@pytest.mark.asyncio
+async def test_cmd_roll_save(f_bot, f_saved_rolls):
+    added = '__Wand__: d20 + 6, 10d6'
+
+    msg_list = fake_msg("!roll --list")
+    msg = fake_msg("!roll --save Wand d20 + 6, 10d6")
+
+    await action_map(msg_list, f_bot).execute()
+    assert added not in str(f_bot.send_message.call_args).replace("\\n", "\n")
+
+    await action_map(msg, f_bot).execute()
+
+    await action_map(msg_list, f_bot).execute()
+    assert added in str(f_bot.send_message.call_args).replace("\\n", "\n")
 
 
 @pytest.mark.asyncio

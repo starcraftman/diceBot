@@ -23,6 +23,9 @@ import dice.tbl
 import dice.turn
 import dice.util
 
+import dicedb
+import dicedb.query
+
 CHECK_TIMER_GAP = 5
 TIMERS = {}
 TIMER_OFFSETS = ["60:00", "15:00", "5:00", "1:00"]
@@ -546,22 +549,62 @@ class Roll(Action):
     """
     Perform one or more rolls of dice according to spec.
     """
-    async def execute(self):
-        resp = ['__Dice Rolls__', '']
+    async def make_rolls(self, spec):
+        """
+        Take a specification of dice rolls and return a string.
+        """
+        lines = []
 
-        for line in ' '.join(self.args.spec).split(','):
+        for line in spec.split(','):
             line = line.strip()
             times = 1
 
-            match = re.match(r'(\d+)\s*\*\s*\(?([0-9 +-d]*)\)?', line)
-            if match:
-                times, line = int(match.group(1)), match.group(2)
+            if ':' in line:
+                parts = line.split(':')
+                times, line = int(parts[0]), parts[1].strip()
 
             throw = dice.roll.Throw(dice.roll.tokenize_dice_spec(line))
             for _ in range(times):
-                resp += [line + " = {}".format(await throw.next(self.bot.loop))]
+                lines += [line + " = {}".format(await throw.next(self.bot.loop))]
 
-        await self.bot.send_message(self.msg.channel, '\n'.join(resp))
+        return lines
+
+    async def execute(self):
+        session = dicedb.Session()
+        full_spec = ' '.join(self.args.spec).strip()
+        user_id = self.msg.author.id
+        msg = ''
+
+        if self.args.save:
+            duser = dicedb.query.ensure_duser(session, self.msg.author)
+            roll = dicedb.query.update_saved_roll(session, duser.id, self.args.save, full_spec)
+
+            msg = 'Added roll: __**{}**__: {}'.format(roll.name, roll.roll_str)
+
+        elif self.args.list:
+            rolls = dicedb.query.find_all_saved_rolls(session, user_id)
+            resp = ['__**Saved Rolls**__:', '']
+            resp += ['__{}__: {}'.format(roll.name, roll.roll_str) for roll in rolls]
+
+            msg = '\n'.join(resp)
+
+        elif self.args.remove:
+            roll = dicedb.query.remove_saved_roll(session, user_id, self.args.remove)
+
+            msg = 'Removed roll: __**{}**__: {}'.format(roll.name, roll.roll_str)
+
+        else:
+            try:
+                saved_roll = dicedb.query.find_saved_roll(session, user_id, full_spec)
+                full_spec = saved_roll.roll_str
+                resp = ['__Dice Rolls__ ({})'.format(saved_roll.name), '']
+            except dice.exc.NoMatch:
+                resp = ['__Dice Rolls__', '']
+
+            resp += await self.make_rolls(full_spec)
+            msg = '\n'.join(resp)
+
+        await self.bot.send_message(self.msg.channel, msg)
 
 
 class Timer(Action):
