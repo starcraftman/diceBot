@@ -118,6 +118,25 @@ async def test_cmd_math_fail(f_bot):
 
 
 @pytest.mark.asyncio
+async def test_cmd_poni_no_image(f_bot, f_saved_rolls):
+    msg = fake_msg("!poni impossible tag on there")
+
+    await action_map(msg, f_bot).execute()
+    f_bot.send_message.expect_call('No images found!')
+
+
+@pytest.mark.asyncio
+async def test_cmd_poni_one_image(f_bot, f_saved_rolls):
+    msg = fake_msg("!poni book fort, that pony sure does love books, safe, frown")
+
+    await action_map(msg, f_bot).execute()
+    expect = 'https://derpicdn.net/img/view/2013/9/12/425774__safe_artist-colon-xonxt_'\
+             'twilight+sparkle_alicorn_big+crown+thingy_book_bookcase_book+fort_bookhorse_'\
+             'bookshelf_female_frown_golden+oaks+library_.png'
+    f_bot.send_message.expect_call(expect)
+
+
+@pytest.mark.asyncio
 async def test_cmd_roll(f_bot):
     msg = fake_msg_gears("!roll 3: 2d6 + 3")
 
@@ -147,6 +166,17 @@ async def test_cmd_roll_alias(f_bot):
     assert act[0:2] == ["__Dice Rolls__", ""]
     for line in act[2:]:
         assert line.startswith("2d6 + 3 = (")
+
+
+@pytest.mark.asyncio
+async def test_cmd_roll_recall(f_bot, f_saved_rolls):
+    msg = fake_msg("!roll bow")
+
+    await action_map(msg, f_bot).execute()
+
+    capture = str(f_bot.send_message.call_args).replace("\\n", "\n")
+    assert '(Crossbow)' in capture
+    assert 'd20 + 7' in capture
 
 
 @pytest.mark.asyncio

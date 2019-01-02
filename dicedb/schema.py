@@ -106,12 +106,12 @@ def empty_tables(session):
     session.commit()
 
 
-def recreate_tables():
+def recreate_tables(engine=dicedb.engine):
     """
     Recreate all tables in the database, mainly for schema changes and testing.
     """
-    Base.metadata.drop_all(dicedb.engine)
-    Base.metadata.create_all(dicedb.engine)
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
 
 
 # Relationships
