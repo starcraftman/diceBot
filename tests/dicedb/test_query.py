@@ -17,11 +17,11 @@ from tests.conftest import Member
 def test_get_duser(session, f_dusers):
     assert dicedb.query.get_duser(session, '1') == f_dusers[0]
     with pytest.raises(dice.exc.NoMatch):
-        dicedb.query.get_duser(session, '1000')
+        dicedb.query.get_duser(session, '99999')
 
 
 def test_add_duser(session, f_dusers):
-    member = Member('10000', 'NotThere')
+    member = Member('NotThere', None, id='99999')
     dicedb.query.add_duser(session, member)
 
     duser = dicedb.query.get_duser(session, member.id)
@@ -37,10 +37,28 @@ def test_ensure_duser_exists(session, f_dusers):
 
 
 def test_ensure_duser_not_exists(session, f_dusers):
-    member = Member('99999', 'NotThereEver')
+    member = Member('NotThereEver', None, id='99999')
     returned = dicedb.query.ensure_duser(session, member)
     assert returned.display_name == member.display_name
     assert returned.id == member.id
+
+
+def test_update_duser_character(session, f_dusers):
+    member = Member('Chris', None, id='1')
+    assert f_dusers[0].character != 'Chris'
+    dicedb.query.update_duser_character(session, member, 'Chris')
+    assert f_dusers[0].character == 'Chris'
+
+
+def test_update_duser_init(session, f_dusers):
+    member = Member('Chris', None, id='1')
+    assert f_dusers[0].init == 7
+    dicedb.query.update_duser_init(session, member, 8)
+    assert f_dusers[0].init == 8
+
+
+def test_generate_initial_turn_users(session, f_dusers):
+    assert dicedb.query.generate_inital_turn_users(session) == ['Wizard/7', 'Fighter/2', 'Rogue/3']
 
 
 def test_find_saved_roll(session, f_saved_rolls):

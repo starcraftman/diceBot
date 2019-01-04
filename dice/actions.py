@@ -792,6 +792,9 @@ class Turn(Action):
     async def execute(self):
         global TURN_ORDER
         msg = 'No turn order to report.'
+        session = dicedb.Session()
+        dicedb.query.ensure_duser(session, self.msg.author)
+        print('Ensuring', self.msg.author, self.msg.content)
 
         if not TURN_ORDER and (self.args.next or self.args.remove):
             raise dice.exc.InvalidCommandArgs('Please add some users first.')
@@ -810,6 +813,9 @@ class Turn(Action):
 
             if not TURN_ORDER:
                 TURN_ORDER = dice.turn.TurnOrder()
+                init_users = dice.turn.parse_turn_users(
+                    dicedb.query.generate_inital_turn_users(session))
+                TURN_ORDER.add_all(init_users)
             TURN_ORDER.add_all(users)
 
             msg = str(TURN_ORDER)
@@ -821,6 +827,14 @@ class Turn(Action):
 
             msg = 'Removed the following users:\n'
             msg += '\n  - ' + '\n  - '.join(users)
+
+        elif self.args.init:
+            dicedb.query.update_duser_init(session, self.msg.author, self.args.init)
+            print('init')
+
+        elif self.args.name:
+            dicedb.query.update_duser_character(session, self.msg.author, ' '.join(self.args.name))
+            print('name')
 
         elif TURN_ORDER:
             msg = str(TURN_ORDER)

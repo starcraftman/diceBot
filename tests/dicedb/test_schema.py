@@ -16,13 +16,15 @@ def test_duser__eq__(f_dusers):
 
 def test_duser__repr__(f_dusers):
     duser = f_dusers[0]
-    assert repr(duser) == "DUser(id='{}', display_name='{}')".format(duser.id, duser.display_name)
+    assert repr(duser) == "DUser(id='{}', display_name='{}', character='{}', init={})".format(
+        duser.id, duser.display_name, duser.character, duser.init)
     assert duser == eval(repr(duser))
 
 
 def test_duser__str__(f_dusers):
     duser = f_dusers[0]
-    assert str(duser) == "DUser(id='{}', display_name='{}')".format(duser.id, duser.display_name)
+    assert str(duser) == "DUser(id='{}', display_name='{}', character='{}', init={})".format(
+        duser.id, duser.display_name, duser.character, duser.init)
 
 
 def test_duser_mention(f_dusers):

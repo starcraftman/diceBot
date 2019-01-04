@@ -12,7 +12,7 @@ import sqlalchemy.orm.exc as sqla_oexc
 
 import dice.exc
 import dicedb
-from dicedb.schema import (DUser, SavedRoll)
+from dicedb.schema import (DUser, SavedRoll, DEFAULT_INIT)
 
 
 def dump_db():  # pragma: no cover
@@ -60,11 +60,40 @@ def add_duser(session, member):
     """
     Add a discord user to the database.
     """
-    new_duser = DUser(id=member.id, display_name=member.display_name)
+    new_duser = DUser(id=member.id, display_name=member.display_name,
+                      character=member.display_name)
     session.add(new_duser)
     session.commit()
 
     return new_duser
+
+
+def update_duser_character(session, member, new_character):
+    """
+    Update a users turn order character.
+    """
+    duser = get_duser(session, member.id)
+    duser.character = new_character
+    session.add(duser)
+    session.commit()
+
+
+def update_duser_init(session, member, new_init):
+    """
+    Update a users turn order initiative.
+    """
+    duser = get_duser(session, member.id)
+    duser.init = new_init
+    session.add(duser)
+    session.commit()
+
+
+def generate_inital_turn_users(session):
+    """
+    Find all potential turn order users.
+    """
+    dusers = session.query(DUser).filter(DUser.init != DEFAULT_INIT).all()
+    return ['{}/{}'.format(duser.character, duser.init) for duser in dusers]
 
 
 def find_saved_roll(session, user_id, name):

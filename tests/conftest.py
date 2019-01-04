@@ -24,20 +24,23 @@ import dicedb.schema
 from dicedb.schema import (DUser, SavedRoll)
 
 
-# @pytest.yield_fixture(scope='function', autouse=True)
-# def around_all_tests(session):
-    # """
-    # Executes before and after EVERY test.
+#  @pytest.yield_fixture(scope='function', autouse=True)
+#  def around_all_tests(session):
+    #  """
+    #  Executes before and after EVERY test.
 
-    # Can be helpful for tracking bugs, like dirty database after test.
-    # Disabled unless needed. Non-trivial overhead.
-    # """
+    #  Can be helpful for tracking bugs, like dirty database after test.
+    #  Disabled unless needed. Non-trivial overhead.
+    #  """
+    #  classes = [DUser, SavedRoll]
+    #  for cls in classes:
+        #  print('Before', cls.__name__, session.query(cls).all())
 
-    # yield
+    #  yield
 
-    # classes = [DUser, SheetRow, System, SystemUM, Drop, Hold]
-    # for cls in classes:
-        # assert not session.query(cls).all()
+    #  classes = [DUser, SavedRoll]
+    #  for cls in classes:
+        #  print('After', cls.__name__, session.query(cls).all())
 
 
 @pytest.fixture
@@ -274,8 +277,11 @@ def session():
 
 
 @pytest.fixture
-def db_cleanup(session):
-    dicedb.schema.empty_tables(session)
+def db_cleanup():
+    """ Nuke anything left in db after test. """
+    yield
+
+    dicedb.schema.empty_tables(dicedb.Session())
 
 
 @pytest.fixture
@@ -284,9 +290,9 @@ def f_dusers(session):
     Fixture to insert some test DUsers.
     """
     dusers = (
-        DUser(id='1', display_name='User1'),
-        DUser(id='2', display_name='User2'),
-        DUser(id='3', display_name='User3'),
+        DUser(id='1', display_name='User1', character='Wizard', init=7),
+        DUser(id='2', display_name='User2', character='Fighter', init=2),
+        DUser(id='3', display_name='User3', character='Rogue', init=3),
     )
     try:
         session.add_all(dusers)
@@ -319,6 +325,6 @@ def f_saved_rolls(session, f_dusers):
 
     yield rolls
 
-    for matched in session.query(DUser):
+    for matched in session.query(SavedRoll):
         session.delete(matched)
     session.commit()

@@ -18,6 +18,7 @@ import dicedb
 LEN_DID = 30
 LEN_NAME = 100
 LEN_ROLLSTR = 200
+DEFAULT_INIT = 99999
 Base = sqlalchemy.ext.declarative.declarative_base()
 
 
@@ -30,9 +31,11 @@ class DUser(Base):
 
     id = sqla.Column(sqla.String(LEN_DID), primary_key=True)  # Discord id
     display_name = sqla.Column(sqla.String(LEN_NAME))
+    character = sqla.Column(sqla.String(LEN_NAME), default='')
+    init = sqla.Column(sqla.Integer, default=DEFAULT_INIT)
 
     def __repr__(self):
-        keys = ['id', 'display_name']
+        keys = ['id', 'display_name', 'character', 'init']
         kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
 
         return "DUser({})".format(', '.join(kwargs))
