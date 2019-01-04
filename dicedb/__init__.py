@@ -30,7 +30,7 @@ CREDS = dice.util.get_config('dbs', 'main')
 
 TEST_DB = False
 if 'pytest' in sys.modules:
-    CREDS['db'] = 'test'
+    CREDS['db'] = 'test_dice'
     TEST_DB = True
 
 engine = sqlalchemy.create_engine(MYSQL_SPEC.format(**CREDS), echo=False, pool_recycle=3600)

@@ -134,7 +134,7 @@ def main():  # pragma: no cover
     """
     print('Schema Main: Forcing DB to use \'test\'')
     creds = dice.util.get_config('dbs', 'main')
-    creds['db'] = 'test'
+    creds['db'] = 'test_dice'
     engine = sqla.create_engine(dicedb.MYSQL_SPEC.format(**creds), echo=False, pool_recycle=3600)
     session = sqla_orm.sessionmaker(bind=engine)()
 
