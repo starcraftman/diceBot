@@ -595,6 +595,9 @@ class Roll(Action):
 
         else:
             try:
+                if full_spec == '':
+                    raise dice.exc.InvalidCommandArgs('A roll requires some text!')
+
                 saved_roll = dicedb.query.find_saved_roll(session, user_id, full_spec)
                 full_spec = saved_roll.roll_str
                 resp = ['__Dice Rolls__ ({})'.format(saved_roll.name), '']
