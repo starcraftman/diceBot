@@ -794,7 +794,6 @@ class Turn(Action):
         msg = 'No turn order to report.'
         session = dicedb.Session()
         dicedb.query.ensure_duser(session, self.msg.author)
-        print('Ensuring', self.msg.author, self.msg.content)
 
         if not TURN_ORDER and (self.args.next or self.args.remove):
             raise dice.exc.InvalidCommandArgs('Please add some users first.')
@@ -828,13 +827,21 @@ class Turn(Action):
             msg = 'Removed the following users:\n'
             msg += '\n  - ' + '\n  - '.join(users)
 
-        elif self.args.init:
+        elif self.args.init is not None:
             dicedb.query.update_duser_init(session, self.msg.author, self.args.init)
-            print('init')
+            msg = 'Updated **init** for {} to: {}'.format(self.msg.author.name, self.args.init)
 
         elif self.args.name:
-            dicedb.query.update_duser_character(session, self.msg.author, ' '.join(self.args.name))
-            print('name')
+            name_str = ' '.join(self.args.name)
+            dicedb.query.update_duser_character(session, self.msg.author, name_str)
+            msg = 'Updated **name** for {} to: {}'.format(self.msg.author.name, name_str)
+
+        elif self.args.update:
+            msg = 'Updated the following users:\n'
+            for spec in ' '.join(self.args.update).split(','):
+                part_name, new_init = spec.split('/')
+                TURN_ORDER.update_user(part_name.strip(), new_init.strip())
+                msg += '    Set __{}__ to {}\n'.format(part_name, new_init)
 
         elif TURN_ORDER:
             msg = str(TURN_ORDER)

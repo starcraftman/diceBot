@@ -251,3 +251,21 @@ class TurnOrder(object):
                 last_user = user
 
         return self.cur_user
+
+    def update_user(self, name_part, new_init):
+        """
+        Update a user's init if modified post roll.
+        """
+        possible = []
+        for user in self.users:
+            if name_part in user.name:
+                possible += [user]
+
+        if len(possible) != 1:
+            raise dice.exc.InvalidCommandArgs("Unable to match exactly 1 user.")
+
+        try:
+            possible[0].init = int(new_init)
+            self.users = list(reversed(sorted(self.users)))
+        except ValueError:
+            raise dice.exc.InvalidCommandArgs("Unable to update init, provide valid integer.")

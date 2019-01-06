@@ -433,6 +433,22 @@ async def test_cmd_turn_set_character(session, f_bot, f_dusers):
         await action_map(fake_msg('!turn --clear'), f_bot).execute()
 
 
+@pytest.mark.asyncio
+async def test_cmd_turn_update_user(f_bot):
+    try:
+        msg = fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
+        msg2 = fake_msg("!turn --update hris/1")
+        msg3 = fake_msg("!turn")
+
+        await action_map(msg, f_bot).execute()
+        await action_map(msg2, f_bot).execute()
+        await action_map(msg3, f_bot).execute()
+
+        assert 'Chris | +7   | 1.00' in str(f_bot.send_message.call_args).replace("\\n", "\n")
+    finally:
+        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+
+
 def test_parse_time_spec():
     time_spec = "1:15:30"
     assert dice.actions.parse_time_spec(time_spec) == 3600 + 900 + 30

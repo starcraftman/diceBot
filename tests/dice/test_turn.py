@@ -242,3 +242,29 @@ def test_torder_remove():
     assert user in order.users
     assert user2 not in order.users
     assert order.cur_user == user
+
+
+def test_torder_update_user():
+    order = TurnOrder()
+    user = TurnUser('Chris', 7, 27)
+    user2 = TurnUser('Orc', 2, 10)
+    user3 = TurnUser('Dwarf', 3, 12)
+    order.add_all([user, user2, user3])
+    order.update_user('ris', 1)
+
+    assert user.init == 1
+    assert order.users[-1] == user
+
+
+def test_torder_update_user_raises():
+    order = TurnOrder()
+    user = TurnUser('Chris', 7, 27)
+    user2 = TurnUser('Orc', 2, 10)
+    user3 = TurnUser('Dwarf', 3, 12)
+    order.add_all([user, user2, user3])
+
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        order.update_user('r', 1)
+
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        order.update_user('r', 'a')

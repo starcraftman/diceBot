@@ -227,6 +227,8 @@ def subs_turn(subs, prefix):
         Set your character name for turn order.
 {prefix}turn --init -5
         Set your character init for turn order.
+{prefix}turn --update Chris/1, Noggles/22, ...
+        Override the rolls for init for matching characters.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'turn', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Turn')
@@ -236,6 +238,7 @@ def subs_turn(subs, prefix):
     sub.add_argument('--name', nargs='+', help='Set turn order name.')
     sub.add_argument('-n', '--next', action='store_true', help='Add a user to the turn order.')
     sub.add_argument('-r', '--remove', nargs='+', help='Remove a user.')
+    sub.add_argument('--update', nargs='+', help='Update the following users.')
 
 
 @register_parser
