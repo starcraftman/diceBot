@@ -101,6 +101,7 @@ class Help(Action):
         ]
         lines = [
             ['Command', 'Effect'],
+            ['{prefix}d20', 'Search for x on Pathfinder d20 wiki'],
             ['{prefix}math', 'Do some math operations'],
             ['{prefix}m', 'Alias for `!math`'],
             ['{prefix}n', 'Alias for `!turn --next`'],
@@ -523,10 +524,13 @@ class D20Wiki(Action):
     Poni command.
     """
     async def execute(self):
-        terms = ' '.join(self.args.terms)
-        full_url = D20_URL.format(terms.replace(' ', '%20'))
         msg = """Searching For: **{}**
 Top Results: {}"""
+        terms = ' '.join(self.args.terms)
+        full_url = D20_URL.format(terms.replace(' ', '%20'))
+        match = re.match(r'([^a-zA-Z0-9 -]+)', terms)
+        if match:
+            raise dice.exc.InvalidCommandArgs('No special characters in search please. ' + match.group(1))
 
         browser = selenium.webdriver.Firefox()
         browser.get(D20_URL.format(full_url))
