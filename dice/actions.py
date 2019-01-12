@@ -16,6 +16,7 @@ import sys
 import aiohttp
 import discord
 import numpy.random as rand
+import selenium.webdriver
 
 import dice.exc
 import dice.roll
@@ -37,6 +38,7 @@ Timer #{} with description: **{}**
     __Time remaining__: {}
 """
 MUSIC_PATH = "extras/music"
+D20_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3A6zo0hx_wle8&q=search#gsc.tab=0&gsc.q={}&gsc.sort='
 PONI_URL = "https://derpibooru.org/search.json?q="
 SONG_DB_FILE = os.path.abspath(os.path.join("data", "songs.yml"))
 SONG_TAGS_FILE = os.path.abspath(os.path.join("data", "song_tags.yml"))
@@ -514,6 +516,27 @@ class Songs(Action):
             await self.search_names(self.args.search)
         elif self.args.tag:
             await self.search_tags(self.args.tag)
+
+
+class D20Wiki(Action):
+    """
+    Poni command.
+    """
+    async def execute(self):
+        terms = ' '.join(self.args.terms)
+        full_url = D20_URL.format(terms.replace(' ', '%20'))
+        msg = """Searching For: **{}**
+Top Results: {}"""
+
+        browser = selenium.webdriver.Firefox()
+        browser.get(D20_URL.format(full_url))
+        elements = browser.find_elements_by_class_name('gs-webResult.gs-result')
+        results = ''
+        for ind, ele in enumerate(elements[0:3], start=1):
+            results += '\n        {}) '.format(ind) + ele.text + '\n'
+        browser.quit()
+
+        await self.bot.send_message(self.msg.channel, msg.format(terms, results))
 
 
 class Poni(Action):

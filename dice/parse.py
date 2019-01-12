@@ -149,6 +149,19 @@ def subs_roll(subs, prefix):
 
 
 @register_parser
+def subs_d20(subs, prefix):
+    """ Subcommand parsing for timers """
+    desc = """Search something on d20PRSD Wiki for pathfinder.
+
+{prefix}d20 arcane mark
+        Search for "arcane mark" and return first 3 matches.
+    """.format(prefix=prefix)
+    sub = subs.add_parser(prefix + 'd20', description=desc, formatter_class=RawHelp)
+    sub.set_defaults(cmd='D20Wiki')
+    sub.add_argument('terms', nargs='+', help='To search.')
+
+
+@register_parser
 def subs_poni(subs, prefix):
     """ Subcommand parsing for timers """
     desc = """Be magical!

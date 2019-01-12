@@ -12,3 +12,7 @@ Examples of features:
 
 See a full list of commands with `!help`. For each top level command see specific help,
 for instance for help with `!roll`, try `!roll --help`.
+
+## Setup
+
+Apart from running setup.py, ensure geckodriver available on the path for selenium.

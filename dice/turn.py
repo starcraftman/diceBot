@@ -133,8 +133,10 @@ class TurnOrder(object):
 
         rows = [['name', 'mod.', 'init']]
         for user in self.users:
-            name = '> {} <'.format(user.name) if self.cur_user and user == self.cur_user else user.name
-            offset = '{}{}'.format('+' if user.offset >= 0 else '-', user.offset)
+            name = user.name
+            if self.cur_user and user == self.cur_user:
+                name = '> {} <'.format(user.name)
+            offset = '{}{}'.format('+' if user.offset >= 0 else '', user.offset)
             init = '{:0.2f}'.format(user.init)
             rows += [[name, offset, init]]
 
@@ -160,7 +162,7 @@ class TurnOrder(object):
 
         Returns:
             [] - No duplicates.
-            [dupe_init] - At least 2 duplicates exist.
+            [dupe_init, ...] - There exists a duplicate for every number present in the list.
         """
         inits = [x.init for x in self.users]
         if other:
