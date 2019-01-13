@@ -8,6 +8,12 @@ import pytest
 import dice.roll
 
 
+def test_dice_parent_roll():
+    die = dice.roll.Dice('4')
+    with pytest.raises(NotImplementedError):
+        die.roll()
+
+
 def test_fixed__str__():
     die = dice.roll.FixedRoll('5')
     assert str(die) == '(5)'
@@ -15,6 +21,12 @@ def test_fixed__str__():
     assert str(die) == '(5) + '
     die.next_op = '__sub__'
     assert str(die) == '(5) - '
+
+
+def test_fixed__str__many_die():
+    die = dice.roll.FixedRoll('5')
+    die.values = [1 for x in range(dice.roll.MAX_DIE_STR * 2)]
+    assert str(die) == '(1, ..., 1)'
 
 
 def test_fixed_spec():
@@ -35,10 +47,22 @@ def test_fixed_add():
     assert (fd1 + fd2).num == 8
 
 
+def test_fixed_add_raise():
+    die = dice.roll.FixedRoll('4')
+    with pytest.raises(ValueError):
+        die + 4
+
+
 def test_fixed_sub():
     fd1 = dice.roll.FixedRoll('5')
     fd2 = dice.roll.FixedRoll('3')
     assert (fd1 - fd2).num == 2
+
+
+def test_fixed_sub_raise():
+    die = dice.roll.FixedRoll('4')
+    with pytest.raises(ValueError):
+        die - 4
 
 
 def test_dice__init__():
@@ -90,6 +114,12 @@ def test_dicekeephigh__str__():
     assert str(die) == '(3 + ~~2~~ + 5)'
 
 
+def test_dicekeephigh__str__many():
+    die = dice.roll.DiceRollKeepHigh('3d6kh2')
+    die.values = [3, 2, 5] + [1 for x in range(dice.roll.MAX_DIE_STR * 2)]
+    assert str(die) == '(3, ..., 1)'
+
+
 def test_dicekeephigh_num():
     die = dice.roll.DiceRollKeepHigh('3d6kh2')
     die.values = [3, 2, 5]
@@ -112,6 +142,12 @@ def test_dicekeeplow__str__():
     die = dice.roll.DiceRollKeepLow('3d6kl2')
     die.values = [3, 2, 5]
     assert str(die) == '(3 + 2 + ~~5~~)'
+
+
+def test_dicekeeplow__str__many():
+    die = dice.roll.DiceRollKeepLow('3d6kl2')
+    die.values = [3, 2, 5] + [1 for x in range(dice.roll.MAX_DIE_STR * 2)]
+    assert str(die) == '(3, ..., 1)'
 
 
 def test_dicekeeplow_num():
@@ -139,6 +175,13 @@ def test_throw_add_dice():
     assert throw.dice == [die]
 
 
+def test_throw_add_dice_raise():
+    die = dice.roll.FixedRoll('4')
+    throw = dice.roll.Throw()
+    with pytest.raises(ValueError):
+        throw.add_dice([die, 2])
+
+
 @pytest.mark.asyncio
 async def test_throw_next(event_loop):
     die = dice.roll.DiceRoll('2d6', dice.roll.OP_DICT['+'])
@@ -152,13 +195,35 @@ async def test_throw_next(event_loop):
     assert total in list(range(3, 14))
 
 
+@pytest.mark.asyncio
+async def test_throw_next_excessive(event_loop):
+    die = dice.roll.DiceRoll('2d6', dice.roll.OP_DICT['+'])
+    die.rolls = dice.roll.DICE_ROLL_LIMIT + 1
+    die2 = dice.roll.FixedRoll('1')
+    throw = dice.roll.Throw([die, die2])
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        await throw.next(event_loop)
+
+
 def test_parse_dice_spec():
     assert dice.roll.parse_dice_spec('2d6') == (2, 6)
     assert dice.roll.parse_dice_spec('2D6') == (2, 6)
+    assert dice.roll.parse_dice_spec('6') == (1, 6)
+
+
+def test_parse_dice_spec_raise():
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        assert dice.roll.parse_dice_spec('-1d6')
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        assert dice.roll.parse_dice_spec('2d-1')
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        assert dice.roll.parse_dice_spec('2dworks')
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        assert dice.roll.parse_dice_spec('')
 
 
 def test_tokenize_dice_spec():
-    spec = '4D6KH3 + 2D6 - 4'
+    spec = '4D6KH3 + 2D6 - 4 + 2d6kl1'
 
     dies = dice.roll.tokenize_dice_spec(spec)
     assert isinstance(dies[0], dice.roll.DiceRollKeepHigh)
@@ -166,4 +231,12 @@ def test_tokenize_dice_spec():
     assert isinstance(dies[1], dice.roll.DiceRoll)
     assert dies[1].next_op == dice.roll.OP_DICT['-']
     assert isinstance(dies[2], dice.roll.FixedRoll)
-    assert len(dies) == 3
+    assert dies[2].next_op == dice.roll.OP_DICT['+']
+    assert isinstance(dies[3], dice.roll.DiceRollKeepLow)
+    assert len(dies) == 4
+
+
+def test_tokenize_dice_spec_raises():
+    spec = '4D6KH3kl1'
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        dice.roll.tokenize_dice_spec(spec)

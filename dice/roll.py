@@ -238,7 +238,7 @@ def parse_dice_spec(spec):
     terms = str(spec).lower().split('d')
     terms.reverse()
 
-    if not terms:
+    if terms == ['']:
         raise dice.exc.InvalidCommandArgs("Cannot determine dice.")
 
     try:
