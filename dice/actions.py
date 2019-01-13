@@ -15,8 +15,8 @@ import sys
 
 import aiohttp
 import discord
+import googleapiclient.discovery
 import numpy.random as rand
-import selenium.webdriver
 
 import dice.exc
 import dice.roll
@@ -101,10 +101,11 @@ class Help(Action):
         ]
         lines = [
             ['Command', 'Effect'],
-            ['{prefix}d20', 'Search for x on Pathfinder d20 wiki'],
+            ['{prefix}d5', 'Search on the D&D 5e wiki'],
             ['{prefix}math', 'Do some math operations'],
             ['{prefix}m', 'Alias for `!math`'],
             ['{prefix}n', 'Alias for `!turn --next`'],
+            ['{prefix}pf', 'Search on the Pathfinder d20 wiki'],
             ['{prefix}play', 'Play songs from youtube and server.'],
             ['{prefix}poni', 'Pony?!?!'],
             ['{prefix}roll', 'Roll a dice like: 2d6 + 5'],
@@ -519,7 +520,7 @@ class Songs(Action):
             await self.search_tags(self.args.tag)
 
 
-class D20Wiki(Action):
+class SearchWiki(Action):
     """
     Poni command.
     """
@@ -527,20 +528,18 @@ class D20Wiki(Action):
         msg = """Searching For: **{}**
 Top Results: {}"""
         terms = ' '.join(self.args.terms)
-        full_url = D20_URL.format(terms.replace(' ', '%20'))
-        match = re.match(r'([^a-zA-Z0-9 -]+)', terms)
+        match = re.match(r'.*?([^a-zA-Z0-9 -]+)', terms)
         if match:
             raise dice.exc.InvalidCommandArgs('No special characters in search please. ' + match.group(1))
 
-        browser = selenium.webdriver.Firefox()
-        browser.get(D20_URL.format(full_url))
-        elements = browser.find_elements_by_class_name('gs-webResult.gs-result')
-        results = ''
-        for ind, ele in enumerate(elements[0:3], start=1):
-            results += '\n        {}) '.format(ind) + ele.text + '\n'
-        browser.quit()
+        conf = dice.util.get_config(self.args.config)
+        service = googleapiclient.discovery.build("customsearch", "v1", developerKey=conf['api_key'])
+        results = service.cse().list(q=terms, cx=conf['cse_id'], num=3).execute()
+        result_text = '\n'
+        for result in results['items']:
+            result_text += '\n{title}\n    {link}'.format(**result)
 
-        await self.bot.send_message(self.msg.channel, msg.format(terms, results))
+        await self.bot.send_message(self.msg.channel, msg.format(terms, result_text))
 
 
 class Poni(Action):

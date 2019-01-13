@@ -149,15 +149,28 @@ def subs_roll(subs, prefix):
 
 
 @register_parser
-def subs_d20(subs, prefix):
+def subs_pf1(subs, prefix):
     """ Subcommand parsing for timers """
     desc = """Search something on d20PRSD Wiki for pathfinder.
 
-{prefix}d20 arcane mark
+{prefix}pf arcane mark
         Search for "arcane mark" and return first 3 matches.
     """.format(prefix=prefix)
-    sub = subs.add_parser(prefix + 'd20', description=desc, formatter_class=RawHelp)
-    sub.set_defaults(cmd='D20Wiki')
+    sub = subs.add_parser(prefix + 'pf', description=desc, formatter_class=RawHelp)
+    sub.set_defaults(cmd='SearchWiki', config='search_pf1')
+    sub.add_argument('terms', nargs='+', help='To search.')
+
+
+@register_parser
+def subs_d5e(subs, prefix):
+    """ Subcommand parsing for timers """
+    desc = """Search something on d20PRSD Wiki for pathfinder.
+
+{prefix}pf arcane mark
+        Search for "arcane mark" and return first 3 matches.
+    """.format(prefix=prefix)
+    sub = subs.add_parser(prefix + 'd5', description=desc, formatter_class=RawHelp)
+    sub.set_defaults(cmd='SearchWiki', config='search_d5e')
     sub.add_argument('terms', nargs='+', help='To search.')
 
 
