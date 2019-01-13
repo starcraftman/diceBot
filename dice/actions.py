@@ -525,8 +525,8 @@ class SearchWiki(Action):
     Poni command.
     """
     async def execute(self):
-        msg = """Searching For: **{}**
-Top Results: {}"""
+        msg = """Searching {}: **{}**
+Top {} Results:{}"""
         terms = ' '.join(self.args.terms)
         match = re.match(r'.*?([^a-zA-Z0-9 -]+)', terms)
         if match:
@@ -534,12 +534,13 @@ Top Results: {}"""
 
         conf = dice.util.get_config(self.args.config)
         service = googleapiclient.discovery.build("customsearch", "v1", developerKey=conf['api_key'])
-        results = service.cse().list(q=terms, cx=conf['cse_id'], num=3).execute()
+        results = service.cse().list(q=terms, cx=conf['cse_id'], num=self.args.num).execute()
         result_text = '\n'
-        for result in results['items']:
-            result_text += '\n{title}\n    {link}'.format(**result)
+        for ind, result in enumerate(results['items']):
+            result_text += '\n{title}\n      {link}'.format(**result)
 
-        await self.bot.send_message(self.msg.channel, msg.format(terms, result_text))
+        await self.bot.send_message(self.msg.channel, msg.format(
+            self.args.wiki, terms, self.args.num, result_text))
 
 
 class Poni(Action):
@@ -557,14 +558,17 @@ class Poni(Action):
                 resp_json = await resp.json()
                 total_imgs = resp_json['total']
 
-            if total_imgs:
+            if total_imgs == 1:
+                page_ind, img_ind = 1, 1
+            elif total_imgs:
                 total_ind = rand.randint(1, total_imgs)
                 page_ind = math.ceil(total_ind / 15)
                 img_ind = total_ind % 15 - 1
 
+            if total_imgs:
                 async with session.get(PONI_URL + full_tag + '&page=' + str(page_ind)) as resp:
                     resp_json = await resp.json()
-                    img_found = resp_json["search"][img_ind]["representations"]
+                    img_found = resp_json["search"][img_ind - 1]["representations"]
 
                 msg = 'https:' + img_found["full"]
 

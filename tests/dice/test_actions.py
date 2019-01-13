@@ -83,6 +83,24 @@ async def test_cmd_help(f_bot):
 
 
 @pytest.mark.asyncio
+async def test_cmd_d5(f_bot):
+    msg = fake_msg_gears('!d5 detect magic')
+
+    await action_map(msg, f_bot).execute()
+
+    expect = """Searching D&D 5e Wiki: **detect magic**
+Top 3 Results:
+
+Detect Magic – 5th Edition SRD
+      https://www.5esrd.com/spellcasting/all-spells/d/detect-magic/
+Rods, Staves & Wands – 5th Edition SRD
+      https://www.5esrd.com/gamemastering/magic-items/rods-staves-wands/
+Arcanist's Magic Aura – 5th Edition SRD
+      https://www.5esrd.com/spellcasting/all-spells/a/arcanist-s-magic-aura/"""
+    f_bot.send_message.assert_called_with(msg.channel, expect)
+
+
+@pytest.mark.asyncio
 async def test_cmd_math(f_bot):
     msg = fake_msg_gears("!math (5 * 30) / 10")
 
@@ -119,22 +137,75 @@ async def test_cmd_math_fail(f_bot):
 
 
 @pytest.mark.asyncio
-async def test_cmd_poni_no_image(f_bot, f_saved_rolls):
-    msg = fake_msg("!poni impossible tag on there")
+async def test_cmd_pf(f_bot):
+    msg = fake_msg_gears('!pf arcane mark')
 
     await action_map(msg, f_bot).execute()
-    f_bot.send_message.expect_call('No images found!')
+
+    expect = """Searching Pathfinder Wiki: **arcane mark**
+Top 3 Results:
+
+Arcane Mark – d20PFSRD
+      https://www.d20pfsrd.com/magic/all-spells/a/arcane-mark/
+Ring of Arcane Signets – d20PFSRD
+      https://www.d20pfsrd.com/magic-items/rings/ring-of-arcane-signets/
+Divine Mark – d20PFSRD
+      https://www.d20pfsrd.com/magic/3rd-party-spells/tricky-owlbear-publishing-3rd-party-spells/divine-mark/"""
+    f_bot.send_message.assert_called_with(msg.channel, expect)
 
 
 @pytest.mark.asyncio
-async def test_cmd_poni_one_image(f_bot, f_saved_rolls):
+async def test_cmd_pf_num(f_bot):
+    msg = fake_msg_gears('!pf --num 2 arcane mark')
+
+    await action_map(msg, f_bot).execute()
+
+    expect = """Searching Pathfinder Wiki: **arcane mark**
+Top 2 Results:
+
+Arcane Mark – d20PFSRD
+      https://www.d20pfsrd.com/magic/all-spells/a/arcane-mark/
+Ring of Arcane Signets – d20PFSRD
+      https://www.d20pfsrd.com/magic-items/rings/ring-of-arcane-signets/"""
+    f_bot.send_message.assert_called_with(msg.channel, expect)
+
+
+@pytest.mark.asyncio
+async def test_cmd_pf_error(f_bot):
+    msg = fake_msg_gears('!pf dad2r4@@@)$*@')
+
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        await action_map(msg, f_bot).execute()
+
+
+@pytest.mark.asyncio
+async def test_cmd_poni_no_image(f_bot):
+    msg = fake_msg("!poni impossible tag on there")
+
+    await action_map(msg, f_bot).execute()
+
+    f_bot.send_message.assert_called_with(msg.channel, 'No images found!')
+
+
+@pytest.mark.asyncio
+async def test_cmd_poni_one_image(f_bot):
+    msg = fake_msg("!poni oc:radieux")
+
+    await action_map(msg, f_bot).execute()
+
+    expect = 'https://derpicdn.net/img/view/2017/2/24/1371687__safe_artist-colon-iluvchedda_'\
+             'oc_oc-colon-blue+moon_oc+only_oc-colon-radieux_apple+tree_g2_moon_night_pegasus_'\
+             'pony_rock_tree_unshorn+fetlocks.jpeg'
+    f_bot.send_message.assert_called_with(msg.channel, expect)
+
+
+@pytest.mark.asyncio
+async def test_cmd_poni_more_images(f_bot):
     msg = fake_msg("!poni book fort, that pony sure does love books, safe, frown")
 
     await action_map(msg, f_bot).execute()
-    expect = 'https://derpicdn.net/img/view/2013/9/12/425774__safe_artist-colon-xonxt_'\
-             'twilight+sparkle_alicorn_big+crown+thingy_book_bookcase_book+fort_bookhorse_'\
-             'bookshelf_female_frown_golden+oaks+library_.png'
-    f_bot.send_message.expect_call(expect)
+
+    assert 'https://' in str(f_bot.send_message.call_args).replace("\\n", "\n")
 
 
 @pytest.mark.asyncio
@@ -434,7 +505,7 @@ async def test_cmd_turn_set_character(session, f_bot, f_dusers):
 
 
 @pytest.mark.asyncio
-async def test_cmd_turn_update_user(f_bot):
+async def test_cmd_turn_update_user(f_bot, f_dusers):
     try:
         msg = fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
         msg2 = fake_msg("!turn --update hris/1")
@@ -444,7 +515,7 @@ async def test_cmd_turn_update_user(f_bot):
         await action_map(msg2, f_bot).execute()
         await action_map(msg3, f_bot).execute()
 
-        assert 'Chris | +7   | 1.00' in str(f_bot.send_message.call_args).replace("\\n", "\n")
+        assert 'Chris   | +7   | 1.00' in str(f_bot.send_message.call_args).replace("\\n", "\n")
     finally:
         await action_map(fake_msg('!turn --clear'), f_bot).execute()
 

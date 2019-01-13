@@ -155,9 +155,12 @@ def subs_pf1(subs, prefix):
 
 {prefix}pf arcane mark
         Search for "arcane mark" and return first 3 matches.
+{prefix}pf --num 5 arcane mark
+        Search for "arcane mark" and return first 5 matches.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'pf', description=desc, formatter_class=RawHelp)
-    sub.set_defaults(cmd='SearchWiki', config='search_pf1')
+    sub.set_defaults(cmd='SearchWiki', config='search_pf1', wiki='Pathfinder Wiki')
+    sub.add_argument('-n', '--num', type=int, default=3, help='Number of results.')
     sub.add_argument('terms', nargs='+', help='To search.')
 
 
@@ -166,11 +169,14 @@ def subs_d5e(subs, prefix):
     """ Subcommand parsing for timers """
     desc = """Search something on d20PRSD Wiki for pathfinder.
 
-{prefix}pf arcane mark
+{prefix}d5 arcane mark
         Search for "arcane mark" and return first 3 matches.
+{prefix}d5 --num 5 arcane mark
+        Search for "arcane mark" and return first 5 matches.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'd5', description=desc, formatter_class=RawHelp)
-    sub.set_defaults(cmd='SearchWiki', config='search_d5e')
+    sub.set_defaults(cmd='SearchWiki', config='search_d5e', wiki='D&D 5e Wiki')
+    sub.add_argument('-n', '--num', type=int, default=3, help='Number of results.')
     sub.add_argument('terms', nargs='+', help='To search.')
 
 
