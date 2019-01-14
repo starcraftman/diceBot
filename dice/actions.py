@@ -912,9 +912,13 @@ class Turn(Action):
             msg = 'No turn order to report.'
 
         for action in ['add', 'clear', 'init', 'name', 'next', 'remove', 'update']:
-            if getattr(self.args, action) is not None:  # 0 is allowed for init
-                msg = getattr(self, action)(session)
-                break
+            try:
+                var = getattr(self.args, action)
+                if var is not None and var is not False:  # 0 is allowed for init
+                    msg = getattr(self, action)(session)
+                    break
+            except AttributeError:
+                pass
 
         await self.bot.send_message(self.msg.channel, msg)
 

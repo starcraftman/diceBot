@@ -265,10 +265,10 @@ def subs_turn(subs, prefix):
     sub = subs.add_parser(prefix + 'turn', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Turn')
     sub.add_argument('-a', '--add', nargs='+', help='Add a user to the turn order.')
-    sub.add_argument('-c', '--clear', default=None, action='store_true', help='Clear the turn order.')
-    sub.add_argument('--init', default=None, type=int, help='Set turn order init.')
+    sub.add_argument('-c', '--clear', action='store_true', help='Clear the turn order.')
+    sub.add_argument('--init', type=int, help='Set turn order init.')
     sub.add_argument('--name', nargs='+', help='Set turn order name.')
-    sub.add_argument('-n', '--next', default=None, action='store_true', help='Add a user to the turn order.')
+    sub.add_argument('-n', '--next', action='store_true', help='Add a user to the turn order.')
     sub.add_argument('-r', '--remove', nargs='+', help='Remove a user.')
     sub.add_argument('--update', nargs='+', help='Update the following users.')
 
