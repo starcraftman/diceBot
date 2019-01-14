@@ -101,6 +101,43 @@ def test_tuser__lt__():
     assert user2 < user
 
 
+def test_tuser_add_effect():
+    user = TurnUser('Chris', 7, 27)
+    user.add_effect('Poison', 4)
+
+    assert str(user.effects) == "[TurnEffect(text='Poison', turns=4)]"
+
+
+def test_tuser_update_effect():
+    user = TurnUser('Chris', 7, 27)
+    user.add_effect('Poison', 4)
+
+    assert str(user.effects) == "[TurnEffect(text='Poison', turns=4)]"
+
+    user.update_effect('Poison', 1)
+    assert str(user.effects) == "[TurnEffect(text='Poison', turns=1)]"
+
+
+def test_tuser_remove_effect():
+    user = TurnUser('Chris', 7, 27)
+    user.add_effect('Poison', 4)
+
+    assert str(user.effects) == "[TurnEffect(text='Poison', turns=4)]"
+
+    user.remove_effect('Poison')
+    assert str(user.effects) == "[]"
+
+
+def test_tuser_decrement_effects():
+    user = TurnUser('Chris', 7, 27)
+    user.add_effect('Poison', 1)
+    user.add_effect('Rufus', 2)
+    assert str(user.effects) == "[TurnEffect(text='Poison', turns=1), TurnEffect(text='Rufus', turns=2)]"
+
+    user.decrement_effects() == [dice.turn.TurnEffect(text='Poison', turns=1)]
+    assert str(user.effects) == "[TurnEffect(text='Rufus', turns=1)]"
+
+
 def test_torder_create():
     order = TurnOrder()
     assert order.users == []
@@ -268,3 +305,50 @@ def test_torder_update_user_raises():
 
     with pytest.raises(dice.exc.InvalidCommandArgs):
         order.update_user('r', 'a')
+
+
+def test_turn_effect__repr__():
+    effect = dice.turn.TurnEffect('poison', 3)
+
+    assert repr(effect) == "TurnEffect(text='poison', turns=3)"
+
+
+def test_turn_effect__str__():
+    effect = dice.turn.TurnEffect('poison', 3)
+
+    assert str(effect) == 'poison: 3'
+
+
+def test_turn_effect__eq__():
+    effect = dice.turn.TurnEffect('poison', 3)
+    effect2 = dice.turn.TurnEffect('poison', 1)
+
+    assert effect == effect2
+
+
+def test_turn_effect__lt__():
+    effect = dice.turn.TurnEffect('poison', 3)
+    effect2 = dice.turn.TurnEffect('on fire', 1)
+
+    assert effect > effect2
+
+
+def test_turn_effect__hash__():
+    effect = dice.turn.TurnEffect('poison', 3)
+
+    assert hash(effect) == hash(effect.text)
+
+
+def test_turn_effect_decrement():
+    effect = dice.turn.TurnEffect('poison', 3)
+    effect.decrement()
+
+    assert effect.turns == 2
+
+
+def test_turn_effect_is_expired():
+    effect = dice.turn.TurnEffect('poison', 1)
+    assert not effect.is_expired
+
+    effect.decrement()
+    assert effect.is_expired

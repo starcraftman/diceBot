@@ -72,6 +72,38 @@ def parse_turn_users(parts):
 
 
 @total_ordering
+class TurnEffect(object):
+    """
+    An effect that expires after a number of turns or combat.
+    """
+    def __init__(self, text, turns):
+        self.text = text
+        self.turns = turns
+
+    def __str__(self):
+        return '{}: {}'.format(self.text, self.turns)
+
+    def __repr__(self):
+        return "TurnEffect(text={!r}, turns={!r})".format(self.text, self.turns)
+
+    def __eq__(self, other):
+        return self.text == other.text
+
+    def __lt__(self, other):
+        return self.text < other.text
+
+    def __hash__(self):
+        return hash(self.text)
+
+    @property
+    def is_expired(self):
+        return self.turns < 1
+
+    def decrement(self):
+        self.turns -= 1
+
+
+@total_ordering
 class TurnUser(object):
     """
     A user in a TurnOrder.
@@ -81,6 +113,7 @@ class TurnUser(object):
         self.name = name
         self.offset = offset
         self.init = init
+        self.effects = []
         if not init:
             self.init = self.roll_init()
 
@@ -112,6 +145,48 @@ class TurnUser(object):
         self.init = rand.randint(1, 21) + self.offset
 
         return self.init
+
+    def add_effect(self, text, turns):
+        """
+        Add an effect to user for turns.
+        """
+        if turns < 0:
+            raise dice.exc.InvalidCommandArgs('Turn amount must be > 0.')
+        if text in [x.text for x in self.effects]:
+            raise dice.exc.InvalidCommandArgs('Please choose a unique text for effect.')
+
+        self.effects += [TurnEffect(text, turns)]
+
+    def update_effect(self, find_text, new_turns):
+        """
+        Update any matching name for new amount of turns.
+        """
+        for effect in self.effects:
+            if effect.text == find_text:
+                effect.turns = new_turns
+
+    def remove_effect(self, find_text):
+        """
+        Remove an effect from the user.
+        """
+        self.effects = [x for x in self.effects if x.text != find_text]
+
+    def decrement_effects(self):
+        """
+        Turn has finished, decrement effect counters.
+
+        Returns: Any effects that expired in form [name, name2, name3, ...]
+        """
+        finished = []
+        for effect in self.effects:
+            effect.decrement()
+            if effect.is_expired:
+                finished += [effect]
+
+        for effect in finished:
+            self.effects.remove(effect)
+
+        return finished
 
 
 class TurnOrder(object):
