@@ -55,11 +55,6 @@ def test_tuser_roll_create():
     assert user.init == 22
 
 
-def test_tuser_last_roll():
-    user = TurnUser('Chris', 7)
-    assert user.last_roll in list(range(1, 21))
-
-
 def test_tuser_roll_init():
     user = TurnUser('Chris', 7)
     assert user.init in list(range(7, 28))
@@ -69,6 +64,9 @@ def test_tuser__str__():
     user = TurnUser('Chris', 7)
     user.init = 27
     assert str(user) == 'Chris (7): 27.00'
+
+    user.add_effect('Poison', 3)
+    assert str(user) == 'Chris (7): 27.00\n        Poison: 3'
 
 
 def test_tuser__eq__():
@@ -134,7 +132,7 @@ def test_tuser_decrement_effects():
     user.add_effect('Rufus', 2)
     assert str(user.effects) == "[TurnEffect(text='Poison', turns=1), TurnEffect(text='Rufus', turns=2)]"
 
-    user.decrement_effects() == [dice.turn.TurnEffect(text='Poison', turns=1)]
+    user.decrement_effects() == ['Poison']
     assert str(user.effects) == "[TurnEffect(text='Rufus', turns=1)]"
 
 

@@ -109,20 +109,27 @@ class TurnUser(object):
     A user in a TurnOrder.
     Has a unique name and an initiative roll.
     """
-    def __init__(self, name, offset, init=None):
+    def __init__(self, name, offset, init=None, effects=None):
         self.name = name
         self.offset = offset
         self.init = init
         self.effects = []
+
         if not init:
             self.init = self.roll_init()
+        if effects:
+            self.effects = effects
 
     def __str__(self):
-        return '{} ({}): {:.2f}'.format(self.name, self.offset, self.init)
+        effects = ''
+        if self.effects:
+            pad = '\n' + ' ' * 8
+            effects = pad + pad.join(str(x) for x in self.effects)
+        return '{} ({}): {:.2f}{}'.format(self.name, self.offset, self.init, effects)
 
     def __repr__(self):
-        return 'TurnUser(name={}, offset={}, init={})'.format(
-            self.name, self.offset, self.init)
+        return 'TurnUser(name={!r}, offset={!r}, init={!r}, effects={!r})'.format(
+            self.name, self.offset, self.init, self.effects)
 
     def __eq__(self, other):
         return (self.name, self.offset, self.init) == (other.name, other.offset, other.init)
@@ -132,11 +139,6 @@ class TurnUser(object):
 
     def __lt__(self, other):
         return self.init < other.init
-
-    @property
-    def last_roll(self):
-        """ The last roll of d20 dice. """
-        return self.init - self.offset
 
     def roll_init(self):
         """
@@ -186,7 +188,7 @@ class TurnUser(object):
         for effect in finished:
             self.effects.remove(effect)
 
-        return finished
+        return [effect.text for effect in finished]
 
 
 class TurnOrder(object):
@@ -220,7 +222,7 @@ class TurnOrder(object):
         return msg
 
     def __repr__(self):
-        return 'TurnOrder(users={}, cur_user={})'.format(self.users, self.cur_user)
+        return 'TurnOrder(users={!r}, cur_user={!r})'.format(self.users, self.cur_user)
 
     def does_name_exist(self, new_name):
         """
@@ -248,24 +250,22 @@ class TurnOrder(object):
 
         return inits
 
-    def resolve_collision(self, user, dupe_inits):
+    def resolve_collision(self, user, dupe_init):
         """
         Find existing user with same init, roll both until we can differentiate.
 
         Returns:
             user - With new init if needed changing.
         """
-        dupe_init = dupe_inits[0]
         conflict = [x for x in self.users if x.init == dupe_init and x != user][0]
 
         winner, loser = break_init_tie(user, conflict)
-
         winner.init = dupe_init
         loser.init = dupe_init - COLLIDE_INCREMENT
 
         new_dupes = self.duplicate_inits()
         while new_dupes:
-            self.resolve_collision(loser, new_dupes)
+            self.resolve_collision(loser, new_dupes[0])
             new_dupes = self.duplicate_inits()
 
         return user
@@ -279,7 +279,7 @@ class TurnOrder(object):
 
         dupes = self.duplicate_inits(user)
         while dupes:
-            self.resolve_collision(user, dupes)
+            self.resolve_collision(user, dupes[0])
             dupes = self.duplicate_inits(user)
 
         self.users.append(user)
@@ -292,6 +292,7 @@ class TurnOrder(object):
         for user in users:
             self.add(user)
 
+    # FIXME: Off by one when user last in list
     def remove(self, name):
         """
         Remove a user from the turn order and adjust index.

@@ -274,6 +274,28 @@ def subs_turn(subs, prefix):
 
 
 @register_parser
+def subs_effect(subs, prefix):
+    """ Subcommand parsing for roll """
+    desc = """Evaluate some simple math operations.
+
+{prefix}effect --add Poison/3, Stun/3 -t Char1, Char2
+        Add the poison and stun effects to the user for 3 turns each.
+{prefix}effect --remove Poison, Stun -t Char1
+        Remove the poison and stun effects for the user.
+{prefix}effect --update Poison/1, Stun/1 -t Char1
+        Update the poison effect for the user to 1 turn left.
+    """.format(prefix=prefix)
+    sub = subs.add_parser(prefix + 'effect', aliases=[prefix + 'e'],
+                          description=desc, formatter_class=RawHelp)
+    sub.set_defaults(cmd='Effect')
+    sub.add_argument('effects', nargs='*', help='Update the remaining turns for user.')
+    sub.add_argument('-a', '--add', action='store_true', help='Add effects for the user.')
+    sub.add_argument('-r', '--remove', action='store_true', help='remove the effect from a user.')
+    sub.add_argument('-u', '--update', action='store_true', help='Update the effects turns for user.')
+    sub.add_argument('-t', '--targets', nargs='+', help='Users to target with effects.')
+
+
+@register_parser
 def subs_timer(subs, prefix):
     """ Subcommand parsing for timer """
     desc = """Set timers to remind you of things later!

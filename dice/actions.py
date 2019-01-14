@@ -833,8 +833,17 @@ class Turn(Action):
             msg = 'Turn order cleared.'
 
         elif self.args.next:
+            msg = ''
+
+            if TURN_ORDER.cur_user:
+                effects = TURN_ORDER.cur_user.decrement_effects()
+                if effects:
+                    msg += 'The following effects expired for **{}**:\n'.format(TURN_ORDER.cur_user.name)
+                    pad = '\n' + ' ' * 8
+                    msg += pad + pad.join(effects) + '\n\n'
+
             current = TURN_ORDER.next()
-            msg = str(current)
+            msg += '**Next User**:\n' + str(current)
 
         elif self.args.add:
             parts = ' '.join(self.args.add).split(',')
@@ -875,6 +884,52 @@ class Turn(Action):
 
         elif TURN_ORDER:
             msg = str(TURN_ORDER)
+
+        await self.bot.send_message(self.msg.channel, msg)
+
+
+class Effect(Action):
+    """
+    Manage effects for users in the turn order.
+    """
+    def update_targets(self):
+        """
+        Update effects for characters in the turn order.
+        """
+        targets = [target.lstrip() for target in ' '.join(self.args.targets).split(',')]
+        tusers = [user for user in TURN_ORDER.users if user.name in targets]
+        new_effects = [x.strip().split('/') for x in (' '.join(self.args.effects)).split(',')]
+
+        msg = ''
+        for tuser in tusers:
+            for new_effect in new_effects:
+                if self.args.add:
+                    tuser.add_effect(new_effect[0], int(new_effect[1]))
+                    msg += '{}: Added {} for {} turns.\n'.format(tuser.name, new_effect[0], new_effect[1])
+
+                elif self.args.remove:
+                    tuser.remove_effect(new_effect[0])
+                    msg += '{}: Removed {}.\n'.format(tuser.name, new_effect[0])
+
+                elif self.args.update:
+                    tuser.update_effect(new_effect[0], int(new_effect[1]))
+                    msg += '{}: Updated {} for {} turns.\n'.format(tuser.name, new_effect[0], new_effect[1])
+
+        return msg
+
+    async def execute(self):
+        global TURN_ORDER
+        if not TURN_ORDER:
+            raise dice.exc.InvalidCommandArgs('No turn order set to add effects.')
+
+        if self.args.targets:
+            msg = self.update_targets()
+
+        else:
+            msg = '__Characters With Effects__\n\n'
+            for tuser in TURN_ORDER.users:
+                if tuser.effects:
+                    msg += '{}\n\n'.format(tuser)
 
         await self.bot.send_message(self.msg.channel, msg)
 

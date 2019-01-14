@@ -447,7 +447,7 @@ async def test_cmd_turn_next(f_bot, db_cleanup):
         await action_map(msg, f_bot).execute()
         await action_map(msg2, f_bot).execute()
 
-        f_bot.send_message.assert_called_with(msg2.channel, 'Chris (7): 21.00')
+        f_bot.send_message.assert_called_with(msg2.channel, '**Next User**:\nChris (7): 21.00')
     finally:
         await action_map(fake_msg('!turn --clear'), f_bot).execute()
 
