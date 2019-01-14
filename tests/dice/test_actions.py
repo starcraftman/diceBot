@@ -446,8 +446,32 @@ async def test_cmd_turn_next(f_bot, db_cleanup):
 
         await action_map(msg, f_bot).execute()
         await action_map(msg2, f_bot).execute()
+        await action_map(msg2, f_bot).execute()
 
-        f_bot.send_message.assert_called_with(msg2.channel, '**Next User**:\nChris (7): 21.00')
+        f_bot.send_message.assert_called_with(msg2.channel, '**Next User**:\nDwarf (3): 12.00')
+    finally:
+        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+
+
+@pytest.mark.asyncio
+async def test_cmd_turn_next_with_effects(f_bot, db_cleanup):
+    try:
+        msg = fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
+        msg2 = fake_msg("!effect --add poison/1, blind/3 -t Chris")
+        msg3 = fake_msg("!turn --next")
+
+        await action_map(msg, f_bot).execute()
+        await action_map(msg2, f_bot).execute()
+        await action_map(msg3, f_bot).execute()
+        await action_map(msg3, f_bot).execute()
+
+        expect = """The following effects expired for **Chris**:
+
+        poison
+
+**Next User**:
+Dwarf (3): 12.00"""
+        f_bot.send_message.assert_called_with(msg3.channel, expect)
     finally:
         await action_map(fake_msg('!turn --clear'), f_bot).execute()
 
@@ -516,6 +540,112 @@ async def test_cmd_turn_update_user(f_bot, f_dusers):
         await action_map(msg3, f_bot).execute()
 
         assert 'Chris   | +7   | 1.00' in str(f_bot.send_message.call_args).replace("\\n", "\n")
+    finally:
+        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+
+
+@pytest.mark.asyncio
+async def test_cmd_effect_add(f_bot, db_cleanup):
+    try:
+        msg = fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
+        msg2 = fake_msg("!effect --add poison/2, blind/3 -t Chris")
+        msg3 = fake_msg("!effect")
+
+        await action_map(msg, f_bot).execute()
+        await action_map(msg2, f_bot).execute()
+        await action_map(msg3, f_bot).execute()
+
+        expect = """__Characters With Effects__
+
+Chris (7): 21.00
+        poison: 2
+        blind: 3
+
+"""
+        f_bot.send_message.assert_called_with(msg3.channel, expect)
+    finally:
+        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+
+
+@pytest.mark.asyncio
+async def test_cmd_effect_update(f_bot, db_cleanup):
+    try:
+        msg = fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
+        msg2 = fake_msg("!effect --add poison/2, blind/3 -t Chris")
+        msg3 = fake_msg("!effect --update poison/1, blind/1 -t Chris")
+        msg4 = fake_msg("!effect")
+
+        await action_map(msg, f_bot).execute()
+        await action_map(msg2, f_bot).execute()
+        await action_map(msg3, f_bot).execute()
+        await action_map(msg4, f_bot).execute()
+
+        expect = """__Characters With Effects__
+
+Chris (7): 21.00
+        poison: 1
+        blind: 1
+
+"""
+        f_bot.send_message.assert_called_with(msg4.channel, expect)
+    finally:
+        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+
+
+@pytest.mark.asyncio
+async def test_cmd_effect_remove(f_bot, db_cleanup):
+    try:
+        msg = fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
+        msg2 = fake_msg("!effect --add poison/2, blind/3 -t Chris")
+        msg3 = fake_msg("!effect --remove poison -t Chris")
+        msg4 = fake_msg("!effect")
+
+        await action_map(msg, f_bot).execute()
+        await action_map(msg2, f_bot).execute()
+        await action_map(msg3, f_bot).execute()
+        await action_map(msg4, f_bot).execute()
+
+        expect = """__Characters With Effects__
+
+Chris (7): 21.00
+        blind: 3
+
+"""
+        f_bot.send_message.assert_called_with(msg4.channel, expect)
+    finally:
+        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+
+
+@pytest.mark.asyncio
+async def test_cmd_effect_default_status(f_bot, db_cleanup):
+    try:
+        msg = fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
+        msg2 = fake_msg("!effect --add poison/2, blind/3 -t Chris")
+        msg3 = fake_msg("!effect")
+
+        await action_map(msg, f_bot).execute()
+        await action_map(msg2, f_bot).execute()
+        await action_map(msg3, f_bot).execute()
+
+        expect = """__Characters With Effects__
+
+Chris (7): 21.00
+        poison: 2
+        blind: 3
+
+"""
+        f_bot.send_message.assert_called_with(msg3.channel, expect)
+    finally:
+        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+
+
+@pytest.mark.asyncio
+async def test_cmd_effect_turn_order_none(f_bot, db_cleanup):
+    try:
+        msg = fake_msg("!effect --add poison/2, blind/3 -t Chris")
+
+        with pytest.raises(dice.exc.InvalidCommandArgs):
+            await action_map(msg, f_bot).execute()
     finally:
         await action_map(fake_msg('!turn --clear'), f_bot).execute()
 

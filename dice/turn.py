@@ -152,7 +152,7 @@ class TurnUser(object):
         """
         Add an effect to user for turns.
         """
-        if turns < 0:
+        if turns < 1:
             raise dice.exc.InvalidCommandArgs('Turn amount must be > 0.')
         if text in [x.text for x in self.effects]:
             raise dice.exc.InvalidCommandArgs('Please choose a unique text for effect.')
@@ -300,16 +300,16 @@ class TurnOrder(object):
         if self.cur_user and self.cur_user.name == name:
             self.next()
 
-        cnt = 0
+        user_to_remove = None
         for user in self.users:
             if user.name == name:
+                user_to_remove = user
                 break
-            cnt += 1
 
-        if cnt == len(self.users):
+        if not user_to_remove:
             raise dice.exc.InvalidCommandArgs("User not found: " + name)
 
-        del self.users[cnt]
+        self.users.remove(user_to_remove)
 
     def next(self):
         """
@@ -321,12 +321,10 @@ class TurnOrder(object):
         if not self.cur_user or self.cur_user == self.users[-1]:
             self.cur_user = self.users[0]
         else:
-            last_user = self.users[0]
-            for user in self.users[1:]:
-                if last_user == self.cur_user:
+            for ind, user in enumerate(self.users[1:]):
+                if self.users[ind] == self.cur_user:
                     self.cur_user = user
                     break
-                last_user = user
 
         return self.cur_user
 

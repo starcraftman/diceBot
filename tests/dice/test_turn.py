@@ -53,11 +53,22 @@ def test_tuser_roll_create():
     assert user.init in list(range(7, 28))
     user = TurnUser('Chris', 7, 22)
     assert user.init == 22
+    user = TurnUser('Chris', 7, 22, ['poison'])
+    assert user.effects == ['poison']
 
 
 def test_tuser_roll_init():
     user = TurnUser('Chris', 7)
     assert user.init in list(range(7, 28))
+
+
+def test_tuser__repr__():
+    user = TurnUser('Chris', 7)
+    user.init = 27
+    assert repr(user) == "TurnUser(name='Chris', offset=7, init=27, effects=[])"
+
+    user.add_effect('Poison', 3)
+    assert repr(user) == "TurnUser(name='Chris', offset=7, init=27, effects=[TurnEffect(text='Poison', turns=3)])"
 
 
 def test_tuser__str__():
@@ -104,6 +115,13 @@ def test_tuser_add_effect():
     user.add_effect('Poison', 4)
 
     assert str(user.effects) == "[TurnEffect(text='Poison', turns=4)]"
+
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        user.add_effect('Stun', 0)
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        user.add_effect('Stun', -4)
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        user.add_effect('Poison', 3)
 
 
 def test_tuser_update_effect():
@@ -160,6 +178,21 @@ Orc       | +2   | 10.00```"""
     assert str(order) == expect
 
 
+def test_torder__repr__():
+    order = TurnOrder()
+    user = TurnUser('Chris', 7)
+    user.init = 27
+    user2 = TurnUser('Orc', 2)
+    user2.init = 10
+    order.users = list(reversed(sorted([user, user2])))
+    order.next()
+
+    expect = "TurnOrder(users=[TurnUser(name='Chris', offset=7, init=27, effects=[]), "\
+             "TurnUser(name='Orc', offset=2, init=10, effects=[])], "\
+             "cur_user=TurnUser(name='Chris', offset=7, init=27, effects=[]))"
+    assert repr(order) == expect
+
+
 def test_torder_duplicate_inits():
     order = TurnOrder()
     user = TurnUser('Chris', 7)
@@ -206,6 +239,18 @@ def test_torder_add_second():
 
     assert user in order.users
     assert user2 in order.users
+
+
+def test_torder_resolve_collision_recurse():
+    order = TurnOrder()
+    user = TurnUser('Chris', 7, 10)
+    user2 = TurnUser('Orc', 2, 10)
+    user3 = TurnUser('Dwarf', 3, 10)
+    order.add_all([user, user2, user3])
+
+    assert 'Chris' in str(order)
+    assert 'Orc' in str(order)
+    assert 'Dwarf' in str(order)
 
 
 def test_turn_add_collide():
@@ -302,7 +347,7 @@ def test_torder_update_user_raises():
         order.update_user('r', 1)
 
     with pytest.raises(dice.exc.InvalidCommandArgs):
-        order.update_user('r', 'a')
+        order.update_user('Chris', 'a')
 
 
 def test_turn_effect__repr__():

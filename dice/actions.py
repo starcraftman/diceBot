@@ -102,6 +102,8 @@ class Help(Action):
         lines = [
             ['Command', 'Effect'],
             ['{prefix}d5', 'Search on the D&D 5e wiki'],
+            ['{prefix}effect', 'Add an effect to a user in turn order'],
+            ['{prefix}e', 'Alias for `!effect`'],
             ['{prefix}math', 'Do some math operations'],
             ['{prefix}m', 'Alias for `!math`'],
             ['{prefix}n', 'Alias for `!turn --next`'],
@@ -819,71 +821,100 @@ class Turn(Action):
     """
     Manipulate a global turn order tracker.
     """
-    async def execute(self):
+    def add(self, session):
+        """
+        Add users to an existing turn order,
+        start a new turn order if needed.
+        """
         global TURN_ORDER
-        msg = 'No turn order to report.'
+        parts = ' '.join(self.args.add).split(',')
+        users = dice.turn.parse_turn_users(parts)
+
+        if not TURN_ORDER:
+            TURN_ORDER = dice.turn.TurnOrder()
+            init_users = dice.turn.parse_turn_users(
+                dicedb.query.generate_inital_turn_users(session))
+            TURN_ORDER.add_all(init_users)
+        TURN_ORDER.add_all(users)
+
+        return str(TURN_ORDER)
+
+    def clear(self, _):
+        """
+        Clear the turn order.
+        """
+        global TURN_ORDER
+        TURN_ORDER = None
+        return 'Turn order cleared.'
+
+    def init(self, session):
+        """
+        Update a user's permanent starting init.
+        """
+        dicedb.query.update_duser_init(session, self.msg.author, self.args.init)
+        return 'Updated **init** for {} to: {}'.format(self.msg.author.name, self.args.init)
+
+    # TODO: Add ability advance n turns.
+    def next(self, _):
+        """
+        Advance the turn order.
+        """
+        msg = ''
+        if TURN_ORDER.cur_user:
+            effects = TURN_ORDER.cur_user.decrement_effects()
+            if effects:
+                msg += 'The following effects expired for **{}**:\n'.format(TURN_ORDER.cur_user.name)
+                pad = '\n' + ' ' * 8
+                msg += pad + pad.join(effects) + '\n\n'
+
+        return msg + '**Next User**:\n' + str(TURN_ORDER.next())
+
+    def remove(self, _):
+        """
+        Remove one or more users from turn order.
+        """
+        users = ' '.join(self.args.remove).split(',')
+        for user in users:
+            TURN_ORDER.remove(user)
+
+        msg = 'Removed the following users:\n'
+        msg += '\n  - ' + '\n  - '.join(users)
+
+    def name(self, session):
+        """
+        Update a user's character name for turn order.
+        """
+        name_str = ' '.join(self.args.name)
+        dicedb.query.update_duser_character(session, self.msg.author, name_str)
+        return 'Updated **name** for {} to: {}'.format(self.msg.author.name, name_str)
+
+    def update(self, _):
+        """
+        Update one or more character's init for this turn order.
+        Usually used for some spontaneous change or DM decision.
+        """
+        msg = 'Updated the following users:\n'
+        for spec in ' '.join(self.args.update).split(','):
+            part_name, new_init = spec.split('/')
+            TURN_ORDER.update_user(part_name.strip(), new_init.strip())
+            msg += '    Set __{}__ to {}\n'.format(part_name, new_init)
+
+        return msg
+
+    async def execute(self):
         session = dicedb.Session()
         dicedb.query.ensure_duser(session, self.msg.author)
 
+        msg = str(TURN_ORDER)
         if not TURN_ORDER and (self.args.next or self.args.remove):
             raise dice.exc.InvalidCommandArgs('Please add some users first.')
+        elif not TURN_ORDER:
+            msg = 'No turn order to report.'
 
-        if self.args.clear:
-            TURN_ORDER = None
-            msg = 'Turn order cleared.'
-
-        elif self.args.next:
-            msg = ''
-
-            if TURN_ORDER.cur_user:
-                effects = TURN_ORDER.cur_user.decrement_effects()
-                if effects:
-                    msg += 'The following effects expired for **{}**:\n'.format(TURN_ORDER.cur_user.name)
-                    pad = '\n' + ' ' * 8
-                    msg += pad + pad.join(effects) + '\n\n'
-
-            current = TURN_ORDER.next()
-            msg += '**Next User**:\n' + str(current)
-
-        elif self.args.add:
-            parts = ' '.join(self.args.add).split(',')
-            users = dice.turn.parse_turn_users(parts)
-
-            if not TURN_ORDER:
-                TURN_ORDER = dice.turn.TurnOrder()
-                init_users = dice.turn.parse_turn_users(
-                    dicedb.query.generate_inital_turn_users(session))
-                TURN_ORDER.add_all(init_users)
-            TURN_ORDER.add_all(users)
-
-            msg = str(TURN_ORDER)
-
-        elif self.args.remove:
-            users = ' '.join(self.args.remove).split(',')
-            for user in users:
-                TURN_ORDER.remove(user)
-
-            msg = 'Removed the following users:\n'
-            msg += '\n  - ' + '\n  - '.join(users)
-
-        elif self.args.init is not None:
-            dicedb.query.update_duser_init(session, self.msg.author, self.args.init)
-            msg = 'Updated **init** for {} to: {}'.format(self.msg.author.name, self.args.init)
-
-        elif self.args.name:
-            name_str = ' '.join(self.args.name)
-            dicedb.query.update_duser_character(session, self.msg.author, name_str)
-            msg = 'Updated **name** for {} to: {}'.format(self.msg.author.name, name_str)
-
-        elif self.args.update:
-            msg = 'Updated the following users:\n'
-            for spec in ' '.join(self.args.update).split(','):
-                part_name, new_init = spec.split('/')
-                TURN_ORDER.update_user(part_name.strip(), new_init.strip())
-                msg += '    Set __{}__ to {}\n'.format(part_name, new_init)
-
-        elif TURN_ORDER:
-            msg = str(TURN_ORDER)
+        for action in ['add', 'clear', 'init', 'name', 'next', 'remove', 'update']:
+            if getattr(self.args, action) is not None:  # 0 is allowed for init
+                msg = getattr(self, action)(session)
+                break
 
         await self.bot.send_message(self.msg.channel, msg)
 

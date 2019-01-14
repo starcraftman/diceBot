@@ -2,13 +2,10 @@
 Test dicedb.query module.
 """
 from __future__ import absolute_import, print_function
-import sqlalchemy.orm.exc
-import mock
 import pytest
 
 import dice.exc
 import dicedb
-from dicedb.schema import (DUser, SavedRoll)
 import dicedb.query
 
 from tests.conftest import Member

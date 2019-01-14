@@ -2,12 +2,9 @@
 Module should handle logic related to querying/manipulating tables from a high level.
 """
 from __future__ import absolute_import, print_function
-import logging
 import os
-import sys
 import tempfile
 
-import sqlalchemy.exc as sqla_exc
 import sqlalchemy.orm.exc as sqla_oexc
 
 import dice.exc
