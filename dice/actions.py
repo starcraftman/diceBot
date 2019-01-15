@@ -523,9 +523,10 @@ class Songs(Action):
             await self.search_tags(self.args.tag)
 
 
+# TODO: Should probably run in background to prevent blocking bot? It isn't too long though.
 class SearchWiki(Action):
     """
-    Poni command.
+    Search an OGN wiki site based on their google custom search URL.
     """
     async def execute(self):
         msg = """Searching {}: **{}**
@@ -536,7 +537,7 @@ Top {} Results:\n\n{}"""
             raise dice.exc.InvalidCommandArgs('No special characters in search please. ' + match.group(1))
 
         result_text = ''
-        base_url = getattr(dice.actions, self.args.base)
+        base_url = getattr(dice.actions, self.args.url)
         full_url = base_url.format(terms.replace(' ', '%20'))
         BROWSER.get(full_url)
         for ele in BROWSER.find_elements_by_class_name('gsc-thumbnail-inside')[:self.args.num]:
