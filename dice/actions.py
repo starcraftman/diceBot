@@ -542,6 +542,7 @@ Top {} Results:\n\n{}"""
         for ele in BROWSER.find_elements_by_class_name('gsc-thumbnail-inside')[:self.args.num]:
             link_text = ele.find_element_by_css_selector('a.gs-title').get_property('href')
             result_text += '{}\n      {}\n'.format(ele.text, link_text)
+        BROWSER.back()
 
         await self.bot.send_message(self.msg.channel, msg.format(
             self.args.wiki, terms, self.args.num, result_text.rstrip()))
