@@ -15,7 +15,6 @@ import sys
 
 import aiohttp
 import discord
-import googleapiclient.discovery
 import numpy.random as rand
 
 import dice.exc
@@ -27,6 +26,7 @@ import dice.util
 import dicedb
 import dicedb.query
 
+BROWSER = dice.util.init_chrome()
 CHECK_TIMER_GAP = 5
 TIMERS = {}
 TIMER_OFFSETS = ["60:00", "15:00", "5:00", "1:00"]
@@ -38,7 +38,8 @@ Timer #{} with description: **{}**
     __Time remaining__: {}
 """
 MUSIC_PATH = "extras/music"
-D20_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3A6zo0hx_wle8&q=search#gsc.tab=0&gsc.q={}&gsc.sort='
+PF_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3A6zo0hx_wle8&q=search#gsc.tab=0&gsc.q={}&gsc.sort='
+D5_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3A1xq0zf2wtvq&q={}'
 PONI_URL = "https://derpibooru.org/search.json?q="
 SONG_DB_FILE = os.path.abspath(os.path.join("data", "songs.yml"))
 SONG_TAGS_FILE = os.path.abspath(os.path.join("data", "song_tags.yml"))
@@ -528,21 +529,22 @@ class SearchWiki(Action):
     """
     async def execute(self):
         msg = """Searching {}: **{}**
-Top {} Results:{}"""
+Top {} Results:\n\n{}"""
         terms = ' '.join(self.args.terms)
         match = re.match(r'.*?([^a-zA-Z0-9 -]+)', terms)
         if match:
             raise dice.exc.InvalidCommandArgs('No special characters in search please. ' + match.group(1))
 
-        conf = dice.util.get_config(self.args.config)
-        service = googleapiclient.discovery.build("customsearch", "v1", developerKey=conf['api_key'])
-        results = service.cse().list(q=terms, cx=conf['cse_id'], num=self.args.num).execute()
-        result_text = '\n'
-        for ind, result in enumerate(results['items']):
-            result_text += '\n{title}\n      {link}'.format(**result)
+        result_text = ''
+        base_url = getattr(dice.actions, self.args.base)
+        full_url = base_url.format(terms.replace(' ', '%20'))
+        BROWSER.get(full_url)
+        for ele in BROWSER.find_elements_by_class_name('gsc-thumbnail-inside')[:self.args.num]:
+            link_text = ele.find_element_by_css_selector('a.gs-title').get_property('href')
+            result_text += '{}\n      {}\n'.format(ele.text, link_text)
 
         await self.bot.send_message(self.msg.channel, msg.format(
-            self.args.wiki, terms, self.args.num, result_text))
+            self.args.wiki, terms, self.args.num, result_text.rstrip()))
 
 
 class Poni(Action):

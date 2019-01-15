@@ -12,6 +12,8 @@ import random
 import re
 
 import numpy.random
+import selenium.webdriver
+from selenium.webdriver.chrome.options import Options as ChromeOpts
 import yaml
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
@@ -319,6 +321,15 @@ def is_valid_yt(url):
 
 def is_valid_url(url):
     return IS_URL.match(url)
+
+
+def init_chrome():
+    """ Returns a headless Chrome webdriver. """
+    opts = ChromeOpts()
+    opts.add_argument('--headless')
+    opts.add_argument('--disable-gpu')
+
+    return selenium.webdriver.Chrome(options=opts)
 
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

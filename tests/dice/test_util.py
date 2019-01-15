@@ -8,6 +8,7 @@ import os
 
 import mock
 import pytest
+import selenium.webdriver
 
 import dice.util
 
@@ -143,3 +144,11 @@ def test_is_valid_url():
     not_valid = ['word', 'word/sub', 'extras/music/no.mp3', '.com', '/tmp/music/found.mp3']
     for link in not_valid:
         assert not dice.util.is_valid_url(link)
+
+
+def test_init_chrome():
+    try:
+        browser = dice.util.init_chrome()
+        assert isinstance(browser, selenium.webdriver.Chrome)
+    finally:
+        browser.quit()

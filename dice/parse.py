@@ -159,7 +159,7 @@ def subs_pf1(subs, prefix):
         Search for "arcane mark" and return first 5 matches.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'pf', description=desc, formatter_class=RawHelp)
-    sub.set_defaults(cmd='SearchWiki', config='search_pf1', wiki='Pathfinder Wiki')
+    sub.set_defaults(cmd='SearchWiki', base='PF_URL', wiki='Pathfinder Wiki')
     sub.add_argument('-n', '--num', type=int, default=3, help='Number of results.')
     sub.add_argument('terms', nargs='+', help='To search.')
 
@@ -175,7 +175,7 @@ def subs_d5e(subs, prefix):
         Search for "arcane mark" and return first 5 matches.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'd5', description=desc, formatter_class=RawHelp)
-    sub.set_defaults(cmd='SearchWiki', config='search_d5e', wiki='D&D 5e Wiki')
+    sub.set_defaults(cmd='SearchWiki', base='D5_URL', wiki='D&D 5e Wiki')
     sub.add_argument('-n', '--num', type=int, default=3, help='Number of results.')
     sub.add_argument('terms', nargs='+', help='To search.')
 
