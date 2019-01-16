@@ -88,7 +88,7 @@ def test_tuser__eq__():
     user3 = TurnUser('Chris', 7)
     user3.init = 27
 
-    assert not user == user2
+    assert user != user2
     assert user == user3
 
 
@@ -150,7 +150,7 @@ def test_tuser_decrement_effects():
     user.add_effect('Rufus', 2)
     assert str(user.effects) == "[TurnEffect(text='Poison', turns=1), TurnEffect(text='Rufus', turns=2)]"
 
-    user.decrement_effects() == ['Poison']
+    assert user.decrement_effects() == ['Poison']
     assert str(user.effects) == "[TurnEffect(text='Rufus', turns=1)]"
 
 

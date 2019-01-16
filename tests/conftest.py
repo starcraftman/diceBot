@@ -6,6 +6,7 @@ import datetime
 import sys
 
 import aiomock
+import discord
 import pytest
 import sqlalchemy.exc
 
@@ -100,20 +101,31 @@ class Server(FakeObject):
 
 
 class Channel(FakeObject):
-    def __init__(self, name, *, srv=None, id=None):
+    def __init__(self, name, *, srv=None, type=0, id=None):
         super().__init__(name, id)
         self.server = srv
+        self.type = discord.ChannelType(type)
 
     # def __repr__(self):
         # return super().__repr__() + ", Server: {}".format(self.server.name)
 
 
+class VoiceState(FakeObject):
+    def __init__(self, name, *, is_afk=False, voice_channel=None, id=None):
+        super().__init__(name, id)
+        self.is_afk = is_afk
+        self.voice_channel = voice_channel
+
+
 class Member(FakeObject):
-    def __init__(self, name, roles, *, id=None):
+    def __init__(self, name, roles, *, id=None, voice=None):
         super().__init__(name, id)
         self.discriminator = '12345'
         self.display_name = self.name
         self.roles = roles
+        self.voice = VoiceState('Voice ' + name, is_afk=False, voice_channel=None)
+        if voice:
+            self.voice = voice
 
     @property
     def mention(self):
@@ -157,7 +169,8 @@ def fake_servers():
     channels = [
         Channel("feedback", srv=srv),
         Channel("live_hudson", srv=srv),
-        Channel("private_dev", srv=srv)
+        Channel("private_dev", srv=srv),
+        Channel("voice1", srv=srv, type=discord.enums.ChannelType.voice),
     ]
     for cha in channels:
         srv.add(cha)
@@ -181,11 +194,14 @@ def fake_msg_newuser(content):
     return Message(content, aut, srv, srv.channels[1], None)
 
 
-def fake_msg(content, user_id='1', name='User1'):
+def fake_msg(content, user_id='1', name='User1', voice=False):
     """ Generate fake message with GearsandCogs as author. """
     srv = fake_servers()[0]
     roles = [Role('Everyone', srv), Role('Fighter', srv)]
     aut = Member(name, roles, id=user_id)
+    if voice:
+        aut.voice = VoiceState('Voice ' + aut.name, is_afk=False, voice_channel=srv.channels[-1])
+
     return Message(content, aut, srv, srv.channels[1], None)
 
 
@@ -216,6 +232,7 @@ def f_bot():
     fake_bot.delete_message.async_return_value = None
     fake_bot.emoji.fix = lambda x, y: x
     fake_bot.servers = fake_servers()
+    fake_bot.join_voice_channel.async_return_value = 'joined'
 
     def fake_exec(_, func, *args):
         return func(*args)

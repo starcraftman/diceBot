@@ -20,6 +20,9 @@ import dicedb
 
 from tests.conftest import fake_msg_gears, fake_msg
 
+OGN_REASON = 'Skipped to be kind and not spam OGN, to enable set ALL_TESTS=True'
+OGN_TEST = pytest.mark.skipif(not os.environ.get('ALL_TESTS'), reason=OGN_REASON)
+
 
 def action_map(fake_message, fake_bot):
     """
@@ -82,6 +85,7 @@ async def test_cmd_help(f_bot):
     assert "Here is an overview of my commands." in str(f_bot.send_ttl_message.call_args)
 
 
+@OGN_TEST
 @pytest.mark.asyncio
 async def test_cmd_d5(f_bot):
     msg = fake_msg_gears('!d5 detect magic')
@@ -136,6 +140,7 @@ async def test_cmd_math_fail(f_bot):
     f_bot.send_message.assert_called_with(msg.channel, expect)
 
 
+@OGN_TEST
 @pytest.mark.asyncio
 async def test_cmd_pf(f_bot):
     msg = fake_msg_gears('!pf arcane mark')
@@ -154,6 +159,7 @@ Divine Mark – d20PFSRD
     f_bot.send_message.assert_called_with(msg.channel, expect)
 
 
+@OGN_TEST
 @pytest.mark.asyncio
 async def test_cmd_pf_num(f_bot):
     msg = fake_msg_gears('!pf --num 2 arcane mark')
@@ -176,6 +182,25 @@ async def test_cmd_pf_error(f_bot):
 
     with pytest.raises(dice.exc.InvalidCommandArgs):
         await action_map(msg, f_bot).execute()
+
+
+@OGN_TEST
+@pytest.mark.asyncio
+async def test_cmd_star(f_bot):
+    msg = fake_msg_gears('!star starship')
+
+    await action_map(msg, f_bot).execute()
+
+    expect = """Searching Starfinder Wiki: **starship**
+Top 3 Results:
+
+Starships – Starjammer SRD
+      http://www.starjammersrd.com/equipment/starships/
+Starship Combat – Starjammer SRD
+      http://www.starjammersrd.com/game-mastering/starship-combat/
+Endbringer Devil (Starship Form) Tier 14 – Starjammer SRD
+      http://www.starjammersrd.com/equipment/starships/starships/endbringer-devil-starship-form-tier-14/"""
+    f_bot.send_message.assert_called_with(msg.channel, expect)
 
 
 @pytest.mark.asyncio

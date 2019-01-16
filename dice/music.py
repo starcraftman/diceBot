@@ -25,19 +25,19 @@ class MPlayer(object):
     """
     Music player interface.
     """
-    def __init__(self, bot):
+    def __init__(self, bot, *, d_voice=None, d_player=None):
         self.vids = []
         self.vid_index = 0
         self.volume = 50
         self.loop = True
         self.state = MPlayerState.STOPPED
 
-        # Parts of the discord library wrapped
+        # Wrapped by this class, not for outside use.
         self.bot = bot
-        self.cur_channel = None
+        self.target_voice_channel = None
         self.err_channel = None
-        self.d_voice = None
-        self.d_player = None
+        self.d_voice = d_voice
+        self.d_player = d_player
 
     def __str__(self):
         str_vids = []
@@ -58,9 +58,9 @@ class MPlayer(object):
            loop=self.loop, state=self.status)
 
     def __repr__(self):
-        return "MPlayer(bot={}, cur_channel={}, err_channel={}, d_voice={}, d_player={},"\
+        return "MPlayer(bot={}, target_voice_channel={}, err_channel={}, d_voice={}, d_player={},"\
             " vids={}, vid_index={}, loop={}, volume={}, state={})".format(
-                self.bot, self.cur_channel, self.err_channel, self.d_voice, self.d_player,
+                self.bot, self.target_voice_channel, self.err_channel, self.d_voice, self.d_player,
                 self.vids, self.vid_index, self.loop, self.volume, self.state
             )
 
@@ -71,15 +71,25 @@ class MPlayer(object):
 
     def initialize_settings(self, msg, vids):
         """
-        Update current set videos and join requesting user in voice.
+        Update current set videos and recorded channels.
         """
-        self.cur_channel = msg.author.voice.voice_channel
+        self.target_voice_channel = msg.author.voice.voice_channel
         self.err_channel = msg.channel
-        if not self.cur_channel:
-            self.cur_channel = discord.utils.get(msg.server.channels,
-                                                 type=discord.ChannelType.voice)
+        if not self.target_voice_channel:
+            self.target_voice_channel = discord.utils.get(msg.server.channels,
+                                                          type=discord.ChannelType.voice)
 
         self.vids = vids
+
+    async def join_voice_channel(self):
+        """
+        Join the right channel before beginning transmission.
+        """
+        if self.d_voice:
+            if self.target_voice_channel != self.d_voice.channel:
+                await self.d_voice.move_to(self.target_voice_channel)
+        else:
+            self.d_voice = await self.bot.join_voice_channel(self.target_voice_channel)
 
     def set_volume(self, new_volume=None):
         """
@@ -99,16 +109,6 @@ class MPlayer(object):
         if self.d_player:
             self.d_player.volume = new_volume / 100
 
-    async def update_voice_channel(self):
-        """
-        Join the right channel before beginning transmission.
-        """
-        if self.d_voice:
-            if self.cur_channel != self.d_voice.channel:
-                await self.d_voice.move_to(self.cur_channel)
-        else:
-            self.d_voice = await self.bot.join_voice_channel(self.cur_channel)
-
     async def start(self):
         """
         Start the song currently selected.
@@ -120,7 +120,7 @@ class MPlayer(object):
             raise dice.exc.InvalidCommandArgs("No videos to play!")
 
         self.stop()
-        await self.update_voice_channel()
+        await self.join_voice_channel()
 
         vid = self.vids[self.vid_index]
         try:

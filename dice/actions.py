@@ -38,8 +38,9 @@ Timer #{} with description: **{}**
     __Time remaining__: {}
 """
 MUSIC_PATH = "extras/music"
-PF_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3A6zo0hx_wle8&q=search#gsc.tab=0&gsc.q={}&gsc.sort='
+PF_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3A6zo0hx_wle8&q={}'
 D5_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3A1xq0zf2wtvq&q={}'
+STAR_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3Awyjvzq2cjz8&q={}'
 PONI_URL = "https://derpibooru.org/search.json?q="
 SONG_DB_FILE = os.path.abspath(os.path.join("data", "songs.yml"))
 SONG_TAGS_FILE = os.path.abspath(os.path.join("data", "song_tags.yml"))
@@ -108,12 +109,13 @@ class Help(Action):
             ['{prefix}math', 'Do some math operations'],
             ['{prefix}m', 'Alias for `!math`'],
             ['{prefix}n', 'Alias for `!turn --next`'],
-            ['{prefix}pf', 'Search on the Pathfinder d20 wiki'],
+            ['{prefix}pf', 'Search on the Pathfinder wiki'],
             ['{prefix}play', 'Play songs from youtube and server.'],
             ['{prefix}poni', 'Pony?!?!'],
             ['{prefix}roll', 'Roll a dice like: 2d6 + 5'],
             ['{prefix}r', 'Alias for `!roll`'],
             ['{prefix}songs', 'Create manage song lookup.'],
+            ['{prefix}star', 'Search on the Starfinder wiki.'],
             ['{prefix}status', 'Show status of bot including uptime'],
             ['{prefix}timer', 'Set a timer for HH:MM:SS in future'],
             ['{prefix}timers', 'See the status of all YOUR active timers'],
@@ -720,7 +722,7 @@ class Timer(Action):
         If no triggers left, stop scheduling a new check_timer invocation.
 
         Args:
-            sleep_gap: The gap between checks on the timer.
+            sleep_time: The gap between checks on the timer.
         """
         del_cnt = 0
         now = datetime.datetime.utcnow()
