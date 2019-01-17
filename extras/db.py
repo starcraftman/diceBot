@@ -11,6 +11,17 @@ ALL_CLASSES = [SavedRoll, DUser]
 CUR_DIR = os.path.abspath(os.path.dirname(__file__))
 if os.path.dirname(__file__) == '':
     CUR_DIR = os.getcwd()
+WARNING = """
+    STOP AND THINK! STOP AND THINK!
+
+Proceeding has consequences for the above db ...
+
+    Recreate all tables in the database (erasing existing data).
+    Import into the db entries found in `extras/*.sql`.
+    These backups should be verified by the user,
+        the code within will be **EVAL**ed to make db objects.
+
+    Continue? Y/n """.format(dicedb.engine)
 
 try:
     input = raw_input
@@ -28,8 +39,8 @@ def db_dump(session, classes, file_template):
 
         if objs:
             print('Creating backup for {} at: {}'.format(cls, fname))
-            for obj in objs:
-                with open(fname, 'w') as fout:
+            with open(fname, 'w') as fout:
+                for obj in objs:
                     fout.write(repr(obj) + '\n')
         else:
             print('No entries for {}, skipping: {}'.format(cls, fname))
@@ -47,8 +58,7 @@ def db_restore(session, classes, file_template):
         print('Restoring backup from:', fname)
         try:
             with open(fname, 'r') as fin:
-                lines = fin.read()
-            objs = [eval(line) for line in lines.split('\n')]
+                objs = [eval(line) for line in fin.readlines()]
 
             print('Restoring:')
             for obj in objs:
@@ -74,7 +84,8 @@ def main():
         if sys.argv[1].lower()[0] == 'b':
             db_dump(session, ALL_CLASSES, file_template)
         elif sys.argv[1].lower()[0] == 'r':
-            resp = input('Warning: This will recreate tables and restore backups. Continue? Y/n ')
+            resp = input(WARNING)
+            print()
             if resp.lower()[0] == 'y':
                 ALL_CLASSES.reverse()
                 db_restore(session, ALL_CLASSES, file_template)
