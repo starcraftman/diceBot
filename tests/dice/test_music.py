@@ -1,13 +1,29 @@
 """
 Tests for the dice.music music player
 """
+import asyncio
+
 import aiomock
 import pytest
+import youtube_dl.utils
 
 import dice.music
 from dice.music import MPlayer, MPlayerState
 
 from tests.conftest import fake_msg
+
+
+@pytest.fixture
+def f_d_player():
+    mock = aiomock.AIOMock()
+    mock.volume = 55
+    mock.start.return_value = True
+    mock.stop.return_value = True
+    mock.pause.return_value = True
+    mock.resume.return_value = True
+    mock.is_done.return_value = False
+
+    return mock
 
 
 @pytest.fixture
@@ -23,16 +39,19 @@ def f_d_voice():
 
 
 @pytest.fixture
-def f_d_player():
-    mock = aiomock.AIOMock()
-    mock.volume = 55
-    mock.start.return_value = True
-    mock.stop.return_value = True
-    mock.pause.return_value = True
-    mock.resume.return_value = True
-    mock.is_done.return_value = False
+def f_d_voice_ytdl(f_d_voice, f_d_player):
+    f_d_player.type = 'ytdl'
+    f_d_voice.create_ytdl_player.async_return_value = f_d_player  # Async
 
-    return mock
+    return f_d_voice
+
+
+@pytest.fixture
+def f_d_voice_ffmpeg(f_d_voice, f_d_player):
+    f_d_player.type = 'ffmpeg'
+    f_d_voice.create_ffmpeg_player.return_value = f_d_player
+
+    return f_d_voice
 
 
 def test_mplayer__str__(f_bot):
@@ -181,46 +200,132 @@ async def test_mplayer_quit_no_player(f_bot):
     assert not mplayer.d_voice
 
 
-#  @pytest.mark.asyncio
-#  async def test_mplayer_start(f_bot, f_d_player):
-    #  msg = fake_msg('!play vid1, vid2', voice=True)
-    #  mplayer = MPlayer(f_bot, d_player=f_d_player)
-    #  print(msg)
-    #  mplayer.initialize_settings(msg, ['vid1', 'vid2'])
-    #  await mplayer.start()
-
-    #  assert mplayer.vids == ['vid1', 'vid2']
-    #  assert mplayer.vid_index == 0
-    #  assert mplayer.target_voice_channel == msg.author.voice.voice_channel
-    #  assert mplayer.err_channel == msg.channel
+@pytest.mark.asyncio
+async def test_mplayer_start_raise(f_bot, f_d_voice_ffmpeg):
+    mplayer = MPlayer(f_bot, d_voice=f_d_voice_ffmpeg)
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        await mplayer.start()
 
 
-#  @pytest.mark.asyncio
-#  async def test_mplayer_next_loop(f_bot, f_d_player):
-    #  mplayer = MPlayer(f_bot, d_player=f_d_player)
-    #  await mplayer.next()
+@pytest.mark.asyncio
+async def test_mplayer_start_ffmpeg(f_bot, f_d_voice_ffmpeg):
+    msg = fake_msg('!play vid1, vid2', voice=True)
+    mplayer = MPlayer(f_bot, d_voice=f_d_voice_ffmpeg)
+    mplayer.initialize_settings(msg, ['vid1', 'vid2'])
+    await mplayer.join_voice_channel()
+    await mplayer.start()
+
+    assert mplayer.vids == ['vid1', 'vid2']
+    assert mplayer.vid_index == 0
+    assert mplayer.d_player.type == 'ffmpeg'
+    assert mplayer.d_player.start.called
+    assert mplayer.target_voice_channel == msg.author.voice.voice_channel
+    assert mplayer.err_channel == msg.channel
+    assert mplayer.state == MPlayerState.PLAYING
 
 
-#  @pytest.mark.asyncio
-#  async def test_mplayer_next_stop(f_bot, f_d_player):
-    #  mplayer = MPlayer(f_bot, d_player=f_d_player)
-    #  mplayer.state = MPlayerState.PLAYING
-    #  await mplayer.next()
+@pytest.mark.asyncio
+async def test_mplayer_start_youtube(f_bot, f_d_voice_ytdl):
+    msg = fake_msg('!play vid1, vid2', voice=True)
+    mplayer = MPlayer(f_bot, d_voice=f_d_voice_ytdl)
+    mplayer.initialize_settings(msg, ['https://www.youtube.com/watch?v=jG6MYFdW2gU'])
+    await mplayer.join_voice_channel()
+    await mplayer.start()
+
+    assert mplayer.vids == ['https://www.youtube.com/watch?v=jG6MYFdW2gU']
+    assert mplayer.vid_index == 0
+    assert mplayer.d_player.type == 'ytdl'
+    assert mplayer.d_player.start.called
+    assert mplayer.target_voice_channel == msg.author.voice.voice_channel
+    assert mplayer.err_channel == msg.channel
+    assert mplayer.state == MPlayerState.PLAYING
 
 
-#  @pytest.mark.asyncio
-#  async def test_mplayer_prev_loop(f_bot, f_d_player):
-    #  mplayer = MPlayer(f_bot, d_player=f_d_player)
-    #  await mplayer.prev()
+@pytest.mark.asyncio
+async def test_mplayer_start_youtube_raises_download(f_bot, f_d_voice_ytdl):
+    f_d_voice_ytdl.create_ytdl_player.side_effect = youtube_dl.utils.DownloadError('Fail')
+    msg = fake_msg('!play vid1, vid2', voice=True)
+    mplayer = MPlayer(f_bot, d_voice=f_d_voice_ytdl)
+    mplayer.initialize_settings(msg, ['https://www.youtube.com/watch?v=jG6MYFdW2gU'])
+    await mplayer.join_voice_channel()
+    await mplayer.start()
+
+    assert f_bot.send_message.called
 
 
-#  @pytest.mark.asyncio
-#  async def test_mplayer_prev_stop(f_bot, f_d_player):
-    #  mplayer = MPlayer(f_bot, d_player=f_d_player)
-    #  await mplayer.prev()
+@pytest.mark.asyncio
+async def test_mplayer_start_youtube_raises_copyright(f_bot, f_d_voice_ytdl):
+    f_d_voice_ytdl.create_ytdl_player.side_effect = youtube_dl.utils.YoutubeDLError('Fail')
+    msg = fake_msg('!play vid1, vid2', voice=True)
+    mplayer = MPlayer(f_bot, d_voice=f_d_voice_ytdl)
+    mplayer.initialize_settings(msg, ['https://www.youtube.com/watch?v=jG6MYFdW2gU'])
+    await mplayer.join_voice_channel()
+    await mplayer.start()
+
+    assert f_bot.send_message.called
 
 
-#  @pytest.mark.asyncio
-#  async def test_mplayer_monitor(f_bot, f_d_player, f_loop):
-    #  mplayer = MPlayer(f_bot, d_player=f_d_player)
-    #  await mplayer.monitor()
+@pytest.mark.asyncio
+async def test_mplayer_next(f_bot, f_d_voice_ffmpeg):
+    msg = fake_msg('!play vid1, vid2', voice=True)
+    mplayer = MPlayer(f_bot, d_voice=f_d_voice_ffmpeg)
+    mplayer.initialize_settings(msg, ['vid1', 'vid2'])
+
+    await mplayer.join_voice_channel()
+    await mplayer.start()
+    await mplayer.next()
+
+    assert mplayer.vid_index == 1
+    assert mplayer.d_player.type == 'ffmpeg'
+    assert mplayer.d_player.start.called
+    assert mplayer.target_voice_channel == msg.author.voice.voice_channel
+    assert mplayer.err_channel == msg.channel
+    assert mplayer.state == MPlayerState.PLAYING
+
+    mplayer.loop = False
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        await mplayer.next()
+    assert mplayer.vid_index == 0
+    assert mplayer.state == MPlayerState.STOPPED
+
+
+@pytest.mark.asyncio
+async def test_mplayer_prev(f_bot, f_d_voice_ffmpeg):
+    msg = fake_msg('!play vid1, vid2', voice=True)
+    mplayer = MPlayer(f_bot, d_voice=f_d_voice_ffmpeg)
+    mplayer.initialize_settings(msg, ['vid1', 'vid2'])
+
+    await mplayer.join_voice_channel()
+    await mplayer.start()
+    await mplayer.prev()
+
+    assert mplayer.vid_index == 1
+    assert mplayer.d_player.type == 'ffmpeg'
+    assert mplayer.d_player.start.called
+    assert mplayer.target_voice_channel == msg.author.voice.voice_channel
+    assert mplayer.err_channel == msg.channel
+    assert mplayer.state == MPlayerState.PLAYING
+
+    mplayer.loop = False
+    await mplayer.prev()
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        await mplayer.prev()
+    assert mplayer.vid_index == 0
+    assert mplayer.state == MPlayerState.STOPPED
+
+
+# Bit of just a sanity test, stubs so much
+@pytest.mark.asyncio
+async def test_mplayer_monitor(f_bot, f_d_voice_ffmpeg, event_loop):
+    f_d_voice_ffmpeg.create_ffmpeg_player.return_value.is_done.return_value = True
+    msg = fake_msg('!play vid1, vid2', voice=True)
+    mplayer = MPlayer(f_bot, d_voice=f_d_voice_ffmpeg)
+    mplayer.initialize_settings(msg, ['vid1', 'vid2'])
+    await mplayer.start()
+
+    fut = event_loop.create_task(mplayer.monitor())
+    await asyncio.sleep(1)
+    fut.cancel()
+
+    assert f_d_voice_ffmpeg.create_ffmpeg_player.return_value.start.called
+    assert mplayer.vid_index == 1

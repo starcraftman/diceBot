@@ -8,6 +8,8 @@ import youtube_dl
 
 import dice.exc
 
+MPLAYER_TIMEOUT = 120  # seconds
+
 
 class MPlayerState:
     """ MPlayer state enum. """
@@ -180,7 +182,7 @@ class MPlayer(object):
         Go to the previous song.
         """
         if self.d_player and self.vids:
-            if self.loop and self.vid_index > 0:
+            if self.loop or self.vid_index - 1 >= 0:
                 self.vid_index = (self.vid_index - 1) % len(self.vids)
                 await self.start()
             else:
@@ -208,16 +210,14 @@ class MPlayer(object):
         last_activity = datetime.datetime.utcnow()
 
         while True:
-            try:
-                if self.d_player and self.state == MPlayerState.PLAYING:
+            if self.d_player:
+                if self.state == MPlayerState.PLAYING:
                     last_activity = datetime.datetime.utcnow()
 
                 if self.state == MPlayerState.PLAYING and self.d_player.is_done():
                     await self.next()
 
-                if (datetime.datetime.utcnow() - last_activity).seconds > 120:
+                if (datetime.datetime.utcnow() - last_activity).seconds > MPLAYER_TIMEOUT:
                     await self.quit()
-            except AttributeError:
-                pass
 
             await asyncio.sleep(sleep_time)
