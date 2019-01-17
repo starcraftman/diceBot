@@ -30,7 +30,7 @@ def db_dump(session, classes, file_template):
             print('Creating backup for {} at: {}'.format(cls, fname))
             for obj in objs:
                 with open(fname, 'w') as fout:
-                    fout.write(repr(obj))
+                    fout.write(repr(obj) + '\n')
         else:
             print('No entries for {}, skipping: {}'.format(cls, fname))
 
