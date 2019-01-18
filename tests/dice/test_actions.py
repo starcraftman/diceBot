@@ -96,11 +96,11 @@ async def test_cmd_d5(f_bot):
 Top 3 Results:
 
 Detect Magic – 5th Edition SRD
-      https://www.5esrd.com/spellcasting/all-spells/d/detect-magic/
+      <https://www.5esrd.com/spellcasting/all-spells/d/detect-magic/>
 Rods, Staves & Wands – 5th Edition SRD
-      https://www.5esrd.com/gamemastering/magic-items/rods-staves-wands/
+      <https://www.5esrd.com/gamemastering/magic-items/rods-staves-wands/>
 Arcanist's Magic Aura – 5th Edition SRD
-      https://www.5esrd.com/spellcasting/all-spells/a/arcanist-s-magic-aura/"""
+      <https://www.5esrd.com/spellcasting/all-spells/a/arcanist-s-magic-aura/>"""
     f_bot.send_message.assert_called_with(msg.channel, expect)
 
 
@@ -151,11 +151,11 @@ async def test_cmd_pf(f_bot):
 Top 3 Results:
 
 Arcane Mark – d20PFSRD
-      https://www.d20pfsrd.com/magic/all-spells/a/arcane-mark/
+      <https://www.d20pfsrd.com/magic/all-spells/a/arcane-mark/>
 Ring of Arcane Signets – d20PFSRD
-      https://www.d20pfsrd.com/magic-items/rings/ring-of-arcane-signets/
+      <https://www.d20pfsrd.com/magic-items/rings/ring-of-arcane-signets/>
 Divine Mark – d20PFSRD
-      https://www.d20pfsrd.com/magic/3rd-party-spells/tricky-owlbear-publishing-3rd-party-spells/divine-mark/"""
+      <https://www.d20pfsrd.com/magic/3rd-party-spells/tricky-owlbear-publishing-3rd-party-spells/divine-mark/>"""
     f_bot.send_message.assert_called_with(msg.channel, expect)
 
 
@@ -170,9 +170,9 @@ async def test_cmd_pf_num(f_bot):
 Top 2 Results:
 
 Arcane Mark – d20PFSRD
-      https://www.d20pfsrd.com/magic/all-spells/a/arcane-mark/
+      <https://www.d20pfsrd.com/magic/all-spells/a/arcane-mark/>
 Ring of Arcane Signets – d20PFSRD
-      https://www.d20pfsrd.com/magic-items/rings/ring-of-arcane-signets/"""
+      <https://www.d20pfsrd.com/magic-items/rings/ring-of-arcane-signets/>"""
     f_bot.send_message.assert_called_with(msg.channel, expect)
 
 
@@ -195,11 +195,11 @@ async def test_cmd_star(f_bot):
 Top 3 Results:
 
 Starships – Starjammer SRD
-      http://www.starjammersrd.com/equipment/starships/
+      <http://www.starjammersrd.com/equipment/starships/>
 Starship Combat – Starjammer SRD
-      http://www.starjammersrd.com/game-mastering/starship-combat/
+      <http://www.starjammersrd.com/game-mastering/starship-combat/>
 Endbringer Devil (Starship Form) Tier 14 – Starjammer SRD
-      http://www.starjammersrd.com/equipment/starships/starships/endbringer-devil-starship-form-tier-14/"""
+      <http://www.starjammersrd.com/equipment/starships/starships/endbringer-devil-starship-form-tier-14/>"""
     f_bot.send_message.assert_called_with(msg.channel, expect)
 
 
@@ -637,6 +637,21 @@ Chris (7): 21.00
 
 """
         f_bot.send_message.assert_called_with(msg4.channel, expect)
+    finally:
+        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+
+
+@pytest.mark.asyncio
+async def test_cmd_effect_no_action(f_bot, db_cleanup):
+    try:
+        msg = fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
+        msg2 = fake_msg("!effect poison/2, blind/3 -t Chris")
+
+        await action_map(msg, f_bot).execute()
+        await action_map(msg2, f_bot).execute()
+
+        expect = 'No action selected for targets [--add|remove|update].'
+        f_bot.send_message.assert_called_with(msg2.channel, expect)
     finally:
         await action_map(fake_msg('!turn --clear'), f_bot).execute()
 

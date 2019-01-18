@@ -544,7 +544,7 @@ Top {} Results:\n\n{}"""
         BROWSER.get(full_url)
         for ele in BROWSER.find_elements_by_class_name('gsc-thumbnail-inside')[:self.args.num]:
             link_text = ele.find_element_by_css_selector('a.gs-title').get_property('href')
-            result_text += '{}\n      {}\n'.format(ele.text, link_text)
+            result_text += '{}\n      <{}>\n'.format(ele.text, link_text)
         BROWSER.back()
 
         await self.bot.send_message(self.msg.channel, msg.format(
@@ -955,6 +955,9 @@ class Effect(Action):
                 elif self.args.update:
                     tuser.update_effect(new_effect[0], int(new_effect[1]))
                     msg += '{}: Updated {} for {} turns.\n'.format(tuser.name, new_effect[0], new_effect[1])
+
+                else:
+                    msg = 'No action selected for targets [--add|remove|update].'
 
         return msg
 
