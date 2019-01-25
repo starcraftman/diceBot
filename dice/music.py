@@ -9,6 +9,8 @@ import youtube_dl
 import dice.exc
 
 MPLAYER_TIMEOUT = 120  # seconds
+# Stupid youtube: https://github.com/Rapptz/discord.py/issues/315
+BEFORE_OPTS = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
 
 
 class MPlayerState:
@@ -127,7 +129,8 @@ class MPlayer(object):
         vid = self.vids[self.vid_index]
         try:
             if "youtu" in vid:
-                self.d_player = await self.d_voice.create_ytdl_player(vid)
+                self.d_player = await self.d_voice.create_ytdl_player(
+                    vid, before_options=BEFORE_OPTS)
             else:
                 self.d_player = self.d_voice.create_ffmpeg_player(vid)
             self.d_player.start()
