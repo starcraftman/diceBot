@@ -39,7 +39,7 @@ import dice.parse
 import dice.util
 
 
-P_TASK = None
+LIVE_TASKS = []
 
 
 class EmojiResolver(object):
@@ -151,10 +151,12 @@ class DiceBot(discord.Client):
         self.emoji.update(self.servers)
 
         # This block is effectively a one time setup.
-        global P_TASK
-        if not P_TASK:
-            P_TASK = asyncio.ensure_future(presence_task(self))
-            asyncio.ensure_future(self.mplayer.monitor())
+        global LIVE_TASKS
+        if not LIVE_TASKS:
+            LIVE_TASKS = [
+                self.loop.create_task(presence_task(self)),
+                self.loop.create_task(self.mplayer.monitor())
+            ]
 
         print('DiceBot Ready!')
 
@@ -355,10 +357,7 @@ def main():  # pragma: no cover
         # BLOCKING: N.o. e.s.c.a.p.e.
         bot.run(dice.util.get_config('discord', os.environ.get('TOKEN', 'dev')))
     finally:
-        try:
-            bot.logout()
-        except (UnboundLocalError, AttributeError):
-            pass
+        print('\nFinished Logging out.\n\nGoodbye human!')
 
 
 if __name__ == "__main__":  # pragma: no cover
