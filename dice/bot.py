@@ -20,6 +20,7 @@ import logging
 import os
 import pprint
 import re
+import signal
 
 import discord
 import websockets.exceptions
@@ -345,6 +346,11 @@ async def presence_task(bot, delay=180):
         await asyncio.sleep(delay)
 
 
+def sig_handle(sig, frame):
+    """ Force cleanup on systemd SIGTERM by pretending Ctrl + c """
+    raise KeyboardInterrupt('cleanup')
+
+
 def main():  # pragma: no cover
     """ Entry here! """
     try:
@@ -353,6 +359,8 @@ def main():  # pragma: no cover
         logging.getLogger('dice.bot').warning('Seeding numpy/random with: %s', str(seeded))
         print('Seeding numpy/random with: ' + str(seeded))
         bot = DiceBot("!")
+
+        signal.signal(signal.SIGTERM, sig_handle)
 
         # BLOCKING: N.o. e.s.c.a.p.e.
         bot.run(dice.util.get_config('discord', os.environ.get('TOKEN', 'dev')))
