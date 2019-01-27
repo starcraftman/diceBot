@@ -60,16 +60,6 @@ LIMIT_TAGS = 20
 TURN_ORDER = None
 
 
-async def bot_shutdown(bot, sleep_time=30):  # pragma: no cover
-    """
-    Shutdown the bot. Not ideal, I should reconsider later.
-    """
-    await asyncio.sleep(sleep_time)
-    await bot.logout()
-    await asyncio.sleep(3)
-    sys.exit(0)
-
-
 class Action(object):
     """
     Top level action, contains shared logic.
