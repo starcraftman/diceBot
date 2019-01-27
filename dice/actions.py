@@ -185,6 +185,8 @@ class Play(Action):
             mplayer.set_volume(self.args.volume)
         elif self.args.loop:
             mplayer.loop = not mplayer.loop
+        elif self.args.restart:
+            await mplayer.start()
         elif self.args.status:
             pass
         elif self.args.vids:
