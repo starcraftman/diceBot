@@ -220,7 +220,9 @@ class MPlayer(object):
                 if self.state == MPlayerState.PLAYING and self.d_player.is_done():
                     await self.next()
 
-                if (datetime.datetime.utcnow() - last_activity).seconds > MPLAYER_TIMEOUT:
+                real_users = [x for x in self.target_voice_channel.voice_members if not x.bot]
+                if not real_users or \
+                        (datetime.datetime.utcnow() - last_activity).seconds > MPLAYER_TIMEOUT:
                     await self.quit()
 
             await asyncio.sleep(sleep_time)
