@@ -8,6 +8,10 @@ import youtube_dl
 
 import dice.exc
 
+VOICE_JOIN_TIMEOUT = 5  # seconds
+TIMEOUT_MSG = """ Bot joining voice took more than 5 seconds.
+
+Try again later or get Gears. """
 MPLAYER_TIMEOUT = 120  # seconds
 # Stupid youtube: https://github.com/Rapptz/discord.py/issues/315
 BEFORE_OPTS = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
@@ -88,12 +92,21 @@ class MPlayer(object):
     async def join_voice_channel(self):
         """
         Join the right channel before beginning transmission.
+
+        Raises:
+            InvalidCommandArgs - The bot could not join voice within a timeout. Discord network issue?
         """
-        if self.d_voice:
-            if self.target_voice_channel != self.d_voice.channel:
-                await self.d_voice.move_to(self.target_voice_channel)
-        else:
-            self.d_voice = await self.bot.join_voice_channel(self.target_voice_channel)
+        try:
+            if self.d_voice:
+                if self.target_voice_channel != self.d_voice.channel:
+                    await asyncio.wait_for(self.d_voice.move_to(self.target_voice_channel),
+                                           VOICE_JOIN_TIMEOUT)
+            else:
+                self.d_voice = await asyncio.wait_for(
+                    self.bot.join_voice_channel(self.target_voice_channel), VOICE_JOIN_TIMEOUT)
+        except asyncio.TimeoutError:
+            await self.quit()
+            raise dice.exc.InvalidCommandArgs(TIMEOUT_MSG)
 
     def set_volume(self, new_volume=None):
         """
