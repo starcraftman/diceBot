@@ -115,17 +115,20 @@ def test_emphasize_match_one():
     assert result == '__7__, 5, __2__, __7__'
 
 
-def test_seed_random_derived():
-    now = datetime.datetime.utcnow().timestamp()
-    seconds = int(math.floor(now))
+def test_generate_seed():
+    seed = dice.util.generate_seed()
+    assert seed > 0
+    assert seed < math.pow(2, 32)
 
+
+def test_seed_random_derived():
     derived = dice.util.seed_random()
-    assert derived < (seconds + 500000)
-    assert derived > (seconds - 1000000)
+    assert derived > 0
+    assert derived < math.pow(2, 32)
 
 
 def test_seed_random_fixed():
-    assert dice.util.seed_random(5) == 5
+    assert dice.util.seed_random(5.0) == 5
 
 
 def test_is_valid_yt():

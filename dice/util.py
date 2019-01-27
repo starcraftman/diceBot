@@ -27,6 +27,7 @@ MSG_LIMIT = 1985  # Number chars before message truncation
 IS_YT = re.compile(r'https?://((www.)?youtube.com/watch\?|youtu.be/|y2u.be/)\S+',
                    re.ASCII | re.IGNORECASE)
 IS_URL = re.compile(r'(https?://)?(\w+\.)+(com|org|net|ca|be)(/\S+)*', re.ASCII | re.IGNORECASE)
+MAX_SEED = int(math.pow(2, 32) - 1)
 
 
 class ModFormatter(logging.Formatter):
@@ -291,6 +292,23 @@ def write_yaml(fname, obj):
                   explicit_start=True, default_flow_style=False)
 
 
+def generate_seed():
+    """
+    Generate a random seed number based on current time.
+    Returns an integer.
+    """
+    now = datetime.datetime.utcnow()
+    seconds = math.floor(now.timestamp())
+    micro = now.microsecond
+
+    while micro > 1:
+        val = (micro % 10) + 1
+        seconds *= val
+        micro /= 10
+
+    return int(seconds % MAX_SEED)
+
+
 def seed_random(seed=None):
     """
     Seed random library and numpy.random with a common seed.
@@ -299,18 +317,11 @@ def seed_random(seed=None):
         seed: The seed to used, if not passed derive from timestamp.
     """
     if not seed:
-        now = datetime.datetime.utcnow().timestamp()
-        seconds = int(math.floor(now))
-        micro = int((now - seconds) * 1000000)
+        seed = generate_seed()
 
-        if micro > 500000:
-            seconds -= micro
-        else:
-            seconds += micro
-        seed = seconds
-
-    numpy.random.seed(seed)
+    seed = int(seed % MAX_SEED)
     random.seed(seed)
+    numpy.random.seed(seed)
 
     return seed
 

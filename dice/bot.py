@@ -357,7 +357,7 @@ def main():  # pragma: no cover
         dice.util.init_logging()
         seeded = dice.util.seed_random()
         logging.getLogger('dice.bot').warning('Seeding numpy/random with: %s', str(seeded))
-        print('Seeding numpy/random with: ' + str(seeded))
+        print('Seeding numpy/random with: {:,}'.format(seeded))
         bot = DiceBot("!")
 
         signal.signal(signal.SIGTERM, sig_handle)
