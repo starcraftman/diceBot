@@ -11,7 +11,6 @@ import logging
 import math
 import os
 import re
-import sys
 
 import aiohttp
 import discord
