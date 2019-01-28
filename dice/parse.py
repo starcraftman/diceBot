@@ -300,7 +300,7 @@ def subs_n(subs, prefix):
         Show and advance next num players.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'n', description=desc, formatter_class=RawHelp)
-    sub.add_argument('next_num', type=int, default=None, help='Advance n chars.')
+    sub.add_argument('next_num', nargs='?', type=int, default=None, help='Advance n chars.')
     sub.set_defaults(cmd='Turn', next=True, clear=False, remove=False, add=False)
 
 
