@@ -143,36 +143,36 @@ async def test_cmd_math_fail(f_bot):
 @OGN_TEST
 @pytest.mark.asyncio
 async def test_cmd_pf(f_bot):
-    msg = fake_msg_gears('!pf arcane mark')
+    msg = fake_msg_gears('!pf acid dart')
 
     await action_map(msg, f_bot).execute()
 
-    expect = """Searching Pathfinder Wiki: **arcane mark**
+    expect = """Searching Pathfinder Wiki: **acid dart**
 Top 3 Results:
 
-Arcane Mark – d20PFSRD
-      <https://www.d20pfsrd.com/magic/all-spells/a/arcane-mark/>
-Ring of Arcane Signets – d20PFSRD
-      <https://www.d20pfsrd.com/magic-items/rings/ring-of-arcane-signets/>
-Divine Mark – d20PFSRD
-      <https://www.d20pfsrd.com/magic/3rd-party-spells/tricky-owlbear-publishing-3rd-party-spells/divine-mark/>"""
+Acid Dart – d20PFSRD
+      <https://www.d20pfsrd.com/magic/3rd-party-spells/sean-k-reynolds-games/acid-dart/>
+Conjuration – d20PFSRD
+      <https://www.d20pfsrd.com/classes/core-classes/wizard/arcane-schools/paizo-arcane-schools/classic-arcane-schools/conjuration/>
+Earth Domain – d20PFSRD
+      <https://www.d20pfsrd.com/classes/core-classes/cleric/domains/paizo-domains/earth-domain/>"""
     f_bot.send_message.assert_called_with(msg.channel, expect)
 
 
 @OGN_TEST
 @pytest.mark.asyncio
 async def test_cmd_pf_num(f_bot):
-    msg = fake_msg_gears('!pf --num 2 arcane mark')
+    msg = fake_msg_gears('!pf --num 2 acid dart')
 
     await action_map(msg, f_bot).execute()
 
-    expect = """Searching Pathfinder Wiki: **arcane mark**
+    expect = """Searching Pathfinder Wiki: **acid dart**
 Top 2 Results:
 
-Arcane Mark – d20PFSRD
-      <https://www.d20pfsrd.com/magic/all-spells/a/arcane-mark/>
-Ring of Arcane Signets – d20PFSRD
-      <https://www.d20pfsrd.com/magic-items/rings/ring-of-arcane-signets/>"""
+Acid Dart – d20PFSRD
+      <https://www.d20pfsrd.com/magic/3rd-party-spells/sean-k-reynolds-games/acid-dart/>
+Conjuration – d20PFSRD
+      <https://www.d20pfsrd.com/classes/core-classes/wizard/arcane-schools/paizo-arcane-schools/classic-arcane-schools/conjuration/>"""
     f_bot.send_message.assert_called_with(msg.channel, expect)
 
 
@@ -473,7 +473,22 @@ async def test_cmd_turn_next(f_bot, db_cleanup):
         await action_map(msg2, f_bot).execute()
         await action_map(msg2, f_bot).execute()
 
-        f_bot.send_message.assert_called_with(msg2.channel, '**Next User**:\nDwarf (3): 12.00')
+        f_bot.send_message.assert_called_with(msg2.channel, '**Next User**\nDwarf (3): 12.00')
+    finally:
+        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+
+
+@pytest.mark.asyncio
+async def test_cmd_turn_next_num(f_bot, db_cleanup):
+    try:
+        msg = fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
+        msg2 = fake_msg("!n 3")
+
+        await action_map(msg, f_bot).execute()
+        await action_map(msg2, f_bot).execute()
+
+        actual = (str(f_bot.send_message.call_args).replace("\\n", "\n"))
+        assert actual.count('Next User') == 3
     finally:
         await action_map(fake_msg('!turn --clear'), f_bot).execute()
 
@@ -494,7 +509,7 @@ async def test_cmd_turn_next_with_effects(f_bot, db_cleanup):
 
         poison
 
-**Next User**:
+**Next User**
 Dwarf (3): 12.00"""
         f_bot.send_message.assert_called_with(msg3.channel, expect)
     finally:
@@ -781,3 +796,17 @@ def test_format_song_list():
 A footer"""
 
     assert dice.actions.format_song_list(header, entries, footer) == expect
+
+
+@OGN_TEST
+def test_get_results_in_background():
+    full_url = 'https://cse.google.com/cse?cx=006680642033474972217%3A6zo0hx_wle8&q=acid%20dart'
+
+    result = dice.actions.get_results_in_background(full_url, 3)
+    expect = """Acid Dart – d20PFSRD
+      <https://www.d20pfsrd.com/magic/3rd-party-spells/sean-k-reynolds-games/acid-dart/>
+Conjuration – d20PFSRD
+      <https://www.d20pfsrd.com/classes/core-classes/wizard/arcane-schools/paizo-arcane-schools/classic-arcane-schools/conjuration/>
+Earth Domain – d20PFSRD
+      <https://www.d20pfsrd.com/classes/core-classes/cleric/domains/paizo-domains/earth-domain/>"""
+    assert result == expect

@@ -5,6 +5,7 @@ All actions have async execute methods.
 """
 from __future__ import absolute_import, print_function
 import asyncio
+import concurrent.futures
 import datetime
 import glob
 import logging
@@ -25,7 +26,6 @@ import dice.util
 import dicedb
 import dicedb.query
 
-BROWSER = dice.util.init_chrome()
 CHECK_TIMER_GAP = 5
 TIMERS = {}
 TIMER_OFFSETS = ["60:00", "15:00", "5:00", "1:00"]
@@ -516,7 +516,6 @@ class Songs(Action):
             await self.search_tags(self.args.tag)
 
 
-# TODO: Should probably run in background to prevent blocking bot? It isn't too long though.
 class SearchWiki(Action):
     """
     Search an OGN wiki site based on their google custom search URL.
@@ -529,17 +528,14 @@ Top {} Results:\n\n{}"""
         if match:
             raise dice.exc.InvalidCommandArgs('No special characters in search please. ' + match.group(1))
 
-        result_text = ''
         base_url = getattr(dice.actions, self.args.url)
         full_url = base_url.format(terms.replace(' ', '%20'))
-        BROWSER.get(full_url)
-        for ele in BROWSER.find_elements_by_class_name('gsc-thumbnail-inside')[:self.args.num]:
-            link_text = ele.find_element_by_css_selector('a.gs-title').get_property('href')
-            result_text += '{}\n      <{}>\n'.format(ele.text, link_text)
-        BROWSER.back()
+        with concurrent.futures.ProcessPoolExecutor(1) as pool:
+            result = await self.bot.loop.run_in_executor(pool, get_results_in_background,
+                                                         full_url, self.args.num)
 
         await self.bot.send_message(self.msg.channel, msg.format(
-            self.args.wiki, terms, self.args.num, result_text.rstrip()))
+            self.args.wiki, terms, self.args.num, result))
 
 
 class Poni(Action):
@@ -851,7 +847,6 @@ class Turn(Action):
         dicedb.query.update_duser_init(session, self.msg.author, self.args.init)
         return 'Updated **init** for {} to: {}'.format(self.msg.author.name, self.args.init)
 
-    # TODO: Add ability advance n turns.
     def next(self, _):
         """
         Advance the turn order.
@@ -864,7 +859,22 @@ class Turn(Action):
                 pad = '\n' + ' ' * 8
                 msg += pad + pad.join(effects) + '\n\n'
 
-        return msg + '**Next User**:\n' + str(TURN_ORDER.next())
+        return msg + '**Next User**\n' + str(TURN_ORDER.next())
+
+    def next_num(self, _):
+        """
+        Advance the turn order next_num places.
+        """
+        if self.args.next_num < 1:
+            raise dice.exc.InvalidCommandArgs('Can only accept numbers in [0, +8]')
+
+        text = ''
+        cnt = self.args.next_num
+        while cnt:
+            text += self.next(_) + '\n\n'
+            cnt -= 1
+
+        return text.rstrip()
 
     def remove(self, _):
         """
@@ -908,7 +918,7 @@ class Turn(Action):
         elif not TURN_ORDER:
             msg = 'No turn order to report.'
 
-        for action in ['add', 'clear', 'init', 'name', 'next', 'remove', 'update']:
+        for action in ['add', 'clear', 'init', 'name', 'next_num', 'next', 'remove', 'update']:
             try:
                 var = getattr(self.args, action)
                 if var is not None and var is not False:  # 0 is allowed for init
@@ -1046,3 +1056,19 @@ def format_song_list(header, entries, footer, *, cnt=1):
     msg += footer
 
     return msg
+
+
+def get_results_in_background(full_url, num):
+    """
+    Fetch the top num results from full_url (a GCS page).
+    """
+    browser = dice.util.init_chrome()
+    browser.get(full_url)
+
+    result = ''
+    for ele in browser.find_elements_by_class_name('gsc-thumbnail-inside')[:num]:
+        link_text = ele.find_element_by_css_selector('a.gs-title').get_property('href')
+        result += '{}\n      <{}>\n'.format(ele.text, link_text)
+    browser.quit()
+
+    return result.rstrip()

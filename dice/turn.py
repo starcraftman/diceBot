@@ -12,7 +12,6 @@ import dice.tbl
 COLLIDE_INCREMENT = 0.01
 
 
-# TODO: Implement simple turn upkeep for status effects/summons.
 def break_init_tie(user1, user2):
     """
     Resolve a tie of two player inits according to Pathfinder rules.
@@ -22,30 +21,29 @@ def break_init_tie(user1, user2):
     Returns:
         (winner, loser) - Ordered tuple, winner takes old init. Loser moves back.
     """
-    winner, loser = None, None
     if user1.offset > user2.offset:
         winner, loser = user1, user2
+
     elif user1.offset < user2.offset:
         winner, loser = user2, user1
 
-    if not winner:
+    else:
         while user1.init == user2.init:
             user1.roll_init()
             user2.roll_init()
 
-        winner = user1 if user1 > user2 else user2
-        loser = user1 if user1 < user2 else user2
+        winner, loser = reversed(sorted([user1, user2]))
 
     return (winner, loser)
 
 
 def parse_turn_users(parts):
     """
-    Parse usrs based on possible specification.
-    Expected parts: [username, offset, username, offset/premade_roll, ...]
+    Parse users based on possible specification.
+    Expected parts: [username/offset, username/offset/premade_roll, ...]
 
     Raises:
-        InvalidCommandArgs - Improper parts.
+        InvalidCommandArgs - Improper parts input.
 
     Returns:
         Parsed TurnUsers in a list.
@@ -292,7 +290,6 @@ class TurnOrder(object):
         for user in users:
             self.add(user)
 
-    # FIXME: Off by one when user last in list
     def remove(self, name):
         """
         Remove a user from the turn order and adjust index.
