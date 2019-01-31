@@ -85,18 +85,17 @@ def test_complete_block():
 
 
 def test_msg_splitter():
-    try:
-        old_limit = dice.util.MSG_LIMIT
-        dice.util.MSG_LIMIT = 50
-
-        line = "A short message to"  # 19 char line, 20 with \n
-        test1 = line + "\n" + line + "\n"
-        assert dice.util.msg_splitter(test1) == [test1[:-1]]
-
-        test2 = test1 + "stop here\n" + test1
-        assert dice.util.msg_splitter(test2) == [test1 + "stop here", test1[:-1]]
-    finally:
-        dice.util.MSG_LIMIT = old_limit
+    text = """This is a long line to send to the line.
+This is another line to send to the users.
+This line talks about how it would be nice if there was peace.
+This talks about how the podcasts are cool and fun.
+Sitting in bed is fun."""
+    expect = [
+        "This is a long line to send to the line.\nThis is another line to send to the users.",
+        "This line talks about how it would be nice if there was peace.",
+        "This talks about how the podcasts are cool and fun.\nSitting in bed is fun.",
+    ]
+    assert dice.util.msg_splitter(text, 100) == expect
 
 
 def test_emphasize_match():

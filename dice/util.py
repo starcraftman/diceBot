@@ -239,29 +239,37 @@ def complete_blocks(parts):
     return new_parts
 
 
-def msg_splitter(msg):
+def msg_splitter(msg, limit=None):
     """
-    Take a msg of arbitrary length and split it into parts that respect discord 2k char limit.
+    Split a message intelligently to fit the limit provided.
+    By default, limit will fit under the 2k limit.
 
     Returns:
-        List of messages to send in order.
+        [msg, msg2, msg3, ...]
     """
-    parts = []
-    part_line = ''
+    new_msgs = []
+    cur_msg = ''
+    if not limit:
+        limit = MSG_LIMIT
 
-    for line in msg.split("\n"):
-        line = line + "\n"
+    lines = msg.split('\n')
+    while lines:
+        line = lines[0] + '\n'
+        if len(line) > limit:
+            raise ValueError("Will not transmit a single line of {} chars.\n\n{}".format(limit, line[0:40]))
 
-        if len(part_line) + len(line) > MSG_LIMIT:
-            parts += [part_line.rstrip("\n")]
-            part_line = line
+        if len(cur_msg + line) > limit:
+            new_msgs += [cur_msg.rstrip()]
+            cur_msg = line.lstrip()
         else:
-            part_line += line
+            cur_msg += line
 
-    if part_line:
-        parts += [part_line.rstrip("\n")]
+        lines = lines[1:]
 
-    return parts
+    if cur_msg.rstrip():
+        new_msgs += [cur_msg.rstrip()]
+
+    return new_msgs
 
 
 def load_yaml(fname):
