@@ -111,6 +111,11 @@ def test_randomly_select_pun(session, f_puns):
     assert 'pun' in dicedb.query.randomly_select_pun(session)
 
 
+def test_randomly_select_pun_raises(session):
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        dicedb.query.randomly_select_pun(session)
+
+
 def test_check_for_pun_dupe(session, f_puns):
     assert dicedb.query.check_for_pun_dupe(session, f_puns[0].text)
     assert not dicedb.query.check_for_pun_dupe(session, 'Not there.')

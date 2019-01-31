@@ -170,6 +170,9 @@ def randomly_select_pun(session):
     """
     Get a random pun from the database.
     While selection is random, will evenly visit all puns before repeats.
+
+    Raises:
+        dice.exc.InvalidCommandArgs - No puns exist to choose.
     """
     try:
         lowest_hits = session.query(func.min(Pun.hits)).scalar()
@@ -180,7 +183,7 @@ def randomly_select_pun(session):
         session.commit()
 
         return pun.text
-    except IndexError:
+    except (IndexError, ValueError):
         raise dice.exc.InvalidCommandArgs('You must add puns first!')
 
 
