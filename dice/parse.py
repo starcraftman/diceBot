@@ -371,3 +371,21 @@ def subs_timers(subs, prefix):
     sub.add_argument('-c', '--clear', action="store_true", help='Clear all timers.')
     sub.add_argument('-m', '--manage', action="store_true", help='Manage timers selectively.')
     sub.set_defaults(cmd='Timers')
+
+
+@register_parser
+def subs_pun(subs, prefix):
+    """ Subcommand parsing for timers """
+    desc = """Manage the puns!
+
+{prefix}pun
+        Print a randomly selected pun.
+{prefix}pun --add An amazing pun follows to add ...
+        Add an amazing pun to the pun db.
+{prefix}pun --manage
+        Interactively manage the puns in the db, deleting as you like.
+    """.format(prefix=prefix)
+    sub = subs.add_parser(prefix + 'pun', description=desc, formatter_class=RawHelp)
+    sub.add_argument('-a', '--add', nargs='+', help='Add the provided pun.')
+    sub.add_argument('-m', '--manage', action="store_true", help='Manage puns selectively.')
+    sub.set_defaults(cmd='Pun')

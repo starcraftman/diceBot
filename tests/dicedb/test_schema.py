@@ -5,7 +5,7 @@ from __future__ import absolute_import, print_function
 
 import dicedb
 import dicedb.schema
-from dicedb.schema import (DUser, SavedRoll)
+from dicedb.schema import (DUser, Pun, SavedRoll)
 
 
 def test_duser__eq__(f_dusers):
@@ -47,6 +47,30 @@ def test_savedrolls__repr__(f_saved_rolls):
 def test_savedrolls__str__(f_saved_rolls):
     roll = f_saved_rolls[0]
     assert str(roll) == "SavedRoll(id={}, user_id='1', name='Crossbow', roll_str='d20 + 7, d8')".format(roll.id)
+
+
+def test_pun__repr__(f_puns):
+    pun = f_puns[0]
+    assert repr(pun) == "Pun(id={}, text='First pun', hits=2)".format(pun.id)
+
+
+def test_pun__str__(f_puns):
+    pun = f_puns[0]
+    assert str(pun) == "Pun(id={}, text='First pun', hits=2)".format(pun.id)
+
+
+def test_pun__eq__(f_puns):
+    assert f_puns[0] == Pun(id=9, text='First pun', hits=0)
+    assert f_puns[0] == Pun(id=3, text='First pun', hits=0)
+    assert f_puns[0] != Pun(id=3, text='Second pun', hits=0)
+
+
+def test_pun__hash__(f_puns):
+    assert f_puns[0] in f_puns
+
+
+def test_pun__lt__(f_puns):
+    assert f_puns[0] < f_puns[1]
 
 
 def test_parse_int():

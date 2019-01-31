@@ -17,6 +17,7 @@ import dicedb
 
 LEN_DID = 30
 LEN_NAME = 100
+LEN_PUN = 600
 LEN_ROLLSTR = 200
 DEFAULT_INIT = 99999
 Base = sqlalchemy.ext.declarative.declarative_base()
@@ -57,6 +58,9 @@ class DUser(Base):
 
 @total_ordering
 class SavedRoll(Base):
+    """
+    Represents a saved dice roll associated to a name.
+    """
     __tablename__ = 'saved_rolls'
 
     id = sqla.Column(sqla.Integer, primary_key=True)
@@ -81,6 +85,36 @@ class SavedRoll(Base):
         return (self.user_id, self.name) < (other.user_id, other.name)
 
 
+@total_ordering
+class Pun(Base):
+    """
+    Stores a single pun with a hit counter.
+    """
+    __tablename__ = 'puns'
+
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    text = sqla.Column(sqla.String(LEN_PUN))
+    hits = sqla.Column(sqla.Integer, default=0)
+
+    def __repr__(self):
+        keys = ['id', 'text', 'hits']
+        kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
+
+        return "Pun({})".format(', '.join(kwargs))
+
+    def __str__(self):
+        return repr(self)
+
+    def __eq__(self, other):
+        return isinstance(other, Pun) and self.text == other.text
+
+    def __hash__(self):
+        return hash(self.text)
+
+    def __lt__(self, other):
+        return self.id < other.id
+
+
 def parse_int(word):
     """ Parse into int, on failure return 0 """
     try:
@@ -101,7 +135,7 @@ def empty_tables(session):
     """
     Drop all tables.
     """
-    classes = [SavedRoll, DUser]
+    classes = [Pun, SavedRoll, DUser]
 
     for cls in classes:
         for matched in session.query(cls):
@@ -160,6 +194,14 @@ def main():  # pragma: no cover
     session.add_all(rolls)
     session.commit()
 
+    puns = (
+        Pun(text='First pun.'),
+        Pun(name='Another pun here.'),
+        Pun(name='The last pun that is here.'),
+    )
+    session.add_all(puns)
+    session.commit()
+
     def mprint(*args):
         """ Padded print. """
         args = [str(x) for x in args]
@@ -176,6 +218,10 @@ def main():  # pragma: no cover
     for roll in session.query(SavedRoll):
         mprint(roll)
         mprint(pad, roll.user)
+
+    print('Puns----------')
+    for pun in session.query(Pun):
+        mprint(pun)
     session.close()
 
     Base.metadata.drop_all(engine)

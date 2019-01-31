@@ -101,6 +101,7 @@ class Help(Action):
             ['{prefix}pf', 'Search on the Pathfinder wiki'],
             ['{prefix}play', 'Play songs from youtube and server.'],
             ['{prefix}poni', 'Pony?!?!'],
+            ['{prefix}pun', 'Prepare for pain!'],
             ['{prefix}roll', 'Roll a dice like: 2d6 + 5'],
             ['{prefix}r', 'Alias for `!roll`'],
             ['{prefix}songs', 'Create manage song lookup.'],
@@ -979,6 +980,78 @@ class Effect(Action):
         await self.bot.send_message(self.msg.channel, msg)
 
 
+class Pun(Action):
+    """
+    Manage puns for users.
+    """
+    async def manage(self, session):
+        """
+        Using paging interface similar to list, allow management of puns in db.
+        """
+        cnt = 1
+        entries = dicedb.query.all_puns(session)
+        num_entries = len(entries[:LIMIT_SONGS])
+
+        while entries:
+            try:
+                reply = format_pun_list("Remove one of these puns? [1..{}]:\n\n".format(num_entries),
+                                        entries[:LIMIT_SONGS], SONG_FOOTER, cnt=cnt)
+                messages = [await self.bot.send_message(self.msg.channel, reply)]
+                user_select = await self.bot.wait_for_message(timeout=30, author=self.msg.author,
+                                                              channel=self.msg.channel)
+
+                if user_select:
+                    messages += [user_select]
+                    user_select.content = user_select.content.lower().strip()
+
+                if not user_select or user_select.content in ['done', 'exit', 'stop']:
+                    break
+
+                elif user_select.content == 'next':
+                    cnt += LIMIT_SONGS
+                    entries = entries[LIMIT_SONGS:]
+                    num_entries = len(entries[:LIMIT_SONGS])
+
+                else:
+                    choice = int(user_select.content) - 1
+                    if choice < 0 or choice >= LIMIT_SONGS:
+                        raise ValueError
+
+                    dicedb.query.remove_pun(session, entries[choice])
+                    del entries[choice]
+            except (KeyError, ValueError):
+                await self.bot.send_message(
+                    self.msg.channel,
+                    'Selection not understood. Make choice in [1, {}]'.format(num_entries)
+                )
+            finally:
+                user_select = None
+                asyncio.ensure_future(self.bot.delete_messages(messages))
+
+    async def execute(self):
+        session = dicedb.Session()
+
+        if self.args.add:
+            text = ' '.join(self.args.add)
+            if dicedb.query.check_for_pun_dupe(session, text):
+                raise dice.exc.InvalidCommandArgs("Pun already in the database!")
+            dicedb.query.add_pun(session, text)
+
+            msg = 'Pun added to the abuse database.'
+
+        elif self.args.manage:
+            await self.manage(session)
+            session.commit()
+
+            msg = 'Pun abuse management terminated.'
+
+        else:
+            msg = '**Randomly Selected Pun**\n\n'
+            msg += dicedb.query.randomly_select_pun(session)
+
+        await self.bot.send_message(self.msg.channel, msg)
+
+
 def parse_time_spec(time_spec):
     """
     Parse a simple time spec of form: [HH:[MM:[SS]]] into seconds.
@@ -1042,6 +1115,20 @@ def validate_videos(list_vids):
             new_vids.append(globbed[0])
 
     return new_vids
+
+
+def format_pun_list(header, entries, footer, *, cnt=1):
+    """
+    Generate the management list of entries.
+    """
+    msg = header
+    for ent in entries:
+        msg += '{}) {}\n    Hits: {:4d}\n\n'.format(cnt, ent.text, ent.hits)
+        cnt += 1
+    msg = msg.rstrip()
+    msg += footer
+
+    return msg
 
 
 def format_song_list(header, entries, footer, *, cnt=1):

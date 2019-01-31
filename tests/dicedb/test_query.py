@@ -90,3 +90,27 @@ def test_update_saved_roll(session, f_saved_rolls):
     assert new_roll.name == roll.name
     assert new_roll.user_id == roll.user_id
     assert new_roll.roll_str == 'NewString'
+
+
+def test_all_puns(session, f_puns):
+    for ind, pun in enumerate(dicedb.query.all_puns(session)):
+        assert pun == f_puns[ind]
+
+
+def test_add_pun(session, f_puns):
+    dicedb.query.add_pun(session, 'A new pun')
+    assert dicedb.query.all_puns(session)[-1].text == 'A new pun'
+
+
+def test_remove_pun(session, f_puns):
+    dicedb.query.remove_pun(session, f_puns[-1])
+    assert dicedb.query.all_puns(session)[-1] == f_puns[2]
+
+
+def test_randomly_select_pun(session, f_puns):
+    assert 'pun' in dicedb.query.randomly_select_pun(session)
+
+
+def test_check_for_pun_dupe(session, f_puns):
+    assert dicedb.query.check_for_pun_dupe(session, f_puns[0].text)
+    assert not dicedb.query.check_for_pun_dupe(session, 'Not there.')

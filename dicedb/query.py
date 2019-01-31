@@ -5,11 +5,13 @@ from __future__ import absolute_import, print_function
 import os
 import tempfile
 
+import numpy.random
 import sqlalchemy.orm.exc as sqla_oexc
+from sqlalchemy import func
 
 import dice.exc
 import dicedb
-from dicedb.schema import (DUser, SavedRoll, DEFAULT_INIT)
+from dicedb.schema import (DUser, Pun, SavedRoll, DEFAULT_INIT)
 
 
 def dump_db():  # pragma: no cover
@@ -20,7 +22,7 @@ def dump_db():  # pragma: no cover
     fname = os.path.join(tempfile.gettempdir(), 'dbdump_' + os.environ.get('COG_TOKEN', 'dev'))
     print("Dumping db contents to:", fname)
     with open(fname, 'w') as fout:
-        for cls in [DUser, SavedRoll]:
+        for cls in [DUser, Pun, SavedRoll]:
             fout.write('---- ' + str(cls) + ' ----\n')
             fout.writelines([str(obj) + "\n" for obj in session.query(cls)])
 
@@ -139,3 +141,51 @@ def remove_saved_roll(session, user_id, name):
         pass
 
     return roll
+
+
+def add_pun(session, new_pun):
+    """
+    Add a pun to the pun database.
+    """
+    session.add(Pun(text=new_pun))
+    session.commit()
+
+
+def all_puns(session):
+    """
+    Get a complete list of puns.
+    """
+    return session.query(Pun).all()
+
+
+def remove_pun(session, pun):
+    """
+    Remove a pun from the database.
+    """
+    session.delete(pun)
+    session.commit()
+
+
+def randomly_select_pun(session):
+    """
+    Get a random pun from the database.
+    While selection is random, will evenly visit all puns before repeats.
+    """
+    try:
+        lowest_hits = session.query(func.min(Pun.hits)).scalar()
+        pun = numpy.random.choice(session.query(Pun).filter(Pun.hits == lowest_hits).all())
+
+        pun.hits += 1
+        session.add(pun)
+        session.commit()
+
+        return pun.text
+    except IndexError:
+        raise dice.exc.InvalidCommandArgs('You must add puns first!')
+
+
+def check_for_pun_dupe(session, text):
+    """
+    Returns true if the text already contained in a Pun.
+    """
+    return session.query(Pun).filter(Pun.text == text).all()

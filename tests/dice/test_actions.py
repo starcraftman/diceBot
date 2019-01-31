@@ -17,6 +17,7 @@ import dice.actions
 import dice.bot
 import dice.parse
 import dicedb
+import dicedb.query
 
 from tests.conftest import fake_msg_gears, fake_msg
 
@@ -231,6 +232,33 @@ async def test_cmd_poni_more_images(f_bot):
     await action_map(msg, f_bot).execute()
 
     assert 'https://' in str(f_bot.send_message.call_args).replace("\\n", "\n")
+
+
+@pytest.mark.asyncio
+async def test_cmd_pun(f_bot, f_puns):
+    msg = fake_msg("!pun")
+
+    await action_map(msg, f_bot).execute()
+
+    assert 'Randomly Selected' in str(f_bot.send_message.call_args).replace("\\n", "\n")
+
+
+@pytest.mark.asyncio
+async def test_cmd_pun_add(session, f_bot, f_puns):
+    msg = fake_msg("!pun --add A long pun here.")
+
+    await action_map(msg, f_bot).execute()
+
+    last = dicedb.query.all_puns(session)[-1]
+    assert last.text == 'A long pun here.'
+
+
+@pytest.mark.asyncio
+async def test_cmd_pun_add_dupe(session, f_bot, f_puns):
+    msg = fake_msg("!pun --add {}".format(f_puns[0].text))
+
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        await action_map(msg, f_bot).execute()
 
 
 @pytest.mark.asyncio
@@ -796,6 +824,29 @@ def test_format_song_list():
 A footer"""
 
     assert dice.actions.format_song_list(header, entries, footer) == expect
+
+
+def test_format_pun_list(session, f_puns):
+    header = 'A header\n\n'
+    footer = '\n\nA footer'
+
+    expect = """A header
+
+1) First pun
+    Hits:    2
+
+2) Second pun
+    Hits:    0
+
+3) Third pun
+    Hits:    1
+
+4) Fourth pun
+    Hits:    0
+
+A footer"""
+
+    assert dice.actions.format_pun_list(header, f_puns, footer) == expect
 
 
 @OGN_TEST
