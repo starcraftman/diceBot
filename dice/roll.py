@@ -117,7 +117,7 @@ class DiceRoll(Dice):
         return "({}d{})".format(self.rolls, self.dice)
 
     def roll(self):
-        self.values = rand.randint(1, self.dice, self.rolls)
+        self.values = rand.randint(1, self.dice + 1, self.rolls)
         return self.num
 
 
