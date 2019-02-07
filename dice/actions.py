@@ -590,8 +590,9 @@ class Roll(Action):
                 times, line = int(parts[0]), parts[1].strip()
 
             throw = dice.roll.Throw(dice.roll.tokenize_dice_spec(line))
-            for _ in range(times):
-                lines += [line + " = {}".format(await throw.next(self.bot.loop))]
+            with concurrent.futures.ProcessPoolExecutor() as pool:
+                for _ in range(times):
+                    lines += [line + " = {}".format(await self.bot.loop.run_in_executor(pool, throw.next))]
 
         return lines
 

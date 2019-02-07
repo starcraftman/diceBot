@@ -182,12 +182,11 @@ def test_throw_add_dice_raise():
         throw.add_dice([die, 2])
 
 
-@pytest.mark.asyncio
-async def test_throw_next(event_loop):
+def test_throw_next():
     die = dice.roll.DiceRoll('2d6', dice.roll.OP_DICT['+'])
     die2 = dice.roll.FixedRoll('1')
     throw = dice.roll.Throw([die, die2])
-    await throw.next(event_loop)
+    throw.next()
 
     total = 0
     for die in throw.dice:
@@ -195,14 +194,13 @@ async def test_throw_next(event_loop):
     assert total in list(range(3, 14))
 
 
-@pytest.mark.asyncio
-async def test_throw_next_excessive(event_loop):
+def test_throw_next_excessive():
     die = dice.roll.DiceRoll('2d6', dice.roll.OP_DICT['+'])
     die.rolls = dice.roll.DICE_ROLL_LIMIT + 1
     die2 = dice.roll.FixedRoll('1')
     throw = dice.roll.Throw([die, die2])
     with pytest.raises(dice.exc.InvalidCommandArgs):
-        await throw.next(event_loop)
+        throw.next()
 
 
 def test_parse_dice_spec():

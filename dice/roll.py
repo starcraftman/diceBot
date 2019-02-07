@@ -8,7 +8,8 @@ import numpy.random as rand
 
 import dice.exc
 
-DICE_ROLL_LIMIT = 100000000
+DICE_ROLL_LIMIT = 1000000
+MAX_DIE = 10000
 MAX_DIE_STR = 20
 OP_DICT = {
     '__add__': '+',
@@ -214,21 +215,21 @@ class Throw(object):
 
         self.dice += n_dice
 
-    async def next(self, loop):
+    def next(self):
         """ Throw the dice and return the individual rolls and total. """
         for die in self.dice:
-            if die.rolls > DICE_ROLL_LIMIT:
+            if die.rolls > DICE_ROLL_LIMIT or die.dice > MAX_DIE:
                 msg = "{} is excessive.\n\n\
 I won't waste my otherworldly resources on it, insufferable mortal.".format(die.spec[1:-1])
                 raise dice.exc.InvalidCommandArgs(msg)
-            await loop.run_in_executor(None, die.roll)
+
+        for die in self.dice:
+            die.roll()
 
         self.dice[0].acu = str(self.dice[0])
         tot = functools.reduce(lambda x, y: getattr(x, x.next_op)(y), self.dice)
 
-        response = "{} = {}".format(tot.acu, tot.num)
-
-        return response
+        return "{} = {}".format(tot.acu, tot.num)
 
 
 def parse_dice_spec(spec):
