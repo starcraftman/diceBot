@@ -592,7 +592,7 @@ class Roll(Action):
             throw = dice.roll.Throw(dice.roll.tokenize_dice_spec(line))
             with concurrent.futures.ProcessPoolExecutor() as pool:
                 for _ in range(times):
-                    lines += [line + " = {}".format(await self.bot.loop.run_in_executor(pool, throw.next))]
+                    lines += [line + " = {}".format(await self.bot.loop.run_in_executor(pool, throw_in_pool, throw))]
 
         return lines
 
@@ -1160,3 +1160,11 @@ def get_results_in_background(full_url, num):
     browser.quit()
 
     return result.rstrip()
+
+
+def throw_in_pool(throw):  # pragma: no cover
+    """
+    Simple wrapper to init random in other process before throw.
+    """
+    dice.util.seed_random()
+    return throw.next()
