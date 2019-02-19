@@ -5,9 +5,9 @@ import os
 import sys
 
 import dicedb
-from dicedb.schema import DUser, SavedRoll
+from dicedb.schema import DUser, Pun, SavedRoll
 
-ALL_CLASSES = [SavedRoll, DUser]
+ALL_CLASSES = [Pun, SavedRoll, DUser]
 CUR_DIR = os.path.abspath(os.path.dirname(__file__))
 if os.path.dirname(__file__) == '':
     CUR_DIR = os.getcwd()
@@ -91,8 +91,14 @@ def main():
                 db_restore(session, ALL_CLASSES, file_template)
             else:
                 print('aborting')
+        else:
+            raise IndexError
     except IndexError:
-        print('Do: {} {}|{} [file_prefix]'.format(sys.argv[0], 'backup', 'restore'))
+        mod = '.'.join([os.path.basename(os.path.dirname(sys.argv[0])),
+                        os.path.basename(sys.argv[0].replace('.py', '')),
+                        ])
+        invoke = 'python -m ' + mod
+        print('\nUsage:\n     {} backup|restore [file_prefix]'.format(invoke))
 
 
 if __name__ == "__main__":
