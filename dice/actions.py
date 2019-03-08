@@ -67,6 +67,7 @@ class Action(object):
         self.bot = kwargs['bot']
         self.msg = kwargs['msg']
         self.log = logging.getLogger('dice.actions')
+        self.session = dicedb.Session()
 
     def chan_key(self):
         """
@@ -602,26 +603,25 @@ class Roll(Action):
         return lines
 
     async def execute(self):
-        session = dicedb.Session()
         full_spec = ' '.join(self.args.spec).strip()
         user_id = self.msg.author.id
         msg = ''
 
         if self.args.save:
-            duser = dicedb.query.ensure_duser(session, self.msg.author)
-            roll = dicedb.query.update_saved_roll(session, duser.id, self.args.save, full_spec)
+            duser = dicedb.query.ensure_duser(self.session, self.msg.author)
+            roll = dicedb.query.update_saved_roll(self.session, duser.id, self.args.save, full_spec)
 
             msg = 'Added roll: __**{}**__: {}'.format(roll.name, roll.roll_str)
 
         elif self.args.list:
-            rolls = dicedb.query.find_all_saved_rolls(session, user_id)
+            rolls = dicedb.query.find_all_saved_rolls(self.session, user_id)
             resp = ['__**Saved Rolls**__:', '']
             resp += ['__{}__: {}'.format(roll.name, roll.roll_str) for roll in rolls]
 
             msg = '\n'.join(resp)
 
         elif self.args.remove:
-            roll = dicedb.query.remove_saved_roll(session, user_id, self.args.remove)
+            roll = dicedb.query.remove_saved_roll(self.session, user_id, self.args.remove)
 
             msg = 'Removed roll: __**{}**__: {}'.format(roll.name, roll.roll_str)
 
@@ -630,7 +630,7 @@ class Roll(Action):
                 if full_spec == '':
                     raise dice.exc.InvalidCommandArgs('A roll requires some text!')
 
-                saved_roll = dicedb.query.find_saved_roll(session, user_id, full_spec)
+                saved_roll = dicedb.query.find_saved_roll(self.session, user_id, full_spec)
                 full_spec = saved_roll.roll_str
                 resp = ['__Dice Rolls__ ({})'.format(saved_roll.name), '']
             except dice.exc.NoMatch:
@@ -920,10 +920,9 @@ class Turn(Action):
         return msg
 
     async def execute(self):
-        session = dicedb.Session()
-        dicedb.query.ensure_duser(session, self.msg.author)
+        dicedb.query.ensure_duser(self.session, self.msg.author)
 
-        order = dice.turn.parse_order(dicedb.query.get_turn_order(session, self.chan_key()))
+        order = dice.turn.parse_order(dicedb.query.get_turn_order(self.session, self.chan_key()))
         msg = str(order)
         if not order and (self.args.next or self.args.remove):
             raise dice.exc.InvalidCommandArgs('Please add some users first.')
@@ -934,13 +933,13 @@ class Turn(Action):
             try:
                 var = getattr(self.args, action)
                 if var is not None and var is not False:  # 0 is allowed for init
-                    msg = getattr(self, action)(session, order)
+                    msg = getattr(self, action)(self.session, order)
                     break
             except AttributeError:
                 pass
 
         if order and getattr(self.args, 'clear', None) is not True:
-            dicedb.query.update_turn_order(session, self.chan_key(), order)
+            dicedb.query.update_turn_order(self.session, self.chan_key(), order)
 
         await self.bot.send_message(self.msg.channel, msg)
 
@@ -980,13 +979,12 @@ class Effect(Action):
         return msg
 
     async def execute(self):
-        session = dicedb.Session()
-        order = dice.turn.parse_order(dicedb.query.get_turn_order(session, self.chan_key()))
+        order = dice.turn.parse_order(dicedb.query.get_turn_order(self.session, self.chan_key()))
         if not order:
             raise dice.exc.InvalidCommandArgs('No turn order set to add effects.')
 
         if self.args.targets:
-            msg = self.update_targets(session, order)
+            msg = self.update_targets(self.session, order)
 
         else:
             msg = '__Characters With Effects__\n\n'
@@ -1046,25 +1044,23 @@ class Pun(Action):
                 asyncio.ensure_future(self.bot.delete_messages(messages))
 
     async def execute(self):
-        session = dicedb.Session()
-
         if self.args.add:
             text = ' '.join(self.args.add)
-            if dicedb.query.check_for_pun_dupe(session, text):
+            if dicedb.query.check_for_pun_dupe(self.session, text):
                 raise dice.exc.InvalidCommandArgs("Pun already in the database!")
-            dicedb.query.add_pun(session, text)
+            dicedb.query.add_pun(self.session, text)
 
             msg = 'Pun added to the abuse database.'
 
         elif self.args.manage:
-            await self.manage(session)
-            session.commit()
+            await self.manage(self.session)
+            self.session.commit()
 
             msg = 'Pun abuse management terminated.'
 
         else:
             msg = '**Randomly Selected Pun**\n\n'
-            msg += dicedb.query.randomly_select_pun(session)
+            msg += dicedb.query.randomly_select_pun(self.session)
 
         await self.bot.send_message(self.msg.channel, msg)
 
