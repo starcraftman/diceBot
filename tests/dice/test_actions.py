@@ -19,7 +19,7 @@ import dice.parse
 import dicedb
 import dicedb.query
 
-from tests.conftest import fake_msg_gears, fake_msg
+from tests.conftest import fake_msg_gears, fake_msg, fixed_id_fake_msg
 
 OGN_REASON = 'Skipped to be kind and not spam OGN, to enable set ALL_TESTS=True'
 OGN_TEST = pytest.mark.skipif(not os.environ.get('ALL_TESTS'), reason=OGN_REASON)
@@ -443,8 +443,8 @@ async def test_cmd_turn_no_turn_order(f_bot, db_cleanup):
 @pytest.mark.asyncio
 async def test_cmd_turn_no_flags(f_bot, db_cleanup):
     try:
-        msg = fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
-        msg2 = fake_msg("!turn")
+        msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
+        msg2 = fixed_id_fake_msg("!turn")
 
         await action_map(msg, f_bot).execute()
         await action_map(msg2, f_bot).execute()
@@ -462,40 +462,41 @@ Orc   | +2   | 10.00```"""
 
 
 @pytest.mark.asyncio
-async def test_cmd_turn_add(f_bot, db_cleanup):
+async def test_cmd_turn_add(session, f_bot, db_cleanup):
     try:
-        msg = fake_msg("!turn --add Chris/7, Orc/2")
-        msg2 = fake_msg("!turn --add Dwarf/3/20")
+        msg = fixed_id_fake_msg("!turn --add Chris/7, Orc/2")
+        msg2 = fixed_id_fake_msg("!turn --add Dwarf/3/20")
 
         await action_map(msg, f_bot).execute()
         await action_map(msg2, f_bot).execute()
 
-        assert dice.actions.TURN_ORDER
+        assert dicedb.query.get_turn_order(session, '{}_{}'.format(msg.server.id, msg.channel.id))
         capture = str(f_bot.send_message.call_args).replace("\\n", "\n")
         for name in ['Chris', 'Orc', 'Dwarf']:
             assert name in capture
     finally:
-        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+        await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
 
 @pytest.mark.asyncio
-async def test_cmd_turn_clear(f_bot, db_cleanup):
-    msg = fake_msg("!turn --add Chris/7, Orc/2")
-    msg2 = fake_msg("!turn --clear")
+async def test_cmd_turn_clear(session, f_bot, db_cleanup):
+    msg = fixed_id_fake_msg("!turn --add Chris/7, Orc/2")
+    msg2 = fixed_id_fake_msg("!turn --clear")
+    key = '{}_{}'.format(msg.server.id, msg.channel.id)
 
     await action_map(msg, f_bot).execute()
-    assert dice.actions.TURN_ORDER is not None
+    assert dicedb.query.get_turn_order(dicedb.Session(), key)
     await action_map(msg2, f_bot).execute()
 
     f_bot.send_message.assert_called_with(msg2.channel, 'Turn order cleared.')
-    assert dice.actions.TURN_ORDER is None
+    assert not dicedb.query.get_turn_order(dicedb.Session(), key)
 
 
 @pytest.mark.asyncio
 async def test_cmd_turn_next(f_bot, db_cleanup):
     try:
-        msg = fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
-        msg2 = fake_msg("!turn --next")
+        msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
+        msg2 = fixed_id_fake_msg("!turn --next")
 
         await action_map(msg, f_bot).execute()
         await action_map(msg2, f_bot).execute()
@@ -503,14 +504,14 @@ async def test_cmd_turn_next(f_bot, db_cleanup):
 
         f_bot.send_message.assert_called_with(msg2.channel, '**Next User**\nDwarf (3): 12.00')
     finally:
-        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+        await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
 
 @pytest.mark.asyncio
 async def test_cmd_turn_next_num(f_bot, db_cleanup):
     try:
-        msg = fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
-        msg2 = fake_msg("!n 3")
+        msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
+        msg2 = fixed_id_fake_msg("!n 3")
 
         await action_map(msg, f_bot).execute()
         await action_map(msg2, f_bot).execute()
@@ -518,15 +519,15 @@ async def test_cmd_turn_next_num(f_bot, db_cleanup):
         actual = (str(f_bot.send_message.call_args).replace("\\n", "\n"))
         assert actual.count('Next User') == 3
     finally:
-        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+        await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
 
 @pytest.mark.asyncio
 async def test_cmd_turn_next_with_effects(f_bot, db_cleanup):
     try:
-        msg = fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
-        msg2 = fake_msg("!effect --add poison/1, blind/3 -t Chris")
-        msg3 = fake_msg("!turn --next")
+        msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
+        msg2 = fixed_id_fake_msg("!effect --add poison/1, blind/3 -t Chris")
+        msg3 = fixed_id_fake_msg("!turn --next")
 
         await action_map(msg, f_bot).execute()
         await action_map(msg2, f_bot).execute()
@@ -541,15 +542,15 @@ async def test_cmd_turn_next_with_effects(f_bot, db_cleanup):
 Dwarf (3): 12.00"""
         f_bot.send_message.assert_called_with(msg3.channel, expect)
     finally:
-        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+        await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
 
 @pytest.mark.asyncio
 async def test_cmd_turn_remove_exists(f_bot, db_cleanup):
     try:
-        msg = fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
-        msg2 = fake_msg("!turn --remove Orc")
-        msg3 = fake_msg("!turn")
+        msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
+        msg2 = fixed_id_fake_msg("!turn --remove Orc")
+        msg3 = fixed_id_fake_msg("!turn")
 
         await action_map(msg, f_bot).execute()
         await action_map(msg2, f_bot).execute()
@@ -558,50 +559,50 @@ async def test_cmd_turn_remove_exists(f_bot, db_cleanup):
         capture = str(f_bot.send_message.call_args).replace("\\n", "\n")
         assert 'Orc' not in capture
     finally:
-        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+        await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
 
 @pytest.mark.asyncio
 async def test_cmd_turn_remove_not_exists(f_bot, db_cleanup):
     try:
-        msg = fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
-        msg2 = fake_msg("!turn --remove Cedric")
+        msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
+        msg2 = fixed_id_fake_msg("!turn --remove Cedric")
 
         await action_map(msg, f_bot).execute()
         with pytest.raises(dice.exc.InvalidCommandArgs):
             await action_map(msg2, f_bot).execute()
     finally:
-        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+        await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
 
 @pytest.mark.asyncio
 async def test_cmd_turn_set_init(session, f_bot, f_dusers):
     try:
-        msg = fake_msg("!turn --init 8")
+        msg = fixed_id_fake_msg("!turn --init 8")
 
         await action_map(msg, f_bot).execute()
         assert dicedb.query.get_duser(session, msg.author.id).init == 8
     finally:
-        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+        await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
 
 @pytest.mark.asyncio
 async def test_cmd_turn_set_character(session, f_bot, f_dusers):
     try:
-        msg = fake_msg("!turn --name Jack")
+        msg = fixed_id_fake_msg("!turn --name Jack")
 
         await action_map(msg, f_bot).execute()
         assert dicedb.query.get_duser(session, msg.author.id).character == 'Jack'
     finally:
-        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+        await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
 
 @pytest.mark.asyncio
 async def test_cmd_turn_update_user(f_bot, f_dusers):
     try:
-        msg = fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
-        msg2 = fake_msg("!turn --update hris/1")
-        msg3 = fake_msg("!turn")
+        msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
+        msg2 = fixed_id_fake_msg("!turn --update hris/1")
+        msg3 = fixed_id_fake_msg("!turn")
 
         await action_map(msg, f_bot).execute()
         await action_map(msg2, f_bot).execute()
@@ -609,15 +610,15 @@ async def test_cmd_turn_update_user(f_bot, f_dusers):
 
         assert 'Chris   | +7   | 1.00' in str(f_bot.send_message.call_args).replace("\\n", "\n")
     finally:
-        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+        await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
 
 @pytest.mark.asyncio
 async def test_cmd_effect_add(f_bot, db_cleanup):
     try:
-        msg = fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
-        msg2 = fake_msg("!effect --add poison/2, blind/3 -t Chris")
-        msg3 = fake_msg("!effect")
+        msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
+        msg2 = fixed_id_fake_msg("!effect --add poison/2, blind/3 -t Chris")
+        msg3 = fixed_id_fake_msg("!effect")
 
         await action_map(msg, f_bot).execute()
         await action_map(msg2, f_bot).execute()
@@ -632,16 +633,16 @@ Chris (7): 21.00
 """
         f_bot.send_message.assert_called_with(msg3.channel, expect)
     finally:
-        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+        await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
 
 @pytest.mark.asyncio
 async def test_cmd_effect_update(f_bot, db_cleanup):
     try:
-        msg = fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
-        msg2 = fake_msg("!effect --add poison/2, blind/3 -t Chris")
-        msg3 = fake_msg("!effect --update poison/1, blind/1 -t Chris")
-        msg4 = fake_msg("!effect")
+        msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
+        msg2 = fixed_id_fake_msg("!effect --add poison/2, blind/3 -t Chris")
+        msg3 = fixed_id_fake_msg("!effect --update poison/1, blind/1 -t Chris")
+        msg4 = fixed_id_fake_msg("!effect")
 
         await action_map(msg, f_bot).execute()
         await action_map(msg2, f_bot).execute()
@@ -657,16 +658,16 @@ Chris (7): 21.00
 """
         f_bot.send_message.assert_called_with(msg4.channel, expect)
     finally:
-        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+        await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
 
 @pytest.mark.asyncio
 async def test_cmd_effect_remove(f_bot, db_cleanup):
     try:
-        msg = fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
-        msg2 = fake_msg("!effect --add poison/2, blind/3 -t Chris")
-        msg3 = fake_msg("!effect --remove poison -t Chris")
-        msg4 = fake_msg("!effect")
+        msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
+        msg2 = fixed_id_fake_msg("!effect --add poison/2, blind/3 -t Chris")
+        msg3 = fixed_id_fake_msg("!effect --remove poison -t Chris")
+        msg4 = fixed_id_fake_msg("!effect")
 
         await action_map(msg, f_bot).execute()
         await action_map(msg2, f_bot).execute()
@@ -681,14 +682,14 @@ Chris (7): 21.00
 """
         f_bot.send_message.assert_called_with(msg4.channel, expect)
     finally:
-        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+        await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
 
 @pytest.mark.asyncio
 async def test_cmd_effect_no_action(f_bot, db_cleanup):
     try:
-        msg = fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
-        msg2 = fake_msg("!effect poison/2, blind/3 -t Chris")
+        msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
+        msg2 = fixed_id_fake_msg("!effect poison/2, blind/3 -t Chris")
 
         await action_map(msg, f_bot).execute()
         await action_map(msg2, f_bot).execute()
@@ -696,15 +697,15 @@ async def test_cmd_effect_no_action(f_bot, db_cleanup):
         expect = 'No action selected for targets [--add|remove|update].'
         f_bot.send_message.assert_called_with(msg2.channel, expect)
     finally:
-        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+        await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
 
 @pytest.mark.asyncio
 async def test_cmd_effect_default_status(f_bot, db_cleanup):
     try:
-        msg = fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
-        msg2 = fake_msg("!effect --add poison/2, blind/3 -t Chris")
-        msg3 = fake_msg("!effect")
+        msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
+        msg2 = fixed_id_fake_msg("!effect --add poison/2, blind/3 -t Chris")
+        msg3 = fixed_id_fake_msg("!effect")
 
         await action_map(msg, f_bot).execute()
         await action_map(msg2, f_bot).execute()
@@ -719,18 +720,18 @@ Chris (7): 21.00
 """
         f_bot.send_message.assert_called_with(msg3.channel, expect)
     finally:
-        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+        await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
 
 @pytest.mark.asyncio
 async def test_cmd_effect_turn_order_none(f_bot, db_cleanup):
     try:
-        msg = fake_msg("!effect --add poison/2, blind/3 -t Chris")
+        msg = fixed_id_fake_msg("!effect --add poison/2, blind/3 -t Chris")
 
         with pytest.raises(dice.exc.InvalidCommandArgs):
             await action_map(msg, f_bot).execute()
     finally:
-        await action_map(fake_msg('!turn --clear'), f_bot).execute()
+        await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
 
 def test_parse_time_spec():

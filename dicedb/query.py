@@ -198,7 +198,6 @@ def update_turn_order(session, key, turnorder):
     """
     Add an existing turn order for a given server/channel combination.
     """
-    print(key, str(turnorder))
     try:
         stored = session.query(StoredTurn).filter(StoredTurn.id == key).one()
         stored.text = repr(turnorder)

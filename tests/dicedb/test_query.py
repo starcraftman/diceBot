@@ -133,7 +133,7 @@ def test_get_turn_order(session, f_storedturns):
     fetched = dicedb.query.get_turn_order(session, f_storedturns[0].id)
     assert fetched == 'TurnOrder'
 
-    assert dicedb.query.get_turn_order(session, 'a_key') == None
+    assert dicedb.query.get_turn_order(session, 'a_key') is None
 
 
 def test_rem_turn_order(session, f_storedturns):
@@ -141,4 +141,4 @@ def test_rem_turn_order(session, f_storedturns):
 
     dicedb.query.rem_turn_order(session, key)
     dicedb.query.rem_turn_order(session, key)
-    assert dicedb.query.get_turn_order(session, 'key') == None
+    assert dicedb.query.get_turn_order(session, 'key') is None

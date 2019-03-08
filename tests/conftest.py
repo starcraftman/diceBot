@@ -205,6 +205,20 @@ def fake_msg(content, user_id='1', name='User1', voice=False):
     return Message(content, aut, srv, srv.channels[1], None)
 
 
+def fixed_id_fake_msg(content, user_id='1', name='User1', voice=False):
+    """ Generate fake message with GearsandCogs as author. """
+    srv = fake_servers()[0]
+    roles = [Role('Everyone', srv), Role('Fighter', srv)]
+    aut = Member(name, roles, id=user_id)
+    if voice:
+        aut.voice = VoiceState('Voice ' + aut.name, is_afk=False, voice_channel=srv.channels[-1])
+
+    srv.id = 'a_server'
+    for ind, chan in enumerate(srv.channels):
+        chan.id = 'a_channel_{}'.format(ind)
+    return Message(content, aut, srv, srv.channels[1], None)
+
+
 @pytest.fixture
 def f_bot():
     """

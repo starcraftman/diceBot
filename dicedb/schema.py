@@ -159,7 +159,7 @@ def empty_tables(session):
     """
     Drop all tables.
     """
-    classes = [Pun, SavedRoll, DUser]
+    classes = [StoredTurn, Pun, SavedRoll, DUser]
 
     for cls in classes:
         for matched in session.query(cls):
