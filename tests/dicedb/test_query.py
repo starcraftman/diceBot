@@ -5,6 +5,7 @@ from __future__ import absolute_import, print_function
 import pytest
 
 import dice.exc
+import dice.turn
 import dicedb
 import dicedb.query
 
@@ -119,3 +120,25 @@ def test_randomly_select_pun_raises(session):
 def test_check_for_pun_dupe(session, f_puns):
     assert dicedb.query.check_for_pun_dupe(session, f_puns[0].text)
     assert not dicedb.query.check_for_pun_dupe(session, 'Not there.')
+
+
+def test_update_turn_order(session, f_storedturns):
+    order = dice.turn.TurnOrder()
+    dicedb.query.update_turn_order(session, 'a_key', order)
+    fetched = dicedb.query.get_turn_order(session, 'a_key')
+    assert fetched == repr(order)
+
+
+def test_get_turn_order(session, f_storedturns):
+    fetched = dicedb.query.get_turn_order(session, f_storedturns[0].id)
+    assert fetched == 'TurnOrder'
+
+    assert dicedb.query.get_turn_order(session, 'a_key') == None
+
+
+def test_rem_turn_order(session, f_storedturns):
+    key = f_storedturns[0].id
+
+    dicedb.query.rem_turn_order(session, key)
+    dicedb.query.rem_turn_order(session, key)
+    assert dicedb.query.get_turn_order(session, 'key') == None

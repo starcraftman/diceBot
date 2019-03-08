@@ -22,7 +22,7 @@ except ImportError:
 
 import dicedb
 import dicedb.schema
-from dicedb.schema import (DUser, SavedRoll, Pun)
+from dicedb.schema import (DUser, SavedRoll, Pun, StoredTurn)
 
 
 #  @pytest.yield_fixture(scope='function', autouse=True)
@@ -364,5 +364,24 @@ def f_puns(session):
     yield puns
 
     for matched in session.query(Pun):
+        session.delete(matched)
+    session.commit()
+
+
+@pytest.fixture
+def f_storedturns(session):
+    """
+    Fixture to insert some test Puns.
+    """
+    turns = (
+        StoredTurn(id='server1-chan1', text='TurnOrder'),
+        StoredTurn(id='server1-chan2', text='TurnOrder'),
+    )
+    session.add_all(turns)
+    session.commit()
+
+    yield turns
+
+    for matched in session.query(StoredTurn):
         session.delete(matched)
     session.commit()

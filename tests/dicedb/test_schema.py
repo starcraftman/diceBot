@@ -5,7 +5,7 @@ from __future__ import absolute_import, print_function
 
 import dicedb
 import dicedb.schema
-from dicedb.schema import (DUser, Pun, SavedRoll)
+from dicedb.schema import (DUser, Pun, SavedRoll, StoredTurn)
 
 
 def test_duser__eq__(f_dusers):
@@ -71,6 +71,20 @@ def test_pun__hash__(f_puns):
 
 def test_pun__lt__(f_puns):
     assert f_puns[0] < f_puns[1]
+
+
+def test_storedturn__repr__(f_storedturns):
+    turn = f_storedturns[0]
+    assert repr(turn) == "StoredTurn(id='server1-chan1', text='TurnOrder')"
+
+
+def test_storedturn__str__(f_storedturns):
+    turn = f_storedturns[0]
+    assert repr(turn) == "StoredTurn(id='server1-chan1', text='TurnOrder')"
+
+
+def test_storedturn__eq__(f_storedturns):
+    assert f_storedturns[0] == StoredTurn(id='server1-chan1', text='TurnOrder')
 
 
 def test_parse_int():

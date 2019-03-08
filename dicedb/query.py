@@ -11,7 +11,7 @@ from sqlalchemy import func
 
 import dice.exc
 import dicedb
-from dicedb.schema import (DUser, Pun, SavedRoll, DEFAULT_INIT)
+from dicedb.schema import (DUser, Pun, SavedRoll, StoredTurn, DEFAULT_INIT)
 
 
 def dump_db():  # pragma: no cover
@@ -192,3 +192,39 @@ def check_for_pun_dupe(session, text):
     Returns true if the text already contained in a Pun.
     """
     return session.query(Pun).filter(Pun.text == text).all()
+
+
+def update_turn_order(session, key, turnorder):
+    """
+    Add an existing turn order for a given server/channel combination.
+    """
+    print(key, str(turnorder))
+    try:
+        stored = session.query(StoredTurn).filter(StoredTurn.id == key).one()
+        stored.text = repr(turnorder)
+        session.add(stored)
+    except sqla_oexc.NoResultFound:
+        session.add(StoredTurn(id=key, text=repr(turnorder)))
+    session.commit()
+
+
+def get_turn_order(session, key):
+    """
+    Fetch an existing turn order for a given server/channel combination.
+    """
+    try:
+        return session.query(StoredTurn).filter(StoredTurn.id == key).one().text
+    except sqla_oexc.NoResultFound:
+        return None
+
+
+def rem_turn_order(session, key):
+    """
+    Remove the turn order from the db.
+    """
+    try:
+        stored = session.query(StoredTurn).filter(StoredTurn.id == key).one()
+        session.delete(stored)
+        session.commit()
+    except sqla_oexc.NoResultFound:
+        pass

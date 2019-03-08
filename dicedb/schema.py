@@ -19,6 +19,8 @@ LEN_DID = 30
 LEN_NAME = 100
 LEN_PUN = 600
 LEN_ROLLSTR = 200
+LEN_TURN_KEY = 60
+LEN_TURN_ORDER = 2500
 DEFAULT_INIT = 99999
 Base = sqlalchemy.ext.declarative.declarative_base()
 
@@ -115,6 +117,28 @@ class Pun(Base):
         return self.id < other.id
 
 
+class StoredTurn(Base):
+    """
+    Store a serialized TurnOrder completely into the database.
+    """
+    __tablename__ = 'turn_orders'
+
+    id = sqla.Column(sqla.String(LEN_TURN_KEY), primary_key=True)
+    text = sqla.Column(sqla.String(LEN_TURN_ORDER))
+
+    def __repr__(self):
+        keys = ['id', 'text']
+        kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
+
+        return "StoredTurn({})".format(', '.join(kwargs))
+
+    def __str__(self):
+        return repr(self)
+
+    def __eq__(self, other):
+        return isinstance(other, StoredTurn) and self.id == other.id
+
+
 def parse_int(word):
     """ Parse into int, on failure return 0 """
     try:
@@ -196,10 +220,16 @@ def main():  # pragma: no cover
 
     puns = (
         Pun(text='First pun.'),
-        Pun(name='Another pun here.'),
-        Pun(name='The last pun that is here.'),
+        Pun(text='Another pun here.'),
+        Pun(text='The last pun that is here.'),
     )
     session.add_all(puns)
+    session.commit()
+
+    turns = (
+        StoredTurn(id='server1-chan1', text="TurnOrder"),
+    )
+    session.add_all(turns)
     session.commit()
 
     def mprint(*args):
@@ -221,6 +251,11 @@ def main():  # pragma: no cover
 
     print('Puns----------')
     for pun in session.query(Pun):
+        mprint(pun)
+    session.close()
+
+    print('StoredTurns----------')
+    for pun in session.query(StoredTurn):
         mprint(pun)
     session.close()
 

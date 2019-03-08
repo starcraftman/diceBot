@@ -69,6 +69,19 @@ def parse_turn_users(parts):
     return users
 
 
+def parse_order(order_str):
+    """
+    Given a repr string representing a TurnOrder, return the object.
+
+    Return:
+        If the string is actually a parsable TurnOrder, return the object. Otherwise return None
+    """
+    if order_str and order_str.startswith('TurnOrder('):
+        return eval(order_str)
+
+    return None
+
+
 @total_ordering
 class TurnEffect(object):
     """
