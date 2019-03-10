@@ -576,23 +576,23 @@ async def test_cmd_turn_remove_not_exists(f_bot, db_cleanup):
 
 
 @pytest.mark.asyncio
-async def test_cmd_turn_set_init(session, f_bot, f_dusers):
+async def test_cmd_turn_set_init(session, f_bot, f_dusers, f_storedchars):
     try:
         msg = fixed_id_fake_msg("!turn --init 8")
 
         await action_map(msg, f_bot).execute()
-        assert dicedb.query.get_duser(session, msg.author.id).init == 8
+        assert dicedb.query.get_turn_char(session, msg.author.id, msg.author.id).init == 8
     finally:
         await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
 
 @pytest.mark.asyncio
-async def test_cmd_turn_set_character(session, f_bot, f_dusers):
+async def test_cmd_turn_set_name(session, f_bot, f_dusers, f_storedchars):
     try:
         msg = fixed_id_fake_msg("!turn --name Jack")
 
         await action_map(msg, f_bot).execute()
-        assert dicedb.query.get_duser(session, msg.author.id).character == 'Jack'
+        assert dicedb.query.get_turn_char(session, msg.author.id, msg.author.id).name == 'Jack'
     finally:
         await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
@@ -608,7 +608,7 @@ async def test_cmd_turn_update_user(f_bot, f_dusers):
         await action_map(msg2, f_bot).execute()
         await action_map(msg3, f_bot).execute()
 
-        assert 'Chris   | +7   | 1.00' in str(f_bot.send_message.call_args).replace("\\n", "\n")
+        assert 'Chris | +7   | 1.00`' in str(f_bot.send_message.call_args).replace("\\n", "\n")
     finally:
         await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 

@@ -41,24 +41,6 @@ def test_ensure_duser_not_exists(session, f_dusers):
     assert returned.id == member.id
 
 
-def test_update_duser_character(session, f_dusers):
-    member = Member('Chris', None, id='1')
-    assert f_dusers[0].character != 'Chris'
-    dicedb.query.update_duser_character(session, member, 'Chris')
-    assert f_dusers[0].character == 'Chris'
-
-
-def test_update_duser_init(session, f_dusers):
-    member = Member('Chris', None, id='1')
-    assert f_dusers[0].init == 7
-    dicedb.query.update_duser_init(session, member, 8)
-    assert f_dusers[0].init == 8
-
-
-def test_generate_initial_turn_users(session, f_dusers):
-    assert dicedb.query.generate_inital_turn_users(session) == ['Wizard/7', 'Fighter/2', 'Rogue/3']
-
-
 def test_find_saved_roll(session, f_saved_rolls):
     roll = f_saved_rolls[0]
 
@@ -142,3 +124,7 @@ def test_rem_turn_order(session, f_storedturns):
     dicedb.query.rem_turn_order(session, key)
     dicedb.query.rem_turn_order(session, key)
     assert dicedb.query.get_turn_order(session, 'key') is None
+
+
+def test_generate_initial_turn_users(session, f_dusers, f_storedchars):
+    assert dicedb.query.generate_inital_turn_users(session, 'turn') == ['Wizard/7', 'Fighter/2', 'Rogue/3']

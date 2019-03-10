@@ -22,7 +22,7 @@ except ImportError:
 
 import dicedb
 import dicedb.schema
-from dicedb.schema import (DUser, SavedRoll, Pun, StoredTurn)
+from dicedb.schema import (DUser, SavedRoll, Pun, TurnChar, TurnOrder)
 
 
 #  @pytest.yield_fixture(scope='function', autouse=True)
@@ -321,9 +321,9 @@ def f_dusers(session):
     Fixture to insert some test DUsers.
     """
     dusers = (
-        DUser(id='1', display_name='User1', character='Wizard', init=7),
-        DUser(id='2', display_name='User2', character='Fighter', init=2),
-        DUser(id='3', display_name='User3', character='Rogue', init=3),
+        DUser(id='1', display_name='User1'),
+        DUser(id='2', display_name='User2'),
+        DUser(id='3', display_name='User3'),
     )
     try:
         session.add_all(dusers)
@@ -388,14 +388,34 @@ def f_storedturns(session):
     Fixture to insert some test Puns.
     """
     turns = (
-        StoredTurn(id='server1-chan1', text='TurnOrder'),
-        StoredTurn(id='server1-chan2', text='TurnOrder'),
+        TurnOrder(id='server1-chan1', text='TurnOrder'),
+        TurnOrder(id='server1-chan2', text='TurnOrder'),
     )
     session.add_all(turns)
     session.commit()
 
     yield turns
 
-    for matched in session.query(StoredTurn):
+    for matched in session.query(TurnOrder):
+        session.delete(matched)
+    session.commit()
+
+
+@pytest.fixture
+def f_storedchars(session):
+    """
+    Fixture to insert some test Puns.
+    """
+    chars = (
+        TurnChar(user_key='1', turn_key='turn', name='Wizard', init=7),
+        TurnChar(user_key='2', turn_key='turn', name='Fighter', init=2),
+        TurnChar(user_key='3', turn_key='turn', name='Rogue', init=3),
+    )
+    session.add_all(chars)
+    session.commit()
+
+    yield chars
+
+    for matched in session.query(TurnChar):
         session.delete(matched)
     session.commit()

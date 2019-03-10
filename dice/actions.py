@@ -834,7 +834,7 @@ class Turn(Action):
         else:
             order = dice.turn.TurnOrder()
             init_users = dice.turn.parse_turn_users(
-                dicedb.query.generate_inital_turn_users(session))
+                dicedb.query.generate_inital_turn_users(session, self.chan_key()))
             order.add_all(init_users + users)
 
         dicedb.query.update_turn_order(session, self.chan_key(), order)
@@ -852,7 +852,8 @@ class Turn(Action):
         """
         Update a user's permanent starting init.
         """
-        dicedb.query.update_duser_init(session, self.msg.author, self.args.init)
+        dicedb.query.update_turn_char(session, self.msg.author.id,
+                                      self.chan_key(), init=self.args.init)
         return 'Updated **init** for {} to: {}'.format(self.msg.author.name, self.args.init)
 
     def next(self, session, order):
@@ -900,7 +901,8 @@ class Turn(Action):
         Update a user's character name for turn order.
         """
         name_str = ' '.join(self.args.name)
-        dicedb.query.update_duser_character(session, self.msg.author, name_str)
+        dicedb.query.update_turn_char(session, self.msg.author.id,
+                                      self.chan_key(), name=name_str)
         return 'Updated **name** for {} to: {}'.format(self.msg.author.name, name_str)
 
     def update(self, _, order):

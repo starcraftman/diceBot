@@ -11,7 +11,7 @@ from sqlalchemy import func
 
 import dice.exc
 import dicedb
-from dicedb.schema import (DUser, Pun, SavedRoll, StoredTurn, DEFAULT_INIT)
+from dicedb.schema import (DUser, Pun, SavedRoll, TurnChar, TurnOrder)
 
 
 def dump_db():  # pragma: no cover
@@ -59,40 +59,11 @@ def add_duser(session, member):
     """
     Add a discord user to the database.
     """
-    new_duser = DUser(id=member.id, display_name=member.display_name,
-                      character=member.display_name)
+    new_duser = DUser(id=member.id, display_name=member.display_name)
     session.add(new_duser)
     session.commit()
 
     return new_duser
-
-
-def update_duser_character(session, member, new_character):
-    """
-    Update a users turn order character.
-    """
-    duser = get_duser(session, member.id)
-    duser.character = new_character
-    session.add(duser)
-    session.commit()
-
-
-def update_duser_init(session, member, new_init):
-    """
-    Update a users turn order initiative.
-    """
-    duser = get_duser(session, member.id)
-    duser.init = new_init
-    session.add(duser)
-    session.commit()
-
-
-def generate_inital_turn_users(session):
-    """
-    Find all potential turn order users.
-    """
-    dusers = session.query(DUser).filter(DUser.init != DEFAULT_INIT).all()
-    return ['{}/{}'.format(duser.character, duser.init) for duser in dusers]
 
 
 def find_saved_roll(session, user_id, name):
@@ -199,11 +170,11 @@ def update_turn_order(session, key, turnorder):
     Add an existing turn order for a given server/channel combination.
     """
     try:
-        stored = session.query(StoredTurn).filter(StoredTurn.id == key).one()
+        stored = session.query(TurnOrder).filter(TurnOrder.id == key).one()
         stored.text = repr(turnorder)
         session.add(stored)
     except sqla_oexc.NoResultFound:
-        session.add(StoredTurn(id=key, text=repr(turnorder)))
+        session.add(TurnOrder(id=key, text=repr(turnorder)))
     session.commit()
 
 
@@ -212,7 +183,7 @@ def get_turn_order(session, key):
     Fetch an existing turn order for a given server/channel combination.
     """
     try:
-        return session.query(StoredTurn).filter(StoredTurn.id == key).one().text
+        return session.query(TurnOrder).filter(TurnOrder.id == key).one().text
     except sqla_oexc.NoResultFound:
         return None
 
@@ -222,8 +193,51 @@ def rem_turn_order(session, key):
     Remove the turn order from the db.
     """
     try:
-        stored = session.query(StoredTurn).filter(StoredTurn.id == key).one()
+        stored = session.query(TurnOrder).filter(TurnOrder.id == key).one()
         session.delete(stored)
         session.commit()
     except sqla_oexc.NoResultFound:
         pass
+
+
+def get_turn_char(session, user_key, turn_key):
+    """
+    Fetch the character identified by the combination user_key & turn_key.
+    """
+    try:
+        return session.query(TurnChar).filter(TurnChar.user_key == user_key and
+                                              TurnChar.turn_order_key == turn_key).one()
+    except sqla_oexc.NoResultFound:
+        return None
+
+
+def update_turn_char(session, user_key, turn_key, *, name=None, init=None):
+    """
+    Given user and turn ids, set a character and/or init value.
+    """
+    try:
+        char = session.query(TurnChar).filter(TurnChar.user_key == user_key and
+                                              TurnChar.turn_key == turn_key).one()
+        if name:
+            char.name = name
+        if init:
+            char.init = init
+
+    except sqla_oexc.NoResultFound:
+        if not name:
+            name = ''
+        if not init:
+            init = ''
+        char = TurnChar(user_key=user_key, turn_key=turn_key, name=name, init=init)
+
+    session.add(char)
+    session.commit()
+
+
+def generate_inital_turn_users(session, turn_key):
+    """
+    Find all potential turn order users for that turn_key.
+    """
+    chars = session.query(TurnChar).filter(TurnChar.turn_key == turn_key and
+                                           TurnChar.init != '' and TurnChar.name != '').all()
+    return ['{}/{}'.format(char.name, char.init) for char in chars]

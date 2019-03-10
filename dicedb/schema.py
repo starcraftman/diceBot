@@ -21,7 +21,6 @@ LEN_PUN = 600
 LEN_ROLLSTR = 200
 LEN_TURN_KEY = 60
 LEN_TURN_ORDER = 2500
-DEFAULT_INIT = 99999
 Base = sqlalchemy.ext.declarative.declarative_base()
 
 
@@ -34,11 +33,9 @@ class DUser(Base):
 
     id = sqla.Column(sqla.String(LEN_DID), primary_key=True)  # Discord id
     display_name = sqla.Column(sqla.String(LEN_NAME))
-    character = sqla.Column(sqla.String(LEN_NAME), default='')
-    init = sqla.Column(sqla.Integer, default=DEFAULT_INIT)
 
     def __repr__(self):
-        keys = ['id', 'display_name', 'character', 'init']
+        keys = ['id', 'display_name']
         kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
 
         return "DUser({})".format(', '.join(kwargs))
@@ -117,26 +114,50 @@ class Pun(Base):
         return self.id < other.id
 
 
-class StoredTurn(Base):
+class TurnChar(Base):
+    """
+    """
+    __tablename__ = 'turn_chars'
+
+    user_key = sqla.Column(sqla.String(LEN_DID), sqla.ForeignKey('discord_users.id'),
+                           primary_key=True)
+    turn_key = sqla.Column(sqla.String(LEN_TURN_KEY), primary_key=True)
+    name = sqla.Column(sqla.String(100))
+    init = sqla.Column(sqla.Integer)
+
+    def __repr__(self):
+        keys = ['user_key', 'turn_key', 'name', 'init']
+        kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
+
+        return "TurnChar({})".format(', '.join(kwargs))
+
+    def __str__(self):
+        return repr(self)
+
+    def __eq__(self, other):
+        return isinstance(other, TurnChar) and self.text == other.text
+
+
+class TurnOrder(Base):
     """
     Store a serialized TurnOrder completely into the database.
     """
     __tablename__ = 'turn_orders'
 
     id = sqla.Column(sqla.String(LEN_TURN_KEY), primary_key=True)
-    text = sqla.Column(sqla.String(LEN_TURN_ORDER))
+    text = sqla.Column(sqla.String(LEN_TURN_ORDER), default='')
 
     def __repr__(self):
         keys = ['id', 'text']
         kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
 
-        return "StoredTurn({})".format(', '.join(kwargs))
+        return "TurnOrder({})".format(', '.join(kwargs))
 
     def __str__(self):
         return repr(self)
 
     def __eq__(self, other):
-        return isinstance(other, StoredTurn) and self.id == other.id
+        return isinstance(other, TurnOrder) and self.id == other.id
 
 
 def parse_int(word):
@@ -159,7 +180,7 @@ def empty_tables(session):
     """
     Drop all tables.
     """
-    classes = [StoredTurn, Pun, SavedRoll, DUser]
+    classes = [TurnChar, TurnOrder, Pun, SavedRoll, DUser]
 
     for cls in classes:
         for matched in session.query(cls):
@@ -227,7 +248,13 @@ def main():  # pragma: no cover
     session.commit()
 
     turns = (
-        StoredTurn(id='server1-chan1', text="TurnOrder"),
+        TurnOrder(id='server1-chan1', text="TurnOrder"),
+    )
+    session.add_all(turns)
+    session.commit()
+
+    turns = (
+        TurnChar(user_key=dusers[0].id, turn_key=turns[0].id, name='user', init=7),
     )
     session.add_all(turns)
     session.commit()
@@ -254,8 +281,13 @@ def main():  # pragma: no cover
         mprint(pun)
     session.close()
 
-    print('StoredTurns----------')
-    for pun in session.query(StoredTurn):
+    print('TurnOrders----------')
+    for pun in session.query(TurnOrder):
+        mprint(pun)
+    session.close()
+
+    print('TurnChars----------')
+    for pun in session.query(TurnChar):
         mprint(pun)
     session.close()
 

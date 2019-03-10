@@ -5,7 +5,7 @@ from __future__ import absolute_import, print_function
 
 import dicedb
 import dicedb.schema
-from dicedb.schema import (DUser, Pun, SavedRoll, StoredTurn)
+from dicedb.schema import (DUser, Pun, SavedRoll, TurnOrder)
 
 
 def test_duser__eq__(f_dusers):
@@ -16,15 +16,15 @@ def test_duser__eq__(f_dusers):
 
 def test_duser__repr__(f_dusers):
     duser = f_dusers[0]
-    assert repr(duser) == "DUser(id='{}', display_name='{}', character='{}', init={})".format(
-        duser.id, duser.display_name, duser.character, duser.init)
+    assert repr(duser) == "DUser(id='{}', display_name='{}')".format(
+        duser.id, duser.display_name)
     assert duser == eval(repr(duser))
 
 
 def test_duser__str__(f_dusers):
     duser = f_dusers[0]
-    assert str(duser) == "DUser(id='{}', display_name='{}', character='{}', init={})".format(
-        duser.id, duser.display_name, duser.character, duser.init)
+    assert str(duser) == "DUser(id='{}', display_name='{}')".format(
+        duser.id, duser.display_name)
 
 
 def test_duser_mention(f_dusers):
@@ -75,16 +75,16 @@ def test_pun__lt__(f_puns):
 
 def test_storedturn__repr__(f_storedturns):
     turn = f_storedturns[0]
-    assert repr(turn) == "StoredTurn(id='server1-chan1', text='TurnOrder')"
+    assert repr(turn) == "TurnOrder(id='server1-chan1', text='TurnOrder')"
 
 
 def test_storedturn__str__(f_storedturns):
     turn = f_storedturns[0]
-    assert repr(turn) == "StoredTurn(id='server1-chan1', text='TurnOrder')"
+    assert repr(turn) == "TurnOrder(id='server1-chan1', text='TurnOrder')"
 
 
 def test_storedturn__eq__(f_storedturns):
-    assert f_storedturns[0] == StoredTurn(id='server1-chan1', text='TurnOrder')
+    assert f_storedturns[0] == TurnOrder(id='server1-chan1', text='TurnOrder')
 
 
 def test_parse_int():
