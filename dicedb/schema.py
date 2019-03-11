@@ -19,6 +19,9 @@ LEN_DID = 30
 LEN_NAME = 100
 LEN_PUN = 600
 LEN_ROLLSTR = 200
+LEN_SONG_NAME = 100
+LEN_SONG_URL = 100
+LEN_SONG_TAG = 100
 LEN_TURN_KEY = 60
 LEN_TURN_ORDER = 2500
 Base = sqlalchemy.ext.declarative.declarative_base()
@@ -132,7 +135,7 @@ class TurnChar(Base):
         return "TurnChar({})".format(', '.join(kwargs))
 
     def __str__(self):
-        return repr(self)
+        return '{}/{}'.format(self.name, self.init)
 
     def __eq__(self, other):
         return isinstance(other, TurnChar) and self.text == other.text
@@ -158,6 +161,56 @@ class TurnOrder(Base):
 
     def __eq__(self, other):
         return isinstance(other, TurnOrder) and self.id == other.id
+
+
+class Song(Base):
+    """
+    A song to play for users of the bot.
+    """
+    __tablename__ = 'songs'
+
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    url = sqla.Column(sqla.String(LEN_SONG_URL), nullable=False)
+    name = sqla.Column(sqla.String(LEN_SONG_NAME), nullable=False, unique=True)
+
+    def __repr__(self):
+        keys = ['id', 'name', 'url', 'tags']
+        kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
+
+        return "Song({})".format(', '.join(kwargs))
+
+    def __str__(self):
+        return repr(self)
+
+    def __eq__(self, other):
+        return isinstance(other, Song) and self.id == other.id
+
+    @property
+    def is_youtube(self):
+        dice.util.IS_YT.match(self.url)
+
+
+class SongTag(Base):
+    """
+    A tag for a song.
+    """
+    __tablename__ = 'song_tags'
+
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    song_key = sqla.Column(sqla.Integer, sqla.ForeignKey('songs.id'))
+    name = sqla.Column(sqla.String(LEN_SONG_TAG), nullable=False)
+
+    def __repr__(self):
+        keys = ['id', 'name', 'song_key']
+        kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
+
+        return "SongTag({})".format(', '.join(kwargs))
+
+    def __str__(self):
+        return repr(self)
+
+    def __eq__(self, other):
+        return isinstance(other, SongTag) and self.id == other.id
 
 
 def parse_int(word):
@@ -201,6 +254,10 @@ DUser.rolls = sqla_orm.relationship('SavedRoll',
                                     lazy='select')
 SavedRoll.user = sqla_orm.relationship('DUser', uselist=False, back_populates='rolls',
                                        lazy='select')
+
+Song.tags = sqla_orm.relationship('SongTag', back_populates='song', lazy='select')
+SongTag.song = sqla_orm.relationship('Song', back_populates='tags', lazy='select')
+
 
 if dicedb.TEST_DB:
     recreate_tables()
@@ -257,6 +314,26 @@ def main():  # pragma: no cover
     session.add_all(turns)
     session.commit()
 
+    songs = (
+        Song(name='song1', url='/music/song1'),
+        Song(name='song2', url='/music/song2'),
+        Song(name='song3', url='youtube.com/song3'),
+    )
+    session.add_all(songs)
+    session.commit()
+
+    song_tags = (
+        SongTag(song_key=songs[0].id, tag='quiet'),
+        SongTag(song_key=songs[0].id, tag='classical'),
+        SongTag(song_key=songs[0].id, tag='violin'),
+        SongTag(song_key=songs[1].id, tag='dramatic'),
+        SongTag(song_key=songs[1].id, tag='battle'),
+        SongTag(song_key=songs[2].id, tag='looking'),
+        SongTag(song_key=songs[2].id, tag='creepy'),
+    )
+    session.add_all(song_tags)
+    session.commit()
+
     def mprint(*args):
         """ Padded print. """
         args = [str(x) for x in args]
@@ -265,30 +342,39 @@ def main():  # pragma: no cover
     pad = ' ' * 3
 
     print('DiscordUsers----------')
-    for user in session.query(DUser):
-        mprint(user)
-        mprint(pad, user.rolls)
+    for obj in session.query(DUser):
+        mprint(obj)
+        mprint(pad, obj.rolls)
 
     print('SavedRolls----------')
-    for roll in session.query(SavedRoll):
-        mprint(roll)
-        mprint(pad, roll.user)
+    for obj in session.query(SavedRoll):
+        mprint(obj)
+        mprint(pad, obj.user)
 
     print('Puns----------')
-    for pun in session.query(Pun):
-        mprint(pun)
+    for obj in session.query(Pun):
+        mprint(obj)
     session.close()
 
     print('TurnOrders----------')
-    for pun in session.query(TurnOrder):
-        mprint(pun)
+    for obj in session.query(TurnOrder):
+        mprint(obj)
     session.close()
 
     print('TurnChars----------')
-    for pun in session.query(TurnChar):
-        mprint(pun)
+    for obj in session.query(TurnChar):
+        mprint(obj)
     session.close()
 
+    print('Songs----------')
+    for obj in session.query(Song):
+        mprint(obj)
+    session.close()
+
+    print('SongTags----------')
+    for obj in session.query(SongTag):
+        mprint(obj)
+    session.close()
     Base.metadata.drop_all(engine)
 
 

@@ -11,7 +11,7 @@ from sqlalchemy import func
 
 import dice.exc
 import dicedb
-from dicedb.schema import (DUser, Pun, SavedRoll, TurnChar, TurnOrder)
+from dicedb.schema import (DUser, Pun, SavedRoll, TurnChar, TurnOrder, Song, SongTag)
 
 
 def dump_db():  # pragma: no cover
@@ -241,3 +241,71 @@ def generate_inital_turn_users(session, turn_key):
     chars = session.query(TurnChar).filter(TurnChar.turn_key == turn_key and
                                            TurnChar.init != '' and TurnChar.name != '').all()
     return ['{}/{}'.format(char.name, char.init) for char in chars]
+
+
+def add_song_with_tags(session, name, url, tags=None):
+    """
+    Add a song with many possible tags. If the song exists, delete it and overwrite.
+    """
+    try:
+        existing = session.query(Song).filter(Song.name == name).one()
+        remove_song_with_tags(session, existing.name)
+    except sqla_oexc.NoResultFound:
+        pass
+
+    song = Song(name=name, url=url)
+    session.add(song)
+    session.commit()
+
+    song_tags = []
+    for tag in tags:
+        song_tags += [SongTag(name=tag, song_key=song.id)]
+    session.add_all(song_tags)
+    session.commit()
+
+    return song
+
+
+def remove_song_with_tags(session, name):
+    """
+    Remove a song and any tags.
+    """
+    song = session.query(Song).filter(Song.name.ilike(name)).one()
+    for tag in song.tags:
+        session.delete(tag)
+    session.delete(song)
+    session.commit()
+
+
+def search_songs_by_name(session, name, *, tags=False):
+    """
+    Get the possible song by name.
+    """
+    cls = Song
+    if tags:
+        cls = SongTag
+
+    return session.query(cls).filter(cls.name.ilike('%{}%'.format(name))).all()
+
+
+def get_songs_with_tag(session, name):
+    """
+    Get the possible song by name.
+    """
+    subq = session.query(SongTag.song_key).filter(SongTag.name == name).subquery()
+    return session.query(Song).filter(Song.id.in_(subq)).all()
+
+
+def get_song_choices(session, *, tags=False):
+    """
+    Get all possible choices for song names or tag names.
+
+    args:
+        session: session to the database.
+        tags: True if you want tag choices, otherwise returns song names.
+    """
+    cls = Song
+    if tags:
+        cls = SongTag
+
+    return session.query(cls).order_by(cls.name).all()

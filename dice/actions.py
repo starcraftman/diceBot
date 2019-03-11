@@ -41,9 +41,7 @@ PF_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3A6zo0hx_wle8&q={}
 D5_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3A1xq0zf2wtvq&q={}'
 STAR_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3Awyjvzq2cjz8&q={}'
 PONI_URL = "https://derpibooru.org/search.json?q="
-SONG_DB_FILE = os.path.abspath(os.path.join("data", "songs.yml"))
-SONG_TAGS_FILE = os.path.abspath(os.path.join("data", "song_tags.yml"))
-SONG_FMT = """        __Song {}__: {name}
+SONG_FMT = """        __Song {cnt}__: {name}
         __URL__: <{url}>
         __Tags__: {tags}
 
@@ -205,73 +203,24 @@ class Songs(Action):
     """
     Songs command, manages an internal database of songs to play.
     """
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.song_db = {}
-        self.tag_db = {}
-
-        self.load()
-
-    def load(self):
-        """
-        Load the song dbs from files.
-        """
-        self.song_db = dice.util.load_yaml(SONG_DB_FILE)
-        self.tag_db = dice.util.load_yaml(SONG_TAGS_FILE)
-
-    def save(self):
-        """
-        Save the song dbs to files.
-        """
-        dice.util.write_yaml(SONG_DB_FILE, self.song_db)
-        dice.util.write_yaml(SONG_TAGS_FILE, self.tag_db)
-
-    def add(self, key, url, tags):
+    def add(self, name, url, tags):
         """
         Add a song entry to the database and tags files.
         """
-        if key in self.song_db:
-            self.remove(key)
+        return dicedb.query.add_song_with_tags(self.session, name, url, tags)
 
-        self.song_db[key] = {
-            'name': key,
-            'url': url,
-            'tags': tags,
-        }
-        for tag in tags:
-            try:
-                self.tag_db[tag] = sorted(self.tag_db[tag] + [key])
-            except KeyError:
-                self.tag_db[tag] = [key]
-
-        self.save()
-
-    def remove(self, key):
+    def remove(self, name):
         """
         Remove an entry based on its key in the songs file.
         """
-        for tag in self.song_db[key]['tags']:
-            try:
-                self.tag_db[tag].remove(key)
-            except (KeyError, ValueError):
-                pass
-
-            if not self.tag_db[tag]:
-                del self.tag_db[tag]
-
-        try:
-            del self.song_db[key]
-        except KeyError:
-            pass
-
-        self.save()
+        dicedb.query.remove_song_with_tags(self.session, name)
 
     async def list(self):
         """
         List all entries in the song db. Implements a paging like interface.
         """
         cnt, page = 1, 1
-        entries = sorted(list(self.song_db.values()), key=lambda x: x['name'])
+        entries = dicedb.query.get_song_choices(self.session)
 
         while entries:
             try:
@@ -301,10 +250,10 @@ class Songs(Action):
                         raise ValueError
                     selected = entries[choice]
 
-                    self.bot.mplayer.initialize_settings(self.msg, validate_videos([selected['url']]))
+                    self.bot.mplayer.initialize_settings(self.msg, validate_videos([selected.url]))
                     asyncio.ensure_future(asyncio.gather(
                         self.bot.mplayer.start(),
-                        self.bot.send_message(self.msg.channel, '**Song Started**\n\n' + SONG_FMT.format(1, **selected)),
+                        self.bot.send_message(self.msg.channel, '**Song Started**\n\n' + format_a_song(1, selected)),
                     ))
                     break
             except ValueError:
@@ -321,7 +270,7 @@ class Songs(Action):
         Using paging interface similar to list, allow management of song db.
         """
         cnt = 1
-        entries = sorted(list(self.song_db.values()), key=lambda x: x['name'])
+        entries = dicedb.query.get_song_choices(self.session)
         num_entries = len(entries[:LIMIT_SONGS])
 
         while entries:
@@ -350,7 +299,7 @@ class Songs(Action):
                     if choice < 0 or choice >= LIMIT_SONGS:
                         raise ValueError
 
-                    self.remove(entries[choice]['name'])
+                    dicedb.query.remove_song_with_tags(self.session, entries[choice].name)
                     del entries[choice]
             except (KeyError, ValueError):
                 await self.bot.send_message(
@@ -361,8 +310,11 @@ class Songs(Action):
                 user_select = None
                 asyncio.ensure_future(self.bot.delete_messages(messages))
 
-    async def select_song(self, songs):
-        all_songs = sorted(songs, key=lambda x: x['name'])
+        if not entries:
+            await self.bot.send_message(self.msg.channel, "Management terminated.")
+
+    async def select_song(self, tagged_songs):
+        all_songs = tagged_songs
         cnt = 1
 
         while all_songs:
@@ -398,11 +350,12 @@ class Songs(Action):
                     if choice < 0 or choice >= num_entries:
                         raise ValueError
                     selected = page_songs[choice]
+                    print(selected)
 
-                    self.bot.mplayer.initialize_settings(self.msg, validate_videos([selected['url']]))
+                    self.bot.mplayer.initialize_settings(self.msg, validate_videos(selected.url))
                     asyncio.ensure_future(asyncio.gather(
                         self.bot.mplayer.start(),
-                        self.bot.send_message(self.msg.channel, '**Song Started**\n\n' + SONG_FMT.format(1, **selected)),
+                        self.bot.send_message(self.msg.channel, '**Song Started**\n\n' + format_a_song(1, selected)),
                     ))
                     break
             except ValueError:
@@ -418,7 +371,7 @@ class Songs(Action):
         """
         Use the Songs db to lookup dynamically based on tags.
         """
-        all_tags = sorted(list(self.tag_db.keys()))
+        all_tags = dicedb.query.get_song_choices(self.session, tags=True)
         cnt = 1
 
         while all_tags:
@@ -427,7 +380,8 @@ class Songs(Action):
                 num_entries = len(page_tags)
                 tag_msg = 'Select one of the following tags by number to explore:\n\n'
                 for ind, tag in enumerate(page_tags, start=cnt):
-                    tag_msg += '        **{}**) {} ({} songs)\n'.format(ind, tag, len(self.tag_db[tag]))
+                    tagged_songs = dicedb.query.get_songs_with_tag(self.session, tag.name)
+                    tag_msg += '        **{}**) {} ({} songs)\n'.format(ind, tag.name, len(tagged_songs))
                 tag_msg = tag_msg.rstrip()
                 tag_msg += SONG_FOOTER
                 messages = [await self.bot.send_message(self.msg.channel, tag_msg)]
@@ -451,7 +405,7 @@ class Songs(Action):
                     if choice < 0 or choice >= num_entries:
                         raise ValueError
 
-                    songs = [self.song_db[x] for x in self.tag_db[page_tags[choice]]]
+                    songs = dicedb.query.get_songs_with_tag(self.session, page_tags[choice].name)
                     asyncio.ensure_future(self.select_song(songs))
                     break
             except ValueError:
@@ -473,11 +427,9 @@ class Songs(Action):
         cnt = 1
 
         l_term = ' '.join(term).lower().strip()
-        for key in self.song_db:
-            if l_term in key:
-                song = self.song_db[key]
-                reply += SONG_FMT.format(cnt, **song)
-                cnt += 1
+        for song in dicedb.query.search_songs_by_name(dicedb.Session(), l_term):
+            reply += format_a_song(cnt, song)
+            cnt += 1
 
         await self.bot.send_message(self.msg.channel, reply)
 
@@ -489,14 +441,14 @@ class Songs(Action):
         cnt = 1
 
         l_term = ' '.join(term).lower().strip()
-        for key in self.tag_db:
-            if l_term in key:
-                reply += '__**{}**__\n'.format(key)
-                for name_key in self.tag_db[key]:
-                    ent = self.song_db[name_key]
-                    reply += SONG_FMT.format(cnt, **ent)
-                    cnt += 1
-                reply += "\n"
+        session = dicedb.Session()
+        tags = dicedb.query.search_songs_by_name(session, l_term, tags=True)
+        for tag in tags:
+            reply += '__**{}**__\n'.format(tag.name)
+            for song in dicedb.query.get_songs_with_tag(session, tag.name):
+                reply += format_a_song(cnt, song)
+                cnt += 1
+            reply += "\n"
 
         await self.bot.send_message(self.msg.channel, reply)
 
@@ -506,10 +458,10 @@ class Songs(Action):
             msg = msg.replace(self.bot.prefix + 'songs -a', '')
             parts = re.split(r'\s*,\s*', msg)
             parts = [part.strip() for part in parts]
-            key, url, tags = parts[0].lower().strip(), parts[1], [x.lower().strip() for x in parts[2:]]
-            self.add(key, url, tags)
+            name, url, tags = parts[0].lower().strip(), parts[1], [x.lower().strip() for x in parts[2:]]
+            song = self.add(name, url, tags)
 
-            reply = '__Song Added__\n\n' + SONG_FMT.format(1, **self.song_db[key])
+            reply = '__Song Added__\n\n' + format_a_song(1, song)
             await self.bot.send_message(self.msg.channel, reply)
         if self.args.list:
             await self.list()
@@ -1107,17 +1059,18 @@ def validate_videos(list_vids):
     Raises:
         InvalidCommandArgs - A video link or name failed validation.
     """
-    song_db = dice.util.load_yaml(SONG_DB_FILE)
     new_vids = []
 
     for vid in list_vids:
         if vid[0] == '<' and vid[-1] == '>':
             vid = vid[1:-1]
 
-        if vid in song_db:
-            new_vids.append(song_db[vid]['url'])
+        #  matches = dicedb.query.search_songs_by_name(dicedb.Session(), vid)
+        #  print(matches)
+        #  if matches and len(matches) == 1:
+            #  new_vids.append(matches[0].url)
 
-        elif dice.util.is_valid_yt(vid):
+        if dice.util.is_valid_yt(vid):
             new_vids.append(vid)
 
         elif dice.util.is_valid_url(vid):
@@ -1129,6 +1082,7 @@ def validate_videos(list_vids):
                 raise dice.exc.InvalidCommandArgs("Cannot find local video: " + vid)
             new_vids.append(globbed[0])
 
+    print(new_vids)
     return new_vids
 
 
@@ -1152,12 +1106,24 @@ def format_song_list(header, entries, footer, *, cnt=1):
     """
     msg = header
     for ent in entries:
-        msg += SONG_FMT.format(cnt, **ent)
+        msg += format_a_song(cnt, ent)
         cnt += 1
     msg = msg.rstrip()
     msg += footer
 
     return msg
+
+
+def format_a_song(cnt, song):
+    """
+    Helper for format_song_list.
+    """
+    return SONG_FMT.format(**{
+        'cnt': cnt,
+        'name': song.name,
+        'tags': [x.name for x in song.tags],
+        'url': song.url,
+    })
 
 
 def get_results_in_background(full_url, num):

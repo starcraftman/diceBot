@@ -128,3 +128,6 @@ def test_rem_turn_order(session, f_storedturns):
 
 def test_generate_initial_turn_users(session, f_dusers, f_storedchars):
     assert dicedb.query.generate_inital_turn_users(session, 'turn') == ['Wizard/7', 'Fighter/2', 'Rogue/3']
+
+
+#  def test_getj
