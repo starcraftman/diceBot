@@ -5,7 +5,8 @@ import os
 import sys
 
 import dicedb
-from dicedb.schema import DUser, Pun, SavedRoll, TurnChar, TurnOrder, Song, SongTag, DB_CLASSES
+from dicedb.schema import (DUser, Pun, SavedRoll, TurnChar, TurnOrder,  # noqa: F401
+                           Song, SongTag, DB_CLASSES)
 
 CUR_DIR = os.path.abspath(os.path.dirname(__file__))
 if os.path.dirname(__file__) == '':

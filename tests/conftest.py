@@ -22,7 +22,7 @@ except ImportError:
 
 import dicedb
 import dicedb.schema
-from dicedb.schema import (DUser, SavedRoll, Pun, TurnChar, TurnOrder)
+from dicedb.schema import (DUser, SavedRoll, Pun, TurnChar, TurnOrder, Song, SongTag)
 
 
 #  @pytest.yield_fixture(scope='function', autouse=True)
@@ -417,5 +417,34 @@ def f_storedchars(session):
     yield chars
 
     for matched in session.query(TurnChar):
+        session.delete(matched)
+    session.commit()
+
+
+@pytest.fixture
+def f_songs(session):
+    """
+    Fixture to insert some test Songs and SongTags.
+    """
+    songs = (
+        Song(id=1, name='song1', url='www.youtube.com/song1'),
+        Song(id=2, name='song2', url='www.youtube.com/song2'),
+        Song(id=3, name='song3', url='song3'),
+    )
+    tags = (
+        SongTag(id=1, song_key=1, name='exciting'),
+        SongTag(id=2, song_key=1, name='action'),
+        SongTag(id=3, song_key=2, name='sneaking'),
+        SongTag(id=4, song_key=3, name='slow'),
+        SongTag(id=5, song_key=3, name='sentimental'),
+    )
+    session.add_all(songs + tags)
+    session.commit()
+
+    yield (songs)
+
+    for matched in session.query(Song):
+        session.delete(matched)
+    for matched in session.query(SongTag):
         session.delete(matched)
     session.commit()

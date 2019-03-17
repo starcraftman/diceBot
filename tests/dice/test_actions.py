@@ -788,43 +788,35 @@ def test_validate_videos_local_found():
         os.rmdir(os.path.dirname(fname))
 
 
-def test_format_song_list():
+def test_format_a_song(f_songs):
+    expect = """        __Song 1__: song1
+        __URL__: <www.youtube.com/song1>
+        __Tags__: ['exciting', 'action']
+
+"""
+    assert dice.actions.format_a_song(1, f_songs[0]) == expect
+
+
+def test_format_song_list(f_songs):
     header = 'A header\n\n'
     footer = '\n\nA footer'
-    entries = [
-        {
-            'name': 'entry1',
-            'tags': ['tag1', 'tag2'],
-            'url': 'url1',
-        },
-        {
-            'name': 'entry2',
-            'tags': ['tag2'],
-            'url': 'url1',
-        },
-        {
-            'name': 'entry3',
-            'tags': ['tag2', 'tag3'],
-            'url': 'url1',
-        },
-    ]
     expect = """A header
 
-        __Song 1__: entry1
-        __URL__: <url1>
-        __Tags__: ['tag1', 'tag2']
+        __Song 1__: song1
+        __URL__: <www.youtube.com/song1>
+        __Tags__: ['exciting', 'action']
 
-        __Song 2__: entry2
-        __URL__: <url1>
-        __Tags__: ['tag2']
+        __Song 2__: song2
+        __URL__: <www.youtube.com/song2>
+        __Tags__: ['sneaking']
 
-        __Song 3__: entry3
-        __URL__: <url1>
-        __Tags__: ['tag2', 'tag3']
+        __Song 3__: song3
+        __URL__: <song3>
+        __Tags__: ['slow', 'sentimental']
 
 A footer"""
 
-    assert dice.actions.format_song_list(header, entries, footer) == expect
+    assert dice.actions.format_song_list(header, f_songs, footer) == expect
 
 
 def test_format_pun_list(session, f_puns):

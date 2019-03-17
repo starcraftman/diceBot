@@ -807,7 +807,7 @@ class Turn(Action):
                                       self.chan_key(), init=self.args.init)
         return 'Updated **init** for {} to: {}'.format(self.msg.author.name, self.args.init)
 
-    def next(self, session, order):
+    def next(self, _, order):
         """
         Advance the turn order.
         """
@@ -847,7 +847,7 @@ class Turn(Action):
         msg = 'Removed the following users:\n'
         return msg + '\n  - ' + '\n  - '.join(users)
 
-    def name(self, session, order):
+    def name(self, session, _):
         """
         Update a user's character name for turn order.
         """
@@ -879,7 +879,7 @@ class Turn(Action):
         msg = str(order)
         if not order and (self.args.next or self.args.remove):
             raise dice.exc.InvalidCommandArgs('Please add some users first.')
-        elif not order:
+        if not order:
             msg = 'No turn order to report.'
 
         for action in ['add', 'clear', 'init', 'name', 'next_num', 'next', 'remove', 'update']:
