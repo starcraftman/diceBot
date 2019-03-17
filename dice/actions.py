@@ -314,12 +314,11 @@ class Songs(Action):
             await self.bot.send_message(self.msg.channel, "Management terminated.")
 
     async def select_song(self, tagged_songs):
-        all_songs = tagged_songs
         cnt = 1
 
-        while all_songs:
+        while tagged_songs:
             try:
-                page_songs = all_songs[:LIMIT_SONGS]
+                page_songs = tagged_songs[:LIMIT_SONGS]
                 num_entries = len(page_songs)
                 song_msg = format_song_list('Choose from the following songs...\n\n',
                                             page_songs, SONG_FOOTER, cnt=cnt)
@@ -342,7 +341,7 @@ class Songs(Action):
                     break
 
                 elif user_select.content == 'next':
-                    all_songs = all_songs[LIMIT_SONGS:]
+                    tagged_songs = tagged_songs[LIMIT_SONGS:]
                     cnt += LIMIT_SONGS
 
                 else:
@@ -352,7 +351,7 @@ class Songs(Action):
                     selected = page_songs[choice]
                     print(selected)
 
-                    self.bot.mplayer.initialize_settings(self.msg, validate_videos(selected.url))
+                    self.bot.mplayer.initialize_settings(self.msg, validate_videos([selected.url]))
                     asyncio.ensure_future(asyncio.gather(
                         self.bot.mplayer.start(),
                         self.bot.send_message(self.msg.channel, '**Song Started**\n\n' + format_a_song(1, selected)),
@@ -456,9 +455,9 @@ class Songs(Action):
         if self.args.add:
             msg = self.msg.content.replace(self.bot.prefix + 'songs --add', '')
             msg = msg.replace(self.bot.prefix + 'songs -a', '')
-            parts = re.split(r'\s*,\s*', msg)
+            parts = re.split(r'\s*,\s*', msg.lower())
             parts = [part.strip() for part in parts]
-            name, url, tags = parts[0].lower().strip(), parts[1], [x.lower().strip() for x in parts[2:]]
+            name, url, tags = parts[0], parts[1], [x for x in parts[2:]]
             song = self.add(name, url, tags)
 
             reply = '__Song Added__\n\n' + format_a_song(1, song)
@@ -1058,19 +1057,21 @@ def validate_videos(list_vids):
 
     Raises:
         InvalidCommandArgs - A video link or name failed validation.
+        ValueError - Did not pass a list of videos.
     """
-    new_vids = []
+    if not isinstance(list_vids, type([])):
+        raise ValueError("Did not pass a list of videos.")
 
+    new_vids = []
     for vid in list_vids:
         if vid[0] == '<' and vid[-1] == '>':
             vid = vid[1:-1]
 
-        #  matches = dicedb.query.search_songs_by_name(dicedb.Session(), vid)
-        #  print(matches)
-        #  if matches and len(matches) == 1:
-            #  new_vids.append(matches[0].url)
+        matches = dicedb.query.search_songs_by_name(dicedb.Session(), vid)
+        if matches and len(matches) == 1:
+            new_vids.append(matches[0].url)
 
-        if dice.util.is_valid_yt(vid):
+        elif dice.util.is_valid_yt(vid):
             new_vids.append(vid)
 
         elif dice.util.is_valid_url(vid):
@@ -1082,7 +1083,6 @@ def validate_videos(list_vids):
                 raise dice.exc.InvalidCommandArgs("Cannot find local video: " + vid)
             new_vids.append(globbed[0])
 
-    print(new_vids)
     return new_vids
 
 

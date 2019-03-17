@@ -222,8 +222,8 @@ def subs_songs(subs, prefix):
 {prefix}songs --list
 {prefix}songs -l
         List everything in the db.
-{prefix}songs --manage name/youtube_link name/local_name1
-{prefix}songs -m name/youtube_link name/local_name1
+{prefix}songs --manage
+{prefix}songs -m
         Manage the songs in the db interactively.
 {prefix}songs --play
 {prefix}songs -p

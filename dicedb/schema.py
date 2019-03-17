@@ -192,7 +192,7 @@ class Song(Base):
 
 class SongTag(Base):
     """
-    A tag for a song.
+    A tag for a song. Each song can have n tags.
     """
     __tablename__ = 'song_tags'
 
@@ -378,7 +378,7 @@ def main():  # pragma: no cover
     Base.metadata.drop_all(engine)
 
 
-DB_CLASSES = [TurnChar, TurnOrder, Pun, SavedRoll, DUser]
+DB_CLASSES = [SongTag, Song, TurnChar, TurnOrder, Pun, SavedRoll, DUser]
 
 if __name__ == "__main__":  # pragma: no cover
     main()
