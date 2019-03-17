@@ -180,9 +180,7 @@ def empty_tables(session):
     """
     Drop all tables.
     """
-    classes = [TurnChar, TurnOrder, Pun, SavedRoll, DUser]
-
-    for cls in classes:
+    for cls in DB_CLASSES:
         for matched in session.query(cls):
             session.delete(matched)
     session.commit()
@@ -293,6 +291,8 @@ def main():  # pragma: no cover
 
     Base.metadata.drop_all(engine)
 
+
+DB_CLASSES = [TurnChar, TurnOrder, Pun, SavedRoll, DUser]
 
 if __name__ == "__main__":  # pragma: no cover
     main()

@@ -5,9 +5,8 @@ import os
 import sys
 
 import dicedb
-from dicedb.schema import DUser, Pun, SavedRoll
+from dicedb.schema import DUser, Pun, SavedRoll, DB_CLASSES
 
-ALL_CLASSES = [Pun, SavedRoll, DUser]
 CUR_DIR = os.path.abspath(os.path.dirname(__file__))
 if os.path.dirname(__file__) == '':
     CUR_DIR = os.getcwd()
@@ -82,13 +81,13 @@ def main():
 
     try:
         if sys.argv[1].lower()[0] == 'b':
-            db_dump(session, ALL_CLASSES, file_template)
+            db_dump(session, DB_CLASSES, file_template)
         elif sys.argv[1].lower()[0] == 'r':
             resp = input(WARNING)
             print()
             if resp.lower()[0] == 'y':
-                ALL_CLASSES.reverse()
-                db_restore(session, ALL_CLASSES, file_template)
+                DB_CLASSES.reverse()
+                db_restore(session, DB_CLASSES, file_template)
             else:
                 print('aborting')
         else:
