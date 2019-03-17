@@ -174,13 +174,13 @@ class Song(Base):
     name = sqla.Column(sqla.String(LEN_SONG_NAME), nullable=False, unique=True)
 
     def __repr__(self):
-        keys = ['id', 'name', 'url', 'tags']
+        keys = ['id', 'name', 'url']
         kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
 
         return "Song({})".format(', '.join(kwargs))
 
     def __str__(self):
-        return repr(self)
+        return repr(self) + 'tags={}'.format(str(self.tags)) if self.tags else ''
 
     def __eq__(self, other):
         return isinstance(other, Song) and self.id == other.id
