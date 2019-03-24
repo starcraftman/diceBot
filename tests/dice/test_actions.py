@@ -451,11 +451,11 @@ async def test_cmd_turn_no_flags(f_bot, db_cleanup):
 
         expect = """__**Turn Order**__
 
-```name  | mod. | init
------ | ---- | -----
-Chris | +7   | 21.00
-Dwarf | +3   | 12.00
-Orc   | +2   | 10.00```"""
+```  name    | mod. | init
+--------- | ---- | -----
+> Chris < | +7   | 21.00
+Dwarf     | +3   | 12.00
+Orc       | +2   | 10.00```"""
         f_bot.send_message.assert_called_with(msg2.channel, expect)
     finally:
         await action_map(fake_msg('!turn --clear'), f_bot).execute()
@@ -500,7 +500,6 @@ async def test_cmd_turn_next(f_bot, db_cleanup):
 
         await action_map(msg, f_bot).execute()
         await action_map(msg2, f_bot).execute()
-        await action_map(msg2, f_bot).execute()
 
         f_bot.send_message.assert_called_with(msg2.channel, '**Next User**\nDwarf (3): 12.00')
     finally:
@@ -531,7 +530,6 @@ async def test_cmd_turn_next_with_effects(f_bot, db_cleanup):
 
         await action_map(msg, f_bot).execute()
         await action_map(msg2, f_bot).execute()
-        await action_map(msg3, f_bot).execute()
         await action_map(msg3, f_bot).execute()
 
         expect = """The following effects expired for **Chris**:
@@ -605,10 +603,11 @@ async def test_cmd_turn_update_user(f_bot, f_dusers):
         msg3 = fixed_id_fake_msg("!turn")
 
         await action_map(msg, f_bot).execute()
+        assert '| +7   | 1.00' not in str(f_bot.send_message.call_args).replace("\\n", "\n")
+
         await action_map(msg2, f_bot).execute()
         await action_map(msg3, f_bot).execute()
-
-        assert 'Chris | +7   | 1.00`' in str(f_bot.send_message.call_args).replace("\\n", "\n")
+        assert '| +7   | 1.00' in str(f_bot.send_message.call_args).replace("\\n", "\n")
     finally:
         await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 

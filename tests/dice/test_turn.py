@@ -167,7 +167,6 @@ def test_torder__str__():
     user2 = TurnUser('Orc', 2)
     user2.init = 10
     order.users = list(reversed(sorted([user, user2])))
-    order.next()
 
     expect = """__**Turn Order**__
 
@@ -185,11 +184,10 @@ def test_torder__repr__():
     user2 = TurnUser('Orc', 2)
     user2.init = 10
     order.users = list(reversed(sorted([user, user2])))
-    order.next()
 
     expect = "TurnOrder(users=[TurnUser(name='Chris', offset=7, init=27, effects=[]), "\
              "TurnUser(name='Orc', offset=2, init=10, effects=[])], "\
-             "cur_user=TurnUser(name='Chris', offset=7, init=27, effects=[]))"
+             "user_index=0)"
     assert repr(order) == expect
 
 
@@ -294,8 +292,6 @@ def test_torder_next():
     order.add(user)
     order.add(user2)
 
-    assert order.cur_user is None
-    assert order.next() == user
     assert order.cur_user == user
     assert order.next() == user2
     assert order.cur_user == user2
@@ -315,13 +311,14 @@ def test_torder_remove():
     user = TurnUser('Chris', 7, 27)
     user2 = TurnUser('Orc', 2, 10)
     user3 = TurnUser('Dwarf', 3, 12)
-    order.cur_user = user2
     order.add_all([user, user2, user3])
+    order.next()
     order.remove('Orc')
 
     assert user in order.users
     assert user2 not in order.users
-    assert order.cur_user == user
+    assert user3 in order.users
+    assert order.cur_user == user3
 
 
 def test_torder_update_user():

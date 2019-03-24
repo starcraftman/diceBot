@@ -349,7 +349,6 @@ class Songs(Action):
                     if choice < 0 or choice >= num_entries:
                         raise ValueError
                     selected = page_songs[choice]
-                    print(selected)
 
                     self.bot.mplayer.initialize_settings(self.msg, validate_videos([selected.url]))
                     asyncio.ensure_future(asyncio.gather(
@@ -807,7 +806,7 @@ class Turn(Action):
                                       self.chan_key(), init=self.args.init)
         return 'Updated **init** for {} to: {}'.format(self.msg.author.name, self.args.init)
 
-    def next(self, _, order):
+    def next(self, session, order):
         """
         Advance the turn order.
         """
@@ -819,14 +818,18 @@ class Turn(Action):
                 pad = '\n' + ' ' * 8
                 msg += pad + pad.join(effects) + '\n\n'
 
-        return msg + '**Next User**\n' + str(order.next())
+        msg += '**Next User**\n' + str(order.next())
+
+        dicedb.query.update_turn_order(session, self.chan_key(), order)
+
+        return msg
 
     def next_num(self, _, order):
         """
         Advance the turn order next_num places.
         """
         if self.args.next_num < 1:
-            raise dice.exc.InvalidCommandArgs('Can only accept numbers in [0, +8]')
+            raise dice.exc.InvalidCommandArgs('!next requires number in range [1, +∞]')
 
         text = ''
         cnt = self.args.next_num
@@ -836,13 +839,15 @@ class Turn(Action):
 
         return text.rstrip()
 
-    def remove(self, _, order):
+    def remove(self, session, order):
         """
         Remove one or more users from turn order.
         """
         users = ' '.join(self.args.remove).split(',')
         for user in users:
             order.remove(user)
+
+        dicedb.query.update_turn_order(session, self.chan_key(), order)
 
         msg = 'Removed the following users:\n'
         return msg + '\n  - ' + '\n  - '.join(users)
@@ -856,7 +861,7 @@ class Turn(Action):
                                       self.chan_key(), name=name_str)
         return 'Updated **name** for {} to: {}'.format(self.msg.author.name, name_str)
 
-    def update(self, _, order):
+    def update(self, session, order):
         """
         Update one or more character's init for this turn order.
         Usually used for some spontaneous change or DM decision.
@@ -869,6 +874,8 @@ class Turn(Action):
                 msg += '    Set __{}__ to {}\n'.format(part_name, new_init)
             except ValueError:
                 raise dice.exc.InvalidCommandArgs("See usage, incorrect arguments.")
+
+        dicedb.query.update_turn_order(session, self.chan_key(), order)
 
         return msg
 
@@ -891,9 +898,6 @@ class Turn(Action):
             except AttributeError:
                 pass
 
-        if order and getattr(self.args, 'clear', None) is not True:
-            dicedb.query.update_turn_order(self.session, self.chan_key(), order)
-
         await self.bot.send_message(self.msg.channel, msg)
 
 
@@ -912,20 +916,23 @@ class Effect(Action):
         msg = ''
         for tuser in tusers:
             for new_effect in new_effects:
-                if self.args.add:
-                    tuser.add_effect(new_effect[0], int(new_effect[1]))
-                    msg += '{}: Added {} for {} turns.\n'.format(tuser.name, new_effect[0], new_effect[1])
+                try:
+                    if self.args.add:
+                        tuser.add_effect(new_effect[0], int(new_effect[1]))
+                        msg += '{}: Added {} for {} turns.\n'.format(tuser.name, new_effect[0], new_effect[1])
 
-                elif self.args.remove:
-                    tuser.remove_effect(new_effect[0])
-                    msg += '{}: Removed {}.\n'.format(tuser.name, new_effect[0])
+                    elif self.args.remove:
+                        tuser.remove_effect(new_effect[0])
+                        msg += '{}: Removed {}.\n'.format(tuser.name, new_effect[0])
 
-                elif self.args.update:
-                    tuser.update_effect(new_effect[0], int(new_effect[1]))
-                    msg += '{}: Updated {} for {} turns.\n'.format(tuser.name, new_effect[0], new_effect[1])
+                    elif self.args.update:
+                        tuser.update_effect(new_effect[0], int(new_effect[1]))
+                        msg += '{}: Updated {} for {} turns.\n'.format(tuser.name, new_effect[0], new_effect[1])
 
-                else:
-                    msg = 'No action selected for targets [--add|remove|update].'
+                    else:
+                        msg = 'No action selected for targets [--add|remove|update].'
+                except (IndexError, ValueError):
+                    raise dice.exc.InvalidCommandArgs("Invalid round count for effect.")
 
         dicedb.query.update_turn_order(session, self.chan_key(), order)
 

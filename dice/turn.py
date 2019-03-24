@@ -191,6 +191,7 @@ class TurnUser(object):
         Returns: Any effects that expired in form [name, name2, name3, ...]
         """
         finished = []
+
         for effect in self.effects:
             effect.decrement()
             if effect.is_expired:
@@ -207,14 +208,14 @@ class TurnOrder(object):
     Model the turn order for combat in Pathfinder.
     A turn order is composed of TurnUser objects.
     """
-    def __init__(self, users=None, cur_user=None):
+    def __init__(self, users=None, user_index=0):
         """
         Unless recreating an object, always use add() or add_all().
         """
         if not users:
             users = []
         self.users = users
-        self.cur_user = cur_user
+        self.user_index = user_index
 
     def __str__(self):
         msg = '__**Turn Order**__\n\n'
@@ -233,7 +234,14 @@ class TurnOrder(object):
         return msg
 
     def __repr__(self):
-        return 'TurnOrder(users={!r}, cur_user={!r})'.format(self.users, self.cur_user)
+        return 'TurnOrder(users={!r}, user_index={!r})'.format(self.users, self.user_index)
+
+    @property
+    def cur_user(self):
+        if not self.users:
+            return None
+
+        return self.users[self.user_index]
 
     def does_name_exist(self, new_name):
         """
@@ -310,16 +318,12 @@ class TurnOrder(object):
         if self.cur_user and self.cur_user.name == name:
             self.next()
 
-        user_to_remove = None
-        for user in self.users:
+        for user in self.users[:]:
             if user.name == name:
-                user_to_remove = user
-                break
+                self.users.remove(user)
+                return
 
-        if not user_to_remove:
-            raise dice.exc.InvalidCommandArgs("User not found: " + name)
-
-        self.users.remove(user_to_remove)
+        raise dice.exc.InvalidCommandArgs("User not found: " + name)
 
     def next(self):
         """
@@ -328,13 +332,7 @@ class TurnOrder(object):
         if not self.users:
             raise dice.exc.InvalidCommandArgs("Add some users first!")
 
-        if not self.cur_user or self.cur_user == self.users[-1]:
-            self.cur_user = self.users[0]
-        else:
-            for ind, user in enumerate(self.users[1:]):
-                if self.users[ind] == self.cur_user:
-                    self.cur_user = user
-                    break
+        self.user_index = (self.user_index + 1) % len(self.users)
 
         return self.cur_user
 
