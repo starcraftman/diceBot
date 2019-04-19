@@ -263,7 +263,7 @@ class Songs(Action):
                 )
             finally:
                 user_select = None
-                asyncio.ensure_future(self.bot.delete_messages(messages))
+                asyncio.ensure_future(messages[0].channel.delete_messages(messages))
 
     async def manage(self):
         """
@@ -308,7 +308,7 @@ class Songs(Action):
                 )
             finally:
                 user_select = None
-                asyncio.ensure_future(self.bot.delete_messages(messages))
+                asyncio.ensure_future(messages[0].channel.delete_messages(messages))
 
         if not entries:
             await self.bot.send_message(self.msg.channel, "Management terminated.")
@@ -363,7 +363,7 @@ class Songs(Action):
                 )
             finally:
                 user_select = None
-                asyncio.ensure_future(self.bot.delete_messages(messages))
+                asyncio.ensure_future(messages[0].channel.delete_messages(messages))
 
     async def select_tag(self):
         """
@@ -415,7 +415,7 @@ class Songs(Action):
                 await self.bot.send_message(self.msg.channel, str(exc))
             finally:
                 user_select = None
-                asyncio.ensure_future(self.bot.delete_messages(messages))
+                asyncio.ensure_future(messages[0].channel.delete_messages(messages))
 
     async def search_names(self, term):
         """
@@ -756,7 +756,7 @@ class Timers(Action):
                 pass
             finally:
                 user_select = None
-                asyncio.ensure_future(self.bot.delete_messages(messages))
+                asyncio.ensure_future(messages[0].channel.delete_messages(messages))
 
     async def execute(self):
         if self.args.clear:
@@ -1001,7 +1001,7 @@ class Pun(Action):
                 )
             finally:
                 user_select = None
-                asyncio.ensure_future(self.bot.delete_messages(messages))
+                asyncio.ensure_future(messages[0].channel.delete_messages(messages))
 
     async def execute(self):
         if self.args.add:

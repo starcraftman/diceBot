@@ -218,7 +218,7 @@ class DiceBot(discord.Client):
 
         except dice.exc.InternalException as exc:
             exc.write_log(log, content=content, author=author, channel=channel)
-            await self.send_message(channel, exc.reply())
+            await channel.send(exc.reply())
 
         except discord.DiscordException as exc:
             if exc.args[0].startswith("BAD REQUEST (status code: 400"):
@@ -229,7 +229,7 @@ class DiceBot(discord.Client):
                     pass
             else:
                 gears = self.get_member_by_substr("gearsand").mention
-                await self.send_message(channel, "A critical discord error occurred, see log {}.".format(gears))
+                await channel.send("A critical discord error occurred, see log {}.".format(gears))
             line = "Discord.py Library raised an exception"
             line += dice.exc.log_format(content=content, author=author, channel=channel)
             log.exception(line)
@@ -250,7 +250,7 @@ class DiceBot(discord.Client):
             Splits messages > 2k limit into smaller messages and transmits.
         """
         for part in dice.util.complete_blocks(dice.util.msg_splitter(content)):
-            await self.send_message(destination, part, tts=tts, embed=embed)
+            await destination.send(part, tts=tts, embed=embed)
 
     async def send_message(self, destination, content=None, *, tts=False, embed=None):
         """
@@ -268,7 +268,7 @@ class DiceBot(discord.Client):
         attempts = 4
         while attempts:
             try:
-                return await destination.send_message(content, tts=tts, embed=embed)
+                return await destination.send(content, tts=tts, embed=embed)
             except discord.HTTPException:
                 # Catching these due to infrequent issues with discord remote.
                 await asyncio.sleep(1.5)
@@ -291,7 +291,7 @@ class DiceBot(discord.Client):
             ttl = dice.util.get_config('ttl')
 
         content += '\n\n__This message will be deleted in {} seconds__'.format(ttl)
-        message = await self.send_message(destination, content, **kwargs)
+        message = await destination.send(content, **kwargs)
 
         await asyncio.sleep(ttl)
         try:
