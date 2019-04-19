@@ -31,6 +31,9 @@ Base = sqlalchemy.ext.declarative.declarative_base()
 class DUser(Base):
     """
     Table to store discord users and their permanent preferences.
+
+    N.B. discord.py treats id as integer interally, continue storing as string
+         due to integer length
     """
     __tablename__ = 'discord_users'
 
@@ -323,13 +326,13 @@ def main():  # pragma: no cover
     session.commit()
 
     song_tags = (
-        SongTag(song_key=songs[0].id, tag='quiet'),
-        SongTag(song_key=songs[0].id, tag='classical'),
-        SongTag(song_key=songs[0].id, tag='violin'),
-        SongTag(song_key=songs[1].id, tag='dramatic'),
-        SongTag(song_key=songs[1].id, tag='battle'),
-        SongTag(song_key=songs[2].id, tag='looking'),
-        SongTag(song_key=songs[2].id, tag='creepy'),
+        SongTag(song_key=songs[0].id, name='quiet'),
+        SongTag(song_key=songs[0].id, name='classical'),
+        SongTag(song_key=songs[0].id, name='violin'),
+        SongTag(song_key=songs[1].id, name='dramatic'),
+        SongTag(song_key=songs[1].id, name='battle'),
+        SongTag(song_key=songs[2].id, name='looking'),
+        SongTag(song_key=songs[2].id, name='creepy'),
     )
     session.add_all(song_tags)
     session.commit()

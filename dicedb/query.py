@@ -47,7 +47,7 @@ def ensure_duser(session, member):
     Returns: The DUser
     """
     try:
-        duser = get_duser(session, member.id)
+        duser = get_duser(session, str(member.id))
         duser.display_name = member.display_name
     except dice.exc.NoMatch:
         duser = add_duser(session, member)
@@ -59,7 +59,7 @@ def add_duser(session, member):
     """
     Add a discord user to the database.
     """
-    new_duser = DUser(id=member.id, display_name=member.display_name)
+    new_duser = DUser(id=str(member.id), display_name=member.display_name)
     session.add(new_duser)
     session.commit()
 

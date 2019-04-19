@@ -559,7 +559,7 @@ class Roll(Action):
 
         if self.args.save:
             duser = dicedb.query.ensure_duser(self.session, self.msg.author)
-            roll = dicedb.query.update_saved_roll(self.session, duser.id, self.args.save, full_spec)
+            roll = dicedb.query.update_saved_roll(self.session, str(duser.id), self.args.save, full_spec)
 
             msg = 'Added roll: __**{}**__: {}'.format(roll.name, roll.roll_str)
 
@@ -802,7 +802,7 @@ class Turn(Action):
         """
         Update a user's permanent starting init.
         """
-        dicedb.query.update_turn_char(session, self.msg.author.id,
+        dicedb.query.update_turn_char(session, str(self.msg.author.id),
                                       self.chan_key(), init=self.args.init)
         return 'Updated **init** for {} to: {}'.format(self.msg.author.name, self.args.init)
 
@@ -857,7 +857,7 @@ class Turn(Action):
         Update a user's character name for turn order.
         """
         name_str = ' '.join(self.args.name)
-        dicedb.query.update_turn_char(session, self.msg.author.id,
+        dicedb.query.update_turn_char(session, str(self.msg.author.id),
                                       self.chan_key(), name=name_str)
         return 'Updated **name** for {} to: {}'.format(self.msg.author.name, name_str)
 

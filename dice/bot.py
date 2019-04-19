@@ -55,29 +55,29 @@ class EmojiResolver(object):
         """ Just dump the emoji db. """
         return pprint.pformat(self.emojis, indent=2)
 
-    def update(self, servers):
+    def update(self, guilds):
         """
         Update the emoji dictionary. Call this in on_ready.
         """
-        for server in servers:
-            emoji_names = [emoji.name for emoji in server.emojis]
-            self.emojis[server.name] = dict(zip(emoji_names, server.emojis))
+        for guild in guilds:
+            emoji_names = [emoji.name for emoji in guild.emojis]
+            self.emojis[guild.name] = dict(zip(emoji_names, guild.emojis))
 
-    def fix(self, content, server):
+    def fix(self, content, guild):
         """
-        Expand any emojis for bot before sending, based on server emojis.
+        Expand any emojis for bot before sending, based on guild emojis.
 
-        Embed emojis into the content just like on server surrounded by ':'. Example:
+        Embed emojis into the content just like on guild surrounded by ':'. Example:
             Status :Fortifying:
         """
-        emojis = self.emojis[server.name]
+        emojis = self.emojis[guild.name]
         for embed in list(set(re.findall(r':\S+:', content))):
             try:
                 emoji = emojis[embed[1:-1]]
                 content = content.replace(embed, str(emoji))
             except KeyError:
                 logging.getLogger('dice.bot').warning(
-                    'EMOJI: Could not find emoji %s for server %s', embed, server.name)
+                    'EMOJI: Could not find emoji %s for guild %s', embed, guild.name)
 
         return content
 
@@ -126,18 +126,18 @@ class DiceBot(discord.Client):
 
     # Events hooked by bot.
     async def on_member_join(self, member):
-        """ Called when member joins server (login). """
+        """ Called when member joins guild (login). """
         log = logging.getLogger('dice.bot')
         log.info('Member has joined: %s', member.display_name)
 
     async def on_member_leave(self, member):
-        """ Called when member leaves server (logout). """
+        """ Called when member leaves guild (logout). """
         log = logging.getLogger('dice.bot')
         log.info('Member has left: %s', member.display_name)
 
-    async def on_server_emojis_update(self, *_):
+    async def on_guild_emojis_update(self, *_):
         """ Called when emojis change, just update all emojis. """
-        self.emoji.update(self.servers)
+        self.emoji.update(self.guilds)
 
     async def on_ready(self):
         """
@@ -145,11 +145,11 @@ class DiceBot(discord.Client):
         """
         log = logging.getLogger('dice.bot')
         log.info('Logged in as: %s', self.user.name)
-        log.info('Available on following servers:')
-        for server in self.servers:
-            log.info('  "%s" with id %s', server.name, server.id)
+        log.info('Available on following guilds:')
+        for guild in self.guilds:
+            log.info('  "%s" with id %s', guild.name, guild.id)
 
-        self.emoji.update(self.servers)
+        self.emoji.update(self.guilds)
 
         # This block is effectively a one time setup.
         global LIVE_TASKS
@@ -163,7 +163,7 @@ class DiceBot(discord.Client):
 
     async def on_message(self, message):
         """
-        Intercepts every message sent to server!
+        Intercepts every message sent to guild!
 
         Notes:
             message.author - Returns member object
@@ -171,7 +171,7 @@ class DiceBot(discord.Client):
                     roles[0].name -> String name of role.
             message.channel - Channel object.
                 name -> Name of channel
-                server -> Server of channel
+                guild -> Guild of channel
                     members -> Iterable of all members
                     channels -> Iterable of all channels
                     get_member_by_name -> Search for user by nick
@@ -185,8 +185,8 @@ class DiceBot(discord.Client):
             return
 
         log = logging.getLogger('dice.bot')
-        log.info("Server: '%s' Channel: '%s' User: '%s' | %s",
-                 channel.server, channel.name, author.name, content)
+        log.info("Guild: '%s' Channel: '%s' User: '%s' | %s",
+                 channel.guild, channel.name, author.name, content)
 
         try:
             content = re.sub(r'<[#@]\S+>', '', content).strip()  # Strip mentions from text
@@ -204,7 +204,7 @@ class DiceBot(discord.Client):
                     exc.message += '\n{}\n{}'.format(len(exc.message) * '-', exc2.message)
             await self.send_ttl_message(channel, exc.reply())
             try:
-                await self.delete_message(message)
+                await message.delete()
             except discord.DiscordException:
                 pass
 
@@ -212,7 +212,7 @@ class DiceBot(discord.Client):
             exc.write_log(log, content=content, author=author, channel=channel)
             await self.send_ttl_message(channel, exc.reply())
             try:
-                await self.delete_message(message)
+                await message.delete()
             except discord.DiscordException:
                 pass
 
@@ -224,7 +224,7 @@ class DiceBot(discord.Client):
             if exc.args[0].startswith("BAD REQUEST (status code: 400"):
                 await self.send_ttl_message(channel, "Response would be > 2000 chars, cannot transmit to Discord.\n\nSorry. If this is a problem see Gears.")
                 try:
-                    await self.delete_message(message)
+                    await message.delete()
                 except discord.DiscordException:
                     pass
             else:
@@ -268,7 +268,7 @@ class DiceBot(discord.Client):
         attempts = 4
         while attempts:
             try:
-                return await super().send_message(destination, content, tts=tts, embed=embed)
+                return await destination.send_message(content, tts=tts, embed=embed)
             except discord.HTTPException:
                 # Catching these due to infrequent issues with discord remote.
                 await asyncio.sleep(1.5)
@@ -295,7 +295,7 @@ class DiceBot(discord.Client):
 
         await asyncio.sleep(ttl)
         try:
-            await self.delete_message(message)
+            await message.delete()
         except discord.NotFound:
             pass
 
@@ -319,7 +319,7 @@ class DiceBot(discord.Client):
 
         messages = []
         for channel in channels:
-            if channel.permissions_for(channel.server.me).send_messages and \
+            if channel.permissions_for(channel.guild.me).send_messages and \
                channel.type == discord.ChannelType.text:
                 messages += [send(channel, "**Broadcast**\n\n" + content, **kwargs)]
 
