@@ -5,6 +5,7 @@ N.B. Schema defaults only applied once object commited.
 """
 from __future__ import absolute_import, print_function
 from functools import total_ordering
+import os
 
 import sqlalchemy as sqla
 import sqlalchemy.orm as sqla_orm
@@ -208,6 +209,76 @@ class SongTag(Base):
         kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
 
         return "SongTag({})".format(', '.join(kwargs))
+
+    def __str__(self):
+        return repr(self)
+
+    def __eq__(self, other):
+        return isinstance(other, SongTag) and self.id == other.id
+
+
+class Video(Base):
+    """
+    Video object that represents a local or remote video from youtube.
+    The contents of this class serialize to the db.
+    For local videos, uri is None. Otherwise a youtube url.
+    """
+    __tablename__ = 'videos'
+
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    name = sqla.Column(sqla.String(LEN_SONG_NAME), unique=True, nullable=False)
+    folder = sqla.Column(sqla.String(LEN_SONG_NAME), nullable=False)
+    uri = sqla.Column(sqla.String(LEN_SONG_URL), nullable=True)
+    repeat = sqla.Column(sqla.Boolean, default=False)
+    volume_int = sqla.Column(sqla.Integer, default=50)
+
+    def __str__(self):
+        uri = "<" + self.uri + ">" if self.is_remote() else self.name
+        return "Vid: {} Volume: {}/100 Repeat: {}".format(uri, self.volume_int, self.repeat)
+
+    def __repr__(self):
+        keys = ['id', 'name', 'folder', 'uri', 'repeat', 'volume_int']
+        kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
+
+        return "Video({})".format(', '.join(kwargs))
+
+    @property
+    def fname(self):
+        return os.path.join(self.folder, self.name + '.opus')
+
+    @property
+    def volume(self):
+        return float(self.volume_int) / 100
+
+    def is_remote(self):
+        return dice.util.is_valid_yt(self.uri)
+
+    def set_volume(self, new_volume=None):
+        try:
+            new_volume = int(new_volume)
+            if new_volume < 0 or new_volume > 100:
+                raise ValueError
+
+            self.volume_int = new_volume
+        except (TypeError, ValueError):
+            raise dice.exc.InvalidCommandArgs("Volume must be between [0, 100]")
+
+
+class VideoTag(Base):
+    """
+    A tag for a song. Each song can have n tags.
+    """
+    __tablename__ = 'video_tags'
+
+    id = sqla.Column(sqla.Integer, primary_key=True)
+    video_key = sqla.Column(sqla.Integer, sqla.ForeignKey('videos.id'))
+    name = sqla.Column(sqla.String(LEN_SONG_TAG), nullable=False)
+
+    def __repr__(self):
+        keys = ['id', 'name', 'video_key']
+        kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
+
+        return "VideoTag({})".format(', '.join(kwargs))
 
     def __str__(self):
         return repr(self)

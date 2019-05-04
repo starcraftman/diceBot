@@ -35,9 +35,9 @@ finally:
 
 import dice.actions
 import dice.exc
-import dice.music
 import dice.parse
 import dice.util
+import dice.nplayer
 
 
 LIVE_TASKS = []
@@ -92,7 +92,7 @@ class DiceBot(discord.Client):
         self.emoji = EmojiResolver()
         self.parser = dice.parse.make_parser(prefix)
         self.start_date = datetime.datetime.utcnow().replace(microsecond=0)
-        self.mplayer = dice.music.MPlayer(self)
+        self.player = None
 
     @property
     def uptime(self):  # pragma: no cover
@@ -156,7 +156,7 @@ class DiceBot(discord.Client):
         if not LIVE_TASKS:
             LIVE_TASKS = [
                 self.loop.create_task(presence_task(self)),
-                self.loop.create_task(self.mplayer.monitor())
+                self.loop.create_task(dice.nplayer.gplayer_monitor(dice.actions.PLAYERS)),
             ]
 
         print('DiceBot Ready!')

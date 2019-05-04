@@ -98,17 +98,22 @@ def subs_play(subs, prefix):
 {prefix}play -v
 {prefix}play --prev
         Play the previous song.
-{prefix}play -a youtube_link_1 local_name_1
-{prefix}play --append youtube_link_1 local_name_1
-        Append the following songs to the list.
 {prefix}play -o
 {prefix}play --volume
         Set the volume: [0, 100]')
+{prefix}play --repeat
+        Set the current song to repeat when it plays.
+{prefix}play --repeat-vids
+        Set the playlist of vids to repeat when it gets to the end.
+{prefix}play -a youtube_link_1 local_name_1
+{prefix}play --append youtube_link_1 local_name_1
+        Append the following songs to the list.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'play', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Play')
     sub.add_argument('-a', '--append', action="store_true", help='Append songs to playlist.')
-    sub.add_argument('-l', '--loop', action="store_true", help='Toggle looping the music.')
+    sub.add_argument('--repeat', action="store_true", help='Toggle looping the video, permanent.')
+    sub.add_argument('--repeat-vids', action="store_true", help='Toggle looping the music playlist.')
     sub.add_argument('-p', '--pause', action="store_true", help='Toggle pausing the player.')
     sub.add_argument('-r', '--restart', action="store_true", help='Restart current song.')
     sub.add_argument('--status', action="store_true", help='Show player status.')

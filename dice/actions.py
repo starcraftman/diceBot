@@ -7,10 +7,10 @@ from __future__ import absolute_import, print_function
 import asyncio
 import concurrent.futures
 import datetime
-import glob
 import logging
 import math
 import os
+import pathlib
 import re
 
 import aiohttp
@@ -22,6 +22,7 @@ import dice.roll
 import dice.tbl
 import dice.turn
 import dice.util
+from dice.nplayer import Video, GuildPlayer
 
 import dicedb
 import dicedb.query
@@ -36,7 +37,6 @@ Timer #{} with description: **{}**
     __Ends at__: {} UTC
     __Time remaining__: {}
 """
-MUSIC_PATH = "extras/music"
 PF_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3A6zo0hx_wle8&q={}'
 D5_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3A1xq0zf2wtvq&q={}'
 STAR_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3Awyjvzq2cjz8&q={}'
@@ -54,6 +54,7 @@ Type __play 1__ to play entry 1 (if applicable).
 """
 LIMIT_SONGS = 10
 LIMIT_TAGS = 20
+PLAYERS = {}
 
 
 class Action(object):
@@ -67,11 +68,19 @@ class Action(object):
         self.log = logging.getLogger('dice.actions')
         self.session = dicedb.Session()
 
-    def chan_key(self):
+    @property
+    def chan_id(self):
         """
-        A key representing the unique combination of server & channel a user messaged from.
+        An id representing the originating channel.
         """
-        return '{}_{}'.format(self.msg.server.id, self.msg.channel.id)
+        return '{}_{}'.format(self.msg.guild.id, self.msg.channel.id)
+
+    @property
+    def guild_id(self):
+        """
+        An id representing the guild.
+        """
+        return self.msg.guild.id
 
     async def execute(self):
         """
@@ -121,10 +130,10 @@ class Help(Action):
         response = '\n'.join(over) + dice.tbl.wrap_markdown(dice.tbl.format_table(lines, header=True))
         await self.bot.send_ttl_message(self.msg.channel, response)
         try:
-            await self.bot.delete_message(self.msg)
+            await self.msg.delete()
         except discord.Forbidden as exc:
             self.log.error("Failed to delete msg on: %s/%s\n%s",
-                           self.msg.channel.server, self.msg.channel, str(exc))
+                           self.msg.channel.guild, self.msg.channel, str(exc))
 
 
 class Status(Action):
@@ -162,27 +171,48 @@ class Math(Action):
 
 class Play(Action):
     """
-    Transparent mapper from actions onto the mplayer.
+    Transparent mapper from actions onto the music player.
     """
     async def execute(self):
-        mplayer = self.bot.mplayer
+        try:
+            target = self.msg.author.voice.channel
+        except AttributeError:
+            target = discord.utils.find(lambda x: isinstance(x, discord.VoiceChannel),
+                                        self.msg.guild.channels)
 
-        if self.args.stop:
+        if self.guild_id not in PLAYERS:
+            PLAYERS[self.guild_id] = GuildPlayer(vids=[], target_channel=target,
+                                                 err_channel=self.msg.channel)
+
+        mplayer = PLAYERS[self.guild_id]
+        mplayer.target_channel = target
+        mplayer.err_channel = self.msg.channel
+        await mplayer.join_voice_channel()
+
+        msg = "Player Status: " + mplayer.status()
+        if self.args.restart:
+            mplayer.play()
+        elif self.args.stop:
             mplayer.stop()
         elif self.args.pause:
-            mplayer.pause()
+            mplayer.toggle_pause()
         elif self.args.next:
-            await mplayer.next()
+            mplayer.next()
+            msg = "Now Playing:\n" + str(mplayer.cur_vid)
         elif self.args.prev:
-            await mplayer.prev()
+            mplayer.prev()
+            msg = "Now Playing:\n" + str(mplayer.cur_vid)
         elif self.args.volume != 'zero':
             mplayer.set_volume(self.args.volume)
-        elif self.args.loop:
-            mplayer.loop = not mplayer.loop
-        elif self.args.restart:
-            await mplayer.start()
-        elif self.args.status:
-            pass
+            msg = "Player Volume: {}/100".format(mplayer.cur_vid.volume_int)
+        elif self.args.repeat_vids:
+            mplayer.repeat_vids = not mplayer.repeat_vids
+        elif self.args.repeat:
+            mplayer.cur_vid.repeat = not mplayer.cur_vid.repeat
+            if mplayer.cur_vid.id:
+                pass
+                #  self.session
+                #  pass
         elif self.args.vids:
             parts = [part.strip() for part in re.split(r'\s*,\s*', ' '.join(self.args.vids))]
             new_vids = validate_videos(parts)
@@ -190,11 +220,10 @@ class Play(Action):
             if self.args.append:
                 mplayer.vids += new_vids
             else:
-                # New videos played so replace playlist
-                mplayer.initialize_settings(self.msg, new_vids)
-                await mplayer.start()
+                mplayer.vids = new_vids
+                mplayer.play()
 
-        await self.bot.send_message(self.msg.channel, str(self.bot.mplayer))
+        await self.bot.send_message(self.msg.channel, msg)
 
 
 # TODO: Deduplicate code in 'management interface', make reusable.
@@ -674,7 +703,7 @@ class Timer(Action):
             if now > trigger:
                 if self.sent_msg:
                     try:
-                        await self.bot.delete_message(self.sent_msg)
+                        await self.sent_msg.delete()
                     except discord.Forbidden as exc:
                         self.log.error("Failed to delete msg on: %s/%s\n%s",
                                        self.msg.channel.server, self.msg.channel, str(exc))
@@ -784,10 +813,10 @@ class Turn(Action):
         else:
             order = dice.turn.TurnOrder()
             init_users = dice.turn.parse_turn_users(
-                dicedb.query.generate_inital_turn_users(session, self.chan_key()))
+                dicedb.query.generate_inital_turn_users(session, self.chan_id))
             order.add_all(init_users + users)
 
-        dicedb.query.update_turn_order(session, self.chan_key(), order)
+        dicedb.query.update_turn_order(session, self.chan_id, order)
 
         return str(order)
 
@@ -795,7 +824,7 @@ class Turn(Action):
         """
         Clear the turn order.
         """
-        dicedb.query.rem_turn_order(session, self.chan_key())
+        dicedb.query.rem_turn_order(session, self.chan_id)
         return 'Turn order cleared.'
 
     def init(self, session, _):
@@ -803,7 +832,7 @@ class Turn(Action):
         Update a user's permanent starting init.
         """
         dicedb.query.update_turn_char(session, str(self.msg.author.id),
-                                      self.chan_key(), init=self.args.init)
+                                      self.chan_id, init=self.args.init)
         return 'Updated **init** for {} to: {}'.format(self.msg.author.name, self.args.init)
 
     def next(self, session, order):
@@ -820,7 +849,7 @@ class Turn(Action):
 
         msg += '**Next User**\n' + str(order.next())
 
-        dicedb.query.update_turn_order(session, self.chan_key(), order)
+        dicedb.query.update_turn_order(session, self.chan_id, order)
 
         return msg
 
@@ -847,7 +876,7 @@ class Turn(Action):
         for user in users:
             order.remove(user)
 
-        dicedb.query.update_turn_order(session, self.chan_key(), order)
+        dicedb.query.update_turn_order(session, self.chan_id, order)
 
         msg = 'Removed the following users:\n'
         return msg + '\n  - ' + '\n  - '.join(users)
@@ -858,7 +887,7 @@ class Turn(Action):
         """
         name_str = ' '.join(self.args.name)
         dicedb.query.update_turn_char(session, str(self.msg.author.id),
-                                      self.chan_key(), name=name_str)
+                                      self.chan_id, name=name_str)
         return 'Updated **name** for {} to: {}'.format(self.msg.author.name, name_str)
 
     def update(self, session, order):
@@ -875,14 +904,14 @@ class Turn(Action):
             except ValueError:
                 raise dice.exc.InvalidCommandArgs("See usage, incorrect arguments.")
 
-        dicedb.query.update_turn_order(session, self.chan_key(), order)
+        dicedb.query.update_turn_order(session, self.chan_id, order)
 
         return msg
 
     async def execute(self):
         dicedb.query.ensure_duser(self.session, self.msg.author)
 
-        order = dice.turn.parse_order(dicedb.query.get_turn_order(self.session, self.chan_key()))
+        order = dice.turn.parse_order(dicedb.query.get_turn_order(self.session, self.chan_id))
         msg = str(order)
         if not order and (self.args.next or self.args.remove):
             raise dice.exc.InvalidCommandArgs('Please add some users first.')
@@ -934,12 +963,12 @@ class Effect(Action):
                 except (IndexError, ValueError):
                     raise dice.exc.InvalidCommandArgs("Invalid round count for effect.")
 
-        dicedb.query.update_turn_order(session, self.chan_key(), order)
+        dicedb.query.update_turn_order(session, self.chan_id, order)
 
         return msg
 
     async def execute(self):
-        order = dice.turn.parse_order(dicedb.query.get_turn_order(self.session, self.chan_key()))
+        order = dice.turn.parse_order(dicedb.query.get_turn_order(self.session, self.chan_id))
         if not order:
             raise dice.exc.InvalidCommandArgs('No turn order set to add effects.')
 
@@ -1055,7 +1084,7 @@ def remove_user_timers(timers, msg_author):
         timers[key_to_remove].cancel = True
 
 
-def validate_videos(list_vids):
+def validate_videos(list_vids, session=None):
     """
     Validate the videos asked to play. Accepted formats:
         - youtube links
@@ -1069,26 +1098,35 @@ def validate_videos(list_vids):
     if not isinstance(list_vids, type([])):
         raise ValueError("Did not pass a list of videos.")
 
+    if not session:
+        session = dicedb.Session()
+
     new_vids = []
     for vid in list_vids:
-        if vid[0] == '<' and vid[-1] == '>':
-            vid = vid[1:-1]
+        match = re.match(r'\s*<\s*(\w+)\s*>\s*', vid)
+        if match:
+            vid = match.group(1)
 
-        matches = dicedb.query.search_songs_by_name(dicedb.Session(), vid)
+        matches = dicedb.query.search_songs_by_name(session, vid)
         if matches and len(matches) == 1:
             new_vids.append(matches[0].url)
 
         elif dice.util.is_valid_yt(vid):
-            new_vids.append(vid)
+            yt_id = vid[vid.index('v=') + 2:]
+            new_vids.append(Video(id=None, name='youtube_{}'.format(yt_id), folder='/tmp/videos',
+                                  uri=vid, volume_int=50))
 
         elif dice.util.is_valid_url(vid):
             raise dice.exc.InvalidCommandArgs("Only youtube links supported: " + vid)
 
         else:
-            globbed = glob.glob(os.path.join(MUSIC_PATH, vid + "*"))
+            pat = pathlib.Path(dice.util.get_config('paths', 'music'))
+            globbed = list(pat.glob(vid + "*"))
             if len(globbed) != 1:
                 raise dice.exc.InvalidCommandArgs("Cannot find local video: " + vid)
-            new_vids.append(globbed[0])
+
+            name = os.path.basename(globbed[0]).replace('.opus', '')
+            new_vids.append(Video(id=None, name=name, folder=pat, volume_int=50))
 
     return new_vids
 

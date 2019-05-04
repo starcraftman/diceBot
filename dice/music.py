@@ -17,6 +17,13 @@ MPLAYER_TIMEOUT = 120  # seconds
 BEFORE_OPTS = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
 
 
+#  Ideas for Bot Changes later:
+#  - YTManager (Download & cache last n videos from youtube. Prove file name to and perhaps generate AudioStream on demand.
+#  -  Store in DB either LocalVideo or YTVideo objects pickled, no more inspection/decision by regex.
+#  - Add entry to all songs for loop or not loop, controllable by db. Saves whatever user chooses on play.
+#  - Modify mplayer to be per server creation, no longer needs any reference to self.bot.
+
+
 class MPlayerState:
     """ MPlayer state enum. """
     STOPPED = 0
@@ -41,11 +48,9 @@ class MPlayer(object):
         self.state = MPlayerState.STOPPED
 
         # Wrapped by this class, not for outside use.
-        self.bot = bot
         self.target_voice_channel = None
         self.err_channel = None
         self.d_voice = d_voice
-        self.d_player = d_player
 
     def __str__(self):
         str_vids = []
@@ -66,9 +71,9 @@ class MPlayer(object):
            loop=self.loop, state=self.status)
 
     def __repr__(self):
-        return "MPlayer(bot={}, target_voice_channel={}, err_channel={}, d_voice={}, d_player={},"\
+        return "MPlayer(target_voice_channel={}, err_channel={}, d_voice={}, d_player={},"\
             " vids={}, vid_index={}, loop={}, volume={}, state={})".format(
-                self.bot, self.target_voice_channel, self.err_channel, self.d_voice, self.d_player,
+                self.target_voice_channel, self.err_channel, self.d_voice, self.d_player,
                 self.vids, self.vid_index, self.loop, self.volume, self.state
             )
 
@@ -103,7 +108,7 @@ class MPlayer(object):
                                            VOICE_JOIN_TIMEOUT)
             else:
                 self.d_voice = await asyncio.wait_for(
-                    self.bot.join_voice_channel(self.target_voice_channel), VOICE_JOIN_TIMEOUT)
+                    self.target_voice_channel.connect(), VOICE_JOIN_TIMEOUT)
         except asyncio.TimeoutError:
             await self.quit()
             raise dice.exc.InvalidCommandArgs(TIMEOUT_MSG)
@@ -153,12 +158,12 @@ class MPlayer(object):
             if self.err_channel:
                 msg = "Player stopped. Error donwloading video: copyright?\n" + dice.tbl.wrap_markdown(str(exc))
                 self.stop()
-                await self.bot.send_message(self.err_channel, msg)
+                await self.err_channel.send(msg)
         except youtube_dl.utils.YoutubeDLError as exc:
             if self.err_channel:
                 msg = "Player stopped. General YoutubeDL error.\n" + dice.tbl.wrap_markdown(str(exc))
                 self.stop()
-                await self.bot.send_message(self.err_channel, msg)
+                await self.err_channel.send(msg)
 
     def pause(self):
         """
