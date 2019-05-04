@@ -288,6 +288,13 @@ def search_songs_by_name(session, name, *, tags=False):
     return session.query(cls).filter(cls.name.ilike('%{}%'.format(name))).all()
 
 
+def get_song_by_id(session, id):
+    """
+    Get a song that you want by id.
+    """
+    return session.query(Song).filter(Song.id == id).one()
+
+
 def get_songs_with_tag(session, name):
     """
     Get the possible song by name.

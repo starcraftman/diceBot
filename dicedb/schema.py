@@ -20,9 +20,9 @@ LEN_DID = 30
 LEN_NAME = 100
 LEN_PUN = 600
 LEN_ROLLSTR = 200
-LEN_SONG_NAME = 100
-LEN_SONG_URL = 100
-LEN_SONG_TAG = 100
+LEN_SONG_NAME = 60
+LEN_SONG_URL = 36
+LEN_SONG_TAG = 60
 LEN_TURN_KEY = 60
 LEN_TURN_ORDER = 2500
 Base = sqlalchemy.ext.declarative.declarative_base()
@@ -169,61 +169,11 @@ class TurnOrder(Base):
 
 class Song(Base):
     """
-    A song to play for users of the bot.
-    """
-    __tablename__ = 'songs'
-
-    id = sqla.Column(sqla.Integer, primary_key=True)
-    url = sqla.Column(sqla.String(LEN_SONG_URL), nullable=False)
-    name = sqla.Column(sqla.String(LEN_SONG_NAME), nullable=False, unique=True)
-
-    def __repr__(self):
-        keys = ['id', 'name', 'url']
-        kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
-
-        return "Song({})".format(', '.join(kwargs))
-
-    def __str__(self):
-        return repr(self) + 'tags={}'.format(str(self.tags)) if self.tags else ''
-
-    def __eq__(self, other):
-        return isinstance(other, Song) and self.id == other.id
-
-    @property
-    def is_youtube(self):
-        dice.util.IS_YT.match(self.url)
-
-
-class SongTag(Base):
-    """
-    A tag for a song. Each song can have n tags.
-    """
-    __tablename__ = 'song_tags'
-
-    id = sqla.Column(sqla.Integer, primary_key=True)
-    song_key = sqla.Column(sqla.Integer, sqla.ForeignKey('songs.id'))
-    name = sqla.Column(sqla.String(LEN_SONG_TAG), nullable=False)
-
-    def __repr__(self):
-        keys = ['id', 'name', 'song_key']
-        kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
-
-        return "SongTag({})".format(', '.join(kwargs))
-
-    def __str__(self):
-        return repr(self)
-
-    def __eq__(self, other):
-        return isinstance(other, SongTag) and self.id == other.id
-
-
-class Video(Base):
-    """
-    Video object that represents a local or remote video from youtube.
+    Song object that represents a local or remote video from youtube.
     The contents of this class serialize to the db.
     For local videos, uri is None. Otherwise a youtube url.
     """
-    __tablename__ = 'videos'
+    __tablename__ = 'songs'
 
     id = sqla.Column(sqla.Integer, primary_key=True)
     name = sqla.Column(sqla.String(LEN_SONG_NAME), unique=True, nullable=False)
@@ -240,7 +190,7 @@ class Video(Base):
         keys = ['id', 'name', 'folder', 'uri', 'repeat', 'volume_int']
         kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
 
-        return "Video({})".format(', '.join(kwargs))
+        return "Song({})".format(', '.join(kwargs))
 
     @property
     def fname(self):
@@ -264,21 +214,21 @@ class Video(Base):
             raise dice.exc.InvalidCommandArgs("Volume must be between [0, 100]")
 
 
-class VideoTag(Base):
+class SongTag(Base):
     """
     A tag for a song. Each song can have n tags.
     """
-    __tablename__ = 'video_tags'
+    __tablename__ = 'song_tags'
 
     id = sqla.Column(sqla.Integer, primary_key=True)
-    video_key = sqla.Column(sqla.Integer, sqla.ForeignKey('videos.id'))
+    song_key = sqla.Column(sqla.Integer, sqla.ForeignKey('songs.id'))
     name = sqla.Column(sqla.String(LEN_SONG_TAG), nullable=False)
 
     def __repr__(self):
-        keys = ['id', 'name', 'video_key']
+        keys = ['id', 'name', 'song_key']
         kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
 
-        return "VideoTag({})".format(', '.join(kwargs))
+        return "SongTag({})".format(', '.join(kwargs))
 
     def __str__(self):
         return repr(self)

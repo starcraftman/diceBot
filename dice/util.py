@@ -24,7 +24,7 @@ import dice.exc
 
 BOT = None
 MSG_LIMIT = 1985  # Number chars before message truncation
-IS_YT = re.compile(r'https?://((www.)?youtube.com/watch\?|youtu.be/|y2u.be/)\S+',
+IS_YT = re.compile(r'https?://((www.)?youtube.com/watch\?v=|youtu.be/|y2u.be/)(\S+)',
                    re.ASCII | re.IGNORECASE)
 IS_URL = re.compile(r'(https?://)?(\w+\.)+(com|org|net|ca|be)(/\S+)*', re.ASCII | re.IGNORECASE)
 MAX_SEED = int(math.pow(2, 32) - 1)
@@ -335,10 +335,12 @@ def seed_random(seed=None):
 
 
 def is_valid_yt(url):
-    return IS_URL.match(url) and IS_YT.match(url)
+    """ Will only validate against youtube urls. Returns the unique identifier. """
+    return IS_YT.match(url).groups()[-1]
 
 
 def is_valid_url(url):
+    """ Will match any valid URL. """
     return IS_URL.match(url)
 
 

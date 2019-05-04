@@ -3,7 +3,6 @@ New Music player for the bot.
 """
 import asyncio
 import datetime
-import functools
 import os
 import pathlib
 import subprocess
@@ -13,7 +12,7 @@ import discord
 
 import dice.exc
 import dice.util
-from dicedb.schema import Video  # noqa F401 pylint: disable=unused-import
+from dicedb.schema import Song  # noqa F401 pylint: disable=unused-import
 
 
 VOICE_JOIN_TIMEOUT = 5  # seconds
@@ -25,13 +24,6 @@ SONG_CACHE_SIZE = 512 * 1024 ** 2
 # Stupid youtube: https://github.com/Rapptz/discord.py/issues/315
 BEFORE_OPTS = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
 YTDL_CMD = "youtube-dl -o {} -x --audio-format opus --audio-quality 0"
-
-
-#  Ideas for Bot Changes later:
-#  - YTManager (Download & cache last n videos from youtube. Prove file name to and perhaps generate AudioStream on demand.
-#  - Store in DB either LocalVideo or YTVideo objects pickled, no more inspection/decision by regex.
-#  - Songs either are music or effects, stored in db . Saves whatever user chooses on play. Effects are one shot, music loops.
-#  - Modify mplayer to be per server creation, no longer needs any reference to self.bot.
 
 
 def youtube_dl(url, name, out_path=None):
@@ -185,7 +177,7 @@ class GuildPlayer(object):
         if self.is_playing():
             self.stop()
 
-        self.__client.play(make_stream(self.cur_vid), after=functools.partial(self.after_call, self))
+        self.__client.play(make_stream(self.cur_vid), after=self.after_call)
 
     def after_call(self, error):
         """

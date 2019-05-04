@@ -22,7 +22,7 @@ import dice.roll
 import dice.tbl
 import dice.turn
 import dice.util
-from dice.nplayer import Video, GuildPlayer
+from dice.nplayer import Song, GuildPlayer
 
 import dicedb
 import dicedb.query
@@ -189,7 +189,7 @@ class Play(Action):
         mplayer.err_channel = self.msg.channel
         await mplayer.join_voice_channel()
 
-        msg = "Player Status: " + mplayer.status()
+        msg = None
         if self.args.restart:
             mplayer.play()
         elif self.args.stop:
@@ -210,9 +210,10 @@ class Play(Action):
         elif self.args.repeat:
             mplayer.cur_vid.repeat = not mplayer.cur_vid.repeat
             if mplayer.cur_vid.id:
-                pass
-                #  self.session
-                #  pass
+                song = dicedb.query.get_song_by_id(self.session, mplayer.cur_vid.id)
+                song.repeat = mplayer.cur_vid.repeat
+                self.session.add(song)
+                self.session.commit()
         elif self.args.vids:
             parts = [part.strip() for part in re.split(r'\s*,\s*', ' '.join(self.args.vids))]
             new_vids = validate_videos(parts)
@@ -222,6 +223,9 @@ class Play(Action):
             else:
                 mplayer.vids = new_vids
                 mplayer.play()
+
+        if not msg:
+            msg = "Player Status: " + mplayer.status()
 
         await self.bot.send_message(self.msg.channel, msg)
 
@@ -1103,7 +1107,7 @@ def validate_videos(list_vids, session=None):
 
     new_vids = []
     for vid in list_vids:
-        match = re.match(r'\s*<\s*(\w+)\s*>\s*', vid)
+        match = re.match(r'\s*<\s*(\S+)\s*>\s*', vid)
         if match:
             vid = match.group(1)
 
@@ -1112,9 +1116,9 @@ def validate_videos(list_vids, session=None):
             new_vids.append(matches[0].url)
 
         elif dice.util.is_valid_yt(vid):
-            yt_id = vid[vid.index('v=') + 2:]
-            new_vids.append(Video(id=None, name='youtube_{}'.format(yt_id), folder='/tmp/videos',
-                                  uri=vid, volume_int=50))
+            yt_id = dice.util.is_valid_yt(vid)
+            new_vids.append(Song(id=None, name='youtube_{}'.format(yt_id), folder='/tmp/videos',
+                                 uri='https://youtu.be/' + yt_id, volume_int=50))
 
         elif dice.util.is_valid_url(vid):
             raise dice.exc.InvalidCommandArgs("Only youtube links supported: " + vid)
@@ -1126,7 +1130,7 @@ def validate_videos(list_vids, session=None):
                 raise dice.exc.InvalidCommandArgs("Cannot find local video: " + vid)
 
             name = os.path.basename(globbed[0]).replace('.opus', '')
-            new_vids.append(Video(id=None, name=name, folder=pat, volume_int=50))
+            new_vids.append(Song(id=None, name=name, folder=pat, uri=None, volume_int=50))
 
     return new_vids
 
