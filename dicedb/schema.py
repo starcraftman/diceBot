@@ -185,7 +185,7 @@ class Song(Base):
     def __str__(self):
         uri = ''
         if self.uri:
-            uri = "<" + self.uri + ">"
+            uri = " URL: <" + self.uri + ">"
 
         return "Video Name: {}{}\n        Volume: {}/100 Repeat: {}".format(
             self.name, uri, self.volume_int, self.repeat)

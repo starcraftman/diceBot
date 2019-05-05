@@ -192,7 +192,7 @@ class Play(Action):
         if self.args.restart:
             mplayer.vid_index = 0
             mplayer.play()
-            msg = "__**Now playing**__\n\n{}".format(mplayer.cur_vid)
+            msg = "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
         elif self.args.stop:
             mplayer.finished = True
             mplayer.stop()
@@ -202,22 +202,23 @@ class Play(Action):
             msg = "Player is now: " + mplayer.status()
         elif self.args.next:
             mplayer.next()
-            msg = "__**Now playing**__\n\n{}".format(mplayer.cur_vid)
+            msg = "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
         elif self.args.prev:
             mplayer.prev()
-            msg = "__**Now playing**__\n\n{}".format(mplayer.cur_vid)
+            msg = "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
         elif self.args.volume != 'zero':
             mplayer.set_volume(self.args.volume)
             msg = "Player volume: {}/100".format(mplayer.cur_vid.volume_int)
         elif self.args.repeat_all:
             mplayer.repeat_all = not mplayer.repeat_all
+            msg = "Player will stop playing after last song in list."
             if mplayer.repeat_all:
                 msg = "Player will return to and play first song after finishing list."
-            else:
-                msg = "Player will stop playing after last song in list."
         elif self.args.repeat:
             mplayer.cur_vid.repeat = not mplayer.cur_vid.repeat
-            msg = "Current video {} set to repeat.\n\nOverride with '--next'.".format(mplayer.cur_vid.name)
+            msg = "Current video {} will **NO** longer repeat.".format(mplayer.cur_vid.name)
+            if mplayer.cur_vid.repeat:
+                msg = "Current video {} **will** repeat.\n\nAdvance list with '--next'.".format(mplayer.cur_vid.name)
         elif self.args.status:
             msg = str(mplayer)
         elif self.args.vids:
