@@ -183,8 +183,12 @@ class Song(Base):
     volume_int = sqla.Column(sqla.Integer, default=50)
 
     def __str__(self):
-        uri = "<" + self.uri + ">" if self.is_remote() else self.name
-        return "Vid: {} Volume: {}/100 Repeat: {}".format(uri, self.volume_int, self.repeat)
+        uri = ''
+        if self.uri:
+            uri = "<" + self.uri + ">"
+
+        return "Video Name: {}{}\n        Volume: {}/100 Repeat: {}".format(
+            self.name, uri, self.volume_int, self.repeat)
 
     def __repr__(self):
         keys = ['id', 'name', 'folder', 'uri', 'repeat', 'volume_int']
@@ -201,7 +205,7 @@ class Song(Base):
         return float(self.volume_int) / 100
 
     def is_remote(self):
-        return dice.util.is_valid_yt(self.uri)
+        return self.uri
 
     def set_volume(self, new_volume=None):
         try:
@@ -212,6 +216,17 @@ class Song(Base):
             self.volume_int = new_volume
         except (TypeError, ValueError):
             raise dice.exc.InvalidCommandArgs("Volume must be between [0, 100]")
+
+    def update(self, other):
+        """ Update values based on other object. """
+        assert isinstance(other, self.__class__)
+        assert self.id == other.id
+
+        self.name = other.name
+        self.folder = other.folder
+        self.uri = other.uri
+        self.repeat = other.repeat
+        self.volume_int = other.volume_int
 
 
 class SongTag(Base):

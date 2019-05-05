@@ -3,6 +3,7 @@ New Music player for the bot.
 """
 import asyncio
 import datetime
+import logging
 import os
 import pathlib
 import subprocess
@@ -73,7 +74,7 @@ def make_stream(video):
     return discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(video.fname), video.volume)
 
 
-async def gplayer_monitor(players, gap=5):
+async def gplayer_monitor(players, gap=2):
     """
     Thi simple task monitors for:
         - prune old youtube videos cached
@@ -110,13 +111,14 @@ class GuildPlayer(object):
     Player represents the management of the video queue for
     a particular guild.
     """
-    def __init__(self, *, vids=None, vid_index=0, repeat_vids=False,
+    def __init__(self, *, vids=None, vid_index=0, repeat_all=False,
                  target_channel=None, err_channel=None, client=None):
         if not vids:
             vids = []
         self.vids = vids
         self.vid_index = vid_index
-        self.repeat_vids = False  # Separate from individual repeat of songs.
+        self.repeat_all = False  # Repeat vids list when last song finished
+        self.finished = False  # Set only when player should be stopped
 
         self.err_channel = err_channel  # Set to originating channel invoked
         self.target_channel = target_channel
@@ -132,20 +134,28 @@ class GuildPlayer(object):
         return getattr(self.__client, attr)
 
     def __str__(self):
-        str_vids = "\n"
+        try:
+            current = self.cur_vid.name
+        except AttributeError:
+            current = ''
+
+        pad = "\n    "
+        str_vids = pad
         for vid in self.vids:
-            str_vids += str(vid) + "\n"
-        str_vids.replace(str(self.cur_vid), ">>>> " + str(self.cur_vid))
+            str_vids += str(vid) + pad
+        str_vids.rstrip()
 
         return """__**Player Status**__ :
 
-        Now Playing: {cur_vid}
-        Status: {status}
-        Queue: {vids}
-""".format(cur_vid=self.cur_vid, vids=str_vids, status=self.status())
+    __Now Playing__: {now_play}
+    __Status__: {status}
+    __Repeat All__: {repeat}
+    __Video List__: {vids}
+""".format(now_play=current, vids=str_vids,
+           status=self.status(), repeat=self.repeat_all)
 
     def __repr__(self):
-        keys = ['vid_index', 'vids', 'repeat_vids', 'err_channel', 'target_channel']
+        keys = ['vid_index', 'vids', 'repeat_all', 'err_channel', 'target_channel']
         kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
 
         return "GuildPlayer({})".format(', '.join(kwargs))
@@ -153,6 +163,9 @@ class GuildPlayer(object):
     @property
     def cur_vid(self):
         """ The current video playing/selected. If finished, will point to first. """
+        if not self.vids:
+            return None
+
         return self.vids[self.vid_index]
 
     def status(self):
@@ -168,7 +181,10 @@ class GuildPlayer(object):
 
     def set_volume(self, new_volume):
         self.cur_vid.set_volume(new_volume)
-        self.source.volume = self.cur_vid.volume
+        try:
+            self.source.volume = self.cur_vid.volume
+        except AttributeError:
+            pass
 
     def play(self):
         if not self.vids:
@@ -177,13 +193,19 @@ class GuildPlayer(object):
         if self.is_playing():
             self.stop()
 
+        self.finished = False
         self.__client.play(make_stream(self.cur_vid), after=self.after_call)
 
     def after_call(self, error):
         """
         To be executed on error or after stream finishes.
         """
-        if self.cur_vid.repeat:
+        if error:
+            logging.getLogger('dice.music').error(str(error))
+
+        if self.is_playing() or self.finished:
+            pass
+        elif self.cur_vid.repeat:
             self.play()
         else:
             self.next()
@@ -200,23 +222,23 @@ class GuildPlayer(object):
         """
         Go to the next song.
         """
-        if self.repeat_vids or self.vid_index < len(self.vids) - 1:
+        if self.repeat_all or (self.vid_index + 1) < len(self.vids):
             self.vid_index = (self.vid_index + 1) % len(self.vids)
             self.play()
         else:
-            self.vid_index = 0
             self.stop()
+            self.finished = True
 
     def prev(self):
         """
         Go to the previous song.
         """
-        if self.repeat_vids or self.vid_index < len(self.vids) - 1:
+        if self.repeat_all or (self.vid_index - 1) > 0:
             self.vid_index = (self.vid_index - 1) % len(self.vids)
             self.play()
         else:
-            self.vid_index = 0
             self.stop()
+            self.finished = True
 
     async def disconnect(self):
         """

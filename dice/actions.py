@@ -189,31 +189,37 @@ class Play(Action):
         mplayer.err_channel = self.msg.channel
         await mplayer.join_voice_channel()
 
-        msg = None
         if self.args.restart:
+            mplayer.vid_index = 0
             mplayer.play()
+            msg = "__**Now playing**__\n\n{}".format(mplayer.cur_vid)
         elif self.args.stop:
+            mplayer.finished = True
             mplayer.stop()
+            msg = "Player has been stopped.\n\nRestart it or play other vids to continue."
         elif self.args.pause:
             mplayer.toggle_pause()
+            msg = "Player is now: " + mplayer.status()
         elif self.args.next:
             mplayer.next()
-            msg = "Now Playing:\n" + str(mplayer.cur_vid)
+            msg = "__**Now playing**__\n\n{}".format(mplayer.cur_vid)
         elif self.args.prev:
             mplayer.prev()
-            msg = "Now Playing:\n" + str(mplayer.cur_vid)
+            msg = "__**Now playing**__\n\n{}".format(mplayer.cur_vid)
         elif self.args.volume != 'zero':
             mplayer.set_volume(self.args.volume)
-            msg = "Player Volume: {}/100".format(mplayer.cur_vid.volume_int)
-        elif self.args.repeat_vids:
-            mplayer.repeat_vids = not mplayer.repeat_vids
+            msg = "Player volume: {}/100".format(mplayer.cur_vid.volume_int)
+        elif self.args.repeat_all:
+            mplayer.repeat_all = not mplayer.repeat_all
+            if mplayer.repeat_all:
+                msg = "Player will return to and play first song after finishing list."
+            else:
+                msg = "Player will stop playing after last song in list."
         elif self.args.repeat:
             mplayer.cur_vid.repeat = not mplayer.cur_vid.repeat
-            if mplayer.cur_vid.id:
-                song = dicedb.query.get_song_by_id(self.session, mplayer.cur_vid.id)
-                song.repeat = mplayer.cur_vid.repeat
-                self.session.add(song)
-                self.session.commit()
+            msg = "Current video {} set to repeat.\n\nOverride with '--next'.".format(mplayer.cur_vid.name)
+        elif self.args.status:
+            msg = str(mplayer)
         elif self.args.vids:
             parts = [part.strip() for part in re.split(r'\s*,\s*', ' '.join(self.args.vids))]
             new_vids = validate_videos(parts)
@@ -222,10 +228,16 @@ class Play(Action):
                 mplayer.vids += new_vids
             else:
                 mplayer.vids = new_vids
+                mplayer.vid_index = 0
                 mplayer.play()
 
-        if not msg:
-            msg = "Player Status: " + mplayer.status()
+            msg = str(mplayer)
+
+        if mplayer.cur_vid.id and (self.args.volume or self.args.repeat):
+            song = dicedb.query.get_song_by_id(self.session, mplayer.cur_vid.id)
+            song.update(mplayer.cur_vid)
+            self.session.add(song)
+            self.session.commit()
 
         await self.bot.send_message(self.msg.channel, msg)
 
@@ -1113,12 +1125,12 @@ def validate_videos(list_vids, session=None):
 
         matches = dicedb.query.search_songs_by_name(session, vid)
         if matches and len(matches) == 1:
-            new_vids.append(matches[0].url)
+            new_vids.append(matches[0])
 
         elif dice.util.is_valid_yt(vid):
             yt_id = dice.util.is_valid_yt(vid)
             new_vids.append(Song(id=None, name='youtube_{}'.format(yt_id), folder='/tmp/videos',
-                                 uri='https://youtu.be/' + yt_id, volume_int=50))
+                                 uri='https://youtu.be/' + yt_id, repeat=False, volume_int=50))
 
         elif dice.util.is_valid_url(vid):
             raise dice.exc.InvalidCommandArgs("Only youtube links supported: " + vid)
@@ -1130,7 +1142,8 @@ def validate_videos(list_vids, session=None):
                 raise dice.exc.InvalidCommandArgs("Cannot find local video: " + vid)
 
             name = os.path.basename(globbed[0]).replace('.opus', '')
-            new_vids.append(Song(id=None, name=name, folder=pat, uri=None, volume_int=50))
+            new_vids.append(Song(id=None, name=name, folder=pat, uri=None, repeat=False,
+                                 volume_int=50))
 
     return new_vids
 

@@ -39,7 +39,6 @@ import dice.parse
 import dice.util
 import dice.nplayer
 
-
 LIVE_TASKS = []
 
 
@@ -219,6 +218,7 @@ class DiceBot(discord.Client):
         except dice.exc.InternalException as exc:
             exc.write_log(log, content=content, author=author, channel=channel)
             await channel.send(exc.reply())
+            raise exc
 
         except discord.DiscordException as exc:
             if exc.args[0].startswith("BAD REQUEST (status code: 400"):
