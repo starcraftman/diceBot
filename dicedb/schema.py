@@ -171,27 +171,27 @@ class Song(Base):
     """
     Song object that represents a local or remote video from youtube.
     The contents of this class serialize to the db.
-    For local videos, uri is None. Otherwise a youtube url.
+    For local videos, url is None. Otherwise a youtube url.
     """
     __tablename__ = 'songs'
 
     id = sqla.Column(sqla.Integer, primary_key=True)
     name = sqla.Column(sqla.String(LEN_SONG_NAME), unique=True, nullable=False)
     folder = sqla.Column(sqla.String(LEN_SONG_NAME), nullable=False)
-    uri = sqla.Column(sqla.String(LEN_SONG_URL), nullable=True)
+    url = sqla.Column(sqla.String(LEN_SONG_URL), nullable=True)
     repeat = sqla.Column(sqla.Boolean, default=False)
     volume_int = sqla.Column(sqla.Integer, default=50)
 
     def __str__(self):
-        uri = ''
-        if self.uri:
-            uri = " URL: <" + self.uri + ">"
+        url = ''
+        if self.url:
+            url = " URL: <" + self.url + ">"
 
         return "Video Name: {}{}\n        Volume: {}/100 Repeat: {}".format(
-            self.name, uri, self.volume_int, self.repeat)
+            self.name, url, self.volume_int, self.repeat)
 
     def __repr__(self):
-        keys = ['id', 'name', 'folder', 'uri', 'repeat', 'volume_int']
+        keys = ['id', 'name', 'folder', 'url', 'repeat', 'volume_int']
         kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
 
         return "Song({})".format(', '.join(kwargs))
@@ -205,7 +205,7 @@ class Song(Base):
         return float(self.volume_int) / 100
 
     def is_remote(self):
-        return self.uri
+        return self.url
 
     def set_volume(self, new_volume=None):
         try:
@@ -224,7 +224,7 @@ class Song(Base):
 
         self.name = other.name
         self.folder = other.folder
-        self.uri = other.uri
+        self.url = other.url
         self.repeat = other.repeat
         self.volume_int = other.volume_int
 

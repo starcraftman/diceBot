@@ -22,9 +22,9 @@ def dump_db():  # pragma: no cover
     fname = os.path.join(tempfile.gettempdir(), 'dbdump_' + os.environ.get('COG_TOKEN', 'dev'))
     print("Dumping db contents to:", fname)
     with open(fname, 'w') as fout:
-        for cls in [DUser, Pun, SavedRoll]:
-            fout.write('---- ' + str(cls) + ' ----\n')
-            fout.writelines([str(obj) + "\n" for obj in session.query(cls)])
+        for Song in [DUser, Pun, SavedRoll]:
+            fout.write('---- ' + str(Song) + ' ----\n')
+            fout.writelines([str(obj) + "\n" for obj in session.query(Song)])
 
 
 def get_duser(session, discord_id):
@@ -277,15 +277,11 @@ def remove_song_with_tags(session, name):
     session.commit()
 
 
-def search_songs_by_name(session, name, *, tags=False):
+def search_songs_by_name(session, name):
     """
     Get the possible song by name.
     """
-    cls = Song
-    if tags:
-        cls = SongTag
-
-    return session.query(cls).filter(cls.name.ilike('%{}%'.format(name))).all()
+    return session.query(Song).filter(Song.name.ilike('%{}%'.format(name))).all()
 
 
 def get_song_by_id(session, id):
@@ -303,16 +299,26 @@ def get_songs_with_tag(session, name):
     return session.query(Song).filter(Song.id.in_(subq)).all()
 
 
-def get_song_choices(session, *, tags=False):
+def get_song_choices(session):
     """
-    Get all possible choices for song names or tag names.
+    Get all possible choices for song names.
 
     args:
         session: session to the database.
-        tags: True if you want tag choices, otherwise returns song names.
     """
-    cls = Song
-    if tags:
-        cls = SongTag
+    return session.query(Song).order_by(Song.name).all()
 
-    return session.query(cls).order_by(cls.name).all()
+
+def get_tag_choices(session, similar_to=None):
+    """
+    Get all possible choices for tag names and their counts.
+
+    args:
+        session: session to the database.
+        similar_to: Only return tags similar to this.
+    """
+    query = session.query(SongTag.name).distinct()
+    if similar_to:
+        query = query.filter(SongTag.name.ilike('%{}%'.format(similar_to)))
+
+    return [x[0] for x in query.order_by(SongTag.name).all()]

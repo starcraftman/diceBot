@@ -7,6 +7,7 @@ from __future__ import absolute_import, print_function
 import asyncio
 import concurrent.futures
 import datetime
+import functools
 import logging
 import math
 import os
@@ -174,19 +175,7 @@ class Play(Action):
     Transparent mapper from actions onto the music player.
     """
     async def execute(self):
-        try:
-            target = self.msg.author.voice.channel
-        except AttributeError:
-            target = discord.utils.find(lambda x: isinstance(x, discord.VoiceChannel),
-                                        self.msg.guild.channels)
-
-        if self.guild_id not in PLAYERS:
-            PLAYERS[self.guild_id] = GuildPlayer(vids=[], target_channel=target,
-                                                 err_channel=self.msg.channel)
-
-        mplayer = PLAYERS[self.guild_id]
-        mplayer.target_channel = target
-        mplayer.err_channel = self.msg.channel
+        mplayer = get_guild_player(self.guild_id, self.msg)
         await mplayer.join_voice_channel()
 
         if self.args.restart:
@@ -228,9 +217,7 @@ class Play(Action):
             if self.args.append:
                 mplayer.vids += new_vids
             else:
-                mplayer.vids = new_vids
-                mplayer.vid_index = 0
-                mplayer.play()
+                mplayer.play(new_vids)
 
             msg = str(mplayer)
 
@@ -265,17 +252,17 @@ class Songs(Action):
         """
         List all entries in the song db. Implements a paging like interface.
         """
-        cnt, page = 1, 1
+        page = 1
         entries = dicedb.query.get_song_choices(self.session)
 
         while entries:
             try:
-                num_entries = len(entries[:LIMIT_SONGS])
                 reply = format_song_list('**__Songs DB__** Page {}\n\n'.format(page),
-                                         entries[:LIMIT_SONGS], SONG_FOOTER, cnt=cnt)
+                                         entries[:LIMIT_SONGS], SONG_FOOTER)
                 messages = [await self.bot.send_message(self.msg.channel, reply)]
-                user_select = await self.bot.wait_for_message(timeout=30, author=self.msg.author,
-                                                              channel=self.msg.channel)
+
+                user_select = await self.bot.wait_for(
+                    'message', check=functools.partial(check_messages, self.msg), timeout=30)
 
                 if user_select:
                     messages += [user_select]
@@ -288,7 +275,6 @@ class Songs(Action):
                 elif user_select.content == 'next':
                     entries = entries[LIMIT_SONGS:]
                     page += 1
-                    cnt += LIMIT_SONGS
 
                 else:
                     choice = int(user_select.content.replace('play', '')) - 1
@@ -296,16 +282,16 @@ class Songs(Action):
                         raise ValueError
                     selected = entries[choice]
 
-                    self.bot.mplayer.initialize_settings(self.msg, validate_videos([selected.url]))
-                    asyncio.ensure_future(asyncio.gather(
-                        self.bot.mplayer.start(),
-                        self.bot.send_message(self.msg.channel, '**Song Started**\n\n' + format_a_song(1, selected)),
-                    ))
+                    mplayer = get_guild_player(self.guild_id, self.msg)
+                    await mplayer.join_voice_channel()
+                    mplayer.play([selected])
+
+                    await self.bot.send_message(self.msg.channel, '**Song Started**\n\n' + format_a_song(1, selected))
                     break
             except ValueError:
                 await self.bot.send_message(
                     self.msg.channel,
-                    'Selection not understood. Make choice in [1, {}]'.format(num_entries)
+                    'Selection not understood. Make choice in [1, {}]'.format(len(LIMIT_SONGS))
                 )
             finally:
                 user_select = None
@@ -315,17 +301,16 @@ class Songs(Action):
         """
         Using paging interface similar to list, allow management of song db.
         """
-        cnt = 1
         entries = dicedb.query.get_song_choices(self.session)
         num_entries = len(entries[:LIMIT_SONGS])
 
         while entries:
             try:
                 reply = format_song_list("Remove one of these songs? [1..{}]:\n\n".format(num_entries),
-                                         entries[:LIMIT_SONGS], SONG_FOOTER, cnt=cnt)
+                                         entries[:LIMIT_SONGS], SONG_FOOTER)
                 messages = [await self.bot.send_message(self.msg.channel, reply)]
-                user_select = await self.bot.wait_for_message(timeout=30, author=self.msg.author,
-                                                              channel=self.msg.channel)
+                user_select = await self.bot.wait_for(
+                    'message', check=functools.partial(check_messages, self.msg), timeout=30)
 
                 if user_select:
                     messages += [user_select]
@@ -336,7 +321,6 @@ class Songs(Action):
                     break
 
                 elif user_select.content == 'next':
-                    cnt += LIMIT_SONGS
                     entries = entries[LIMIT_SONGS:]
                     num_entries = len(entries[:LIMIT_SONGS])
 
@@ -360,19 +344,17 @@ class Songs(Action):
             await self.bot.send_message(self.msg.channel, "Management terminated.")
 
     async def select_song(self, tagged_songs):
-        cnt = 1
-
         while tagged_songs:
             try:
                 page_songs = tagged_songs[:LIMIT_SONGS]
                 num_entries = len(page_songs)
                 song_msg = format_song_list('Choose from the following songs...\n\n',
-                                            page_songs, SONG_FOOTER, cnt=cnt)
+                                            page_songs, SONG_FOOTER)
                 song_msg += 'Type __back__ to return to tags.'
 
                 messages = [await self.bot.send_message(self.msg.channel, song_msg)]
-                user_select = await self.bot.wait_for_message(timeout=30, author=self.msg.author,
-                                                              channel=self.msg.channel)
+                user_select = await self.bot.wait_for(
+                    'message', check=functools.partial(check_messages, self.msg), timeout=30)
 
                 if user_select:
                     messages += [user_select]
@@ -388,7 +370,6 @@ class Songs(Action):
 
                 elif user_select.content == 'next':
                     tagged_songs = tagged_songs[LIMIT_SONGS:]
-                    cnt += LIMIT_SONGS
 
                 else:
                     choice = int(user_select.content.replace('play ', '')) - 1
@@ -396,11 +377,11 @@ class Songs(Action):
                         raise ValueError
                     selected = page_songs[choice]
 
-                    self.bot.mplayer.initialize_settings(self.msg, validate_videos([selected.url]))
-                    asyncio.ensure_future(asyncio.gather(
-                        self.bot.mplayer.start(),
-                        self.bot.send_message(self.msg.channel, '**Song Started**\n\n' + format_a_song(1, selected)),
-                    ))
+                    mplayer = get_guild_player(self.guild_id, self.msg)
+                    await mplayer.join_voice_channel()
+                    mplayer.play([selected])
+
+                    await self.bot.send_message(self.msg.channel, '**Song Started**\n\n' + format_a_song(1, selected))
                     break
             except ValueError:
                 await self.bot.send_message(
@@ -415,22 +396,21 @@ class Songs(Action):
         """
         Use the Songs db to lookup dynamically based on tags.
         """
-        all_tags = dicedb.query.get_song_choices(self.session, tags=True)
-        cnt = 1
+        all_tags = dicedb.query.get_tag_choices(self.session)
 
         while all_tags:
             try:
                 page_tags = all_tags[:LIMIT_TAGS]
                 num_entries = len(page_tags)
                 tag_msg = 'Select one of the following tags by number to explore:\n\n'
-                for ind, tag in enumerate(page_tags, start=cnt):
-                    tagged_songs = dicedb.query.get_songs_with_tag(self.session, tag.name)
-                    tag_msg += '        **{}**) {} ({} songs)\n'.format(ind, tag.name, len(tagged_songs))
+                for ind, tag in enumerate(page_tags, start=1):
+                    tagged_songs = dicedb.query.get_songs_with_tag(self.session, tag)
+                    tag_msg += '        **{}**) {} ({} songs)\n'.format(ind, tag, len(tagged_songs))
                 tag_msg = tag_msg.rstrip()
                 tag_msg += SONG_FOOTER
                 messages = [await self.bot.send_message(self.msg.channel, tag_msg)]
-                user_select = await self.bot.wait_for_message(timeout=30, author=self.msg.author,
-                                                              channel=self.msg.channel)
+                user_select = await self.bot.wait_for(
+                    'message', check=functools.partial(check_messages, self.msg), timeout=30)
 
                 if user_select:
                     messages += [user_select]
@@ -442,14 +422,13 @@ class Songs(Action):
 
                 elif user_select.content == 'next':
                     all_tags = all_tags[LIMIT_TAGS:]
-                    cnt += LIMIT_TAGS
 
                 else:
                     choice = int(user_select.content) - 1
                     if choice < 0 or choice >= num_entries:
                         raise ValueError
 
-                    songs = dicedb.query.get_songs_with_tag(self.session, page_tags[choice].name)
+                    songs = dicedb.query.get_songs_with_tag(self.session, page_tags[choice])
                     asyncio.ensure_future(self.select_song(songs))
                     break
             except ValueError:
@@ -486,10 +465,11 @@ class Songs(Action):
 
         l_term = ' '.join(term).lower().strip()
         session = dicedb.Session()
-        tags = dicedb.query.search_songs_by_name(session, l_term, tags=True)
+        tags = dicedb.query.get_tag_choices(session, l_term)
+        print(tags)
         for tag in tags:
-            reply += '__**{}**__\n'.format(tag.name)
-            for song in dicedb.query.get_songs_with_tag(session, tag.name):
+            reply += '__**{}**__\n'.format(tag)
+            for song in dicedb.query.get_songs_with_tag(session, tag):
                 reply += format_a_song(cnt, song)
                 cnt += 1
             reply += "\n"
@@ -779,8 +759,8 @@ class Timers(Action):
                 reply = "Please select a timer to delete from below [1..{}]:\n".format(len(user_timers)) + self.timer_summary()
                 reply += "\n\nWrite 'done' or 'stop' to finish."
                 messages = [await self.bot.send_message(self.msg.channel, reply)]
-                user_select = await self.bot.wait_for_message(timeout=30, author=self.msg.author,
-                                                              channel=self.msg.channel)
+                user_select = await self.bot.wait_for(
+                    'message', check=functools.partial(check_messages, self.msg), timeout=30)
 
                 if user_select:
                     messages += [user_select]
@@ -1009,17 +989,16 @@ class Pun(Action):
         """
         Using paging interface similar to list, allow management of puns in db.
         """
-        cnt = 1
         entries = dicedb.query.all_puns(session)
         num_entries = len(entries[:LIMIT_SONGS])
 
         while entries:
             try:
                 reply = format_pun_list("Remove one of these puns? [1..{}]:\n\n".format(num_entries),
-                                        entries[:LIMIT_SONGS], SONG_FOOTER, cnt=cnt)
+                                        entries[:LIMIT_SONGS], SONG_FOOTER, cnt=1)
                 messages = [await self.bot.send_message(self.msg.channel, reply)]
-                user_select = await self.bot.wait_for_message(timeout=30, author=self.msg.author,
-                                                              channel=self.msg.channel)
+                user_select = await self.bot.wait_for(
+                    'message', check=functools.partial(check_messages, self.msg), timeout=30)
 
                 if user_select:
                     messages += [user_select]
@@ -1029,7 +1008,6 @@ class Pun(Action):
                     break
 
                 elif user_select.content == 'next':
-                    cnt += LIMIT_SONGS
                     entries = entries[LIMIT_SONGS:]
                     num_entries = len(entries[:LIMIT_SONGS])
 
@@ -1131,7 +1109,7 @@ def validate_videos(list_vids, session=None):
         elif dice.util.is_valid_yt(vid):
             yt_id = dice.util.is_valid_yt(vid)
             new_vids.append(Song(id=None, name='youtube_{}'.format(yt_id), folder='/tmp/videos',
-                                 uri='https://youtu.be/' + yt_id, repeat=False, volume_int=50))
+                                 url='https://youtu.be/' + yt_id, repeat=False, volume_int=50))
 
         elif dice.util.is_valid_url(vid):
             raise dice.exc.InvalidCommandArgs("Only youtube links supported: " + vid)
@@ -1143,7 +1121,7 @@ def validate_videos(list_vids, session=None):
                 raise dice.exc.InvalidCommandArgs("Cannot find local video: " + vid)
 
             name = os.path.basename(globbed[0]).replace('.opus', '')
-            new_vids.append(Song(id=None, name=name, folder=pat, uri=None, repeat=False,
+            new_vids.append(Song(id=None, name=name, folder=pat, url=None, repeat=False,
                                  volume_int=50))
 
     return new_vids
@@ -1211,3 +1189,33 @@ def throw_in_pool(throw):  # pragma: no cover
     """
     dice.util.seed_random()
     return throw.next()
+
+
+def check_messages(original, m):
+    """
+    Simply check if message came from same author and text channel.
+    Use functools to bind self.msg into original to make predicate.
+    """
+    return m.author == original.author and m.channel == original.channel
+
+
+def get_guild_player(guild_id, msg):
+    """
+    Get the guild player for a guild.
+    Current model assumes bot can maintain separate streams for each guild.
+    """
+    try:
+        target = msg.author.voice.channel
+    except AttributeError:
+        target = discord.utils.find(lambda x: isinstance(x, discord.VoiceChannel),
+                                    msg.guild.channels)
+
+    if guild_id not in PLAYERS:
+        PLAYERS[guild_id] = GuildPlayer(vids=[], target_channel=target,
+                                        err_channel=msg.channel)
+
+    player = PLAYERS[guild_id]
+    player.target_channel = target
+    player.err_channel = msg.channel
+
+    return player

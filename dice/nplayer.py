@@ -23,10 +23,14 @@ Try again later or get Gears. """
 MPLAYER_TIMEOUT = 120  # seconds
 SONG_CACHE_SIZE = 512 * 1024 ** 2
 # Stupid youtube: https://github.com/Rapptz/discord.py/issues/315
-BEFORE_OPTS = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
-YTDL_CMD = "youtube-dl -o {} -x --audio-format opus --audio-quality 0"
+# Archived if go back to streaming youtube
+#  BEFORE_OPTS = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
+#  YTDL_CMD = "youtube-dl -o {} -x --audio-format opus --audio-quality 0"
+# Filename goes after o flag, urls at end
+YTDL_CMD = "youtube-dl -o -x --audio-format opus --audio-quality 0"
 
 
+# TODO: Pre-fetch NEXT video while current video streaming out, if # vids > 1.
 def youtube_dl(url, name, out_path=None):
     """
     Download a youtube video in the right audio format.
@@ -40,7 +44,8 @@ def youtube_dl(url, name, out_path=None):
         pass
 
     fname = os.path.join(out_path, name + ".%(ext)s")
-    args = YTDL_CMD.format(fname).split(' ') + [url]
+    args = YTDL_CMD.split(' ')
+    args = args[:2] + [fname] + args[2:] + [url]
     subprocess.check_output(args)
 
     return fname
@@ -66,7 +71,7 @@ def make_stream(video):
     Then just returns the stream object required for the voice client.
     """
     if video.is_remote() and not os.path.exists(video.fname):
-        youtube_dl(video.uri, video.name, video.folder)
+        youtube_dl(video.url, video.name, video.folder)
 
     now = time.time()
     os.utime(video.fname, (now, now))
@@ -147,10 +152,10 @@ class GuildPlayer(object):
 
         return """__**Player Status**__ :
 
-    __Now Playing__: {now_play}
-    __Status__: {status}
-    __Repeat All__: {repeat}
-    __Video List__: {vids}
+__Now Playing__: {now_play}
+__Status__: {status}
+__Repeat All__: {repeat}
+__Video List__: {vids}
 """.format(now_play=current, vids=str_vids,
            status=self.status(), repeat=self.repeat_all)
 
@@ -186,7 +191,14 @@ class GuildPlayer(object):
         except AttributeError:
             pass
 
-    def play(self):
+    def play(self, replace_vids=None):
+        """
+        Play the vids in the list.
+        If optional replace_vids passed, replace current queue and reset to start.
+        """
+        if replace_vids:
+            self.vids = replace_vids
+            self.vid_index = 0
         if not self.vids:
             raise dice.exc.InvalidCommandArgs("No videos set to play.")
 
