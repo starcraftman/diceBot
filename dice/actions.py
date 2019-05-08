@@ -1179,6 +1179,7 @@ def get_results_in_background(full_url, num):
         link_text = ele.find_element_by_css_selector('a.gs-title').get_property('href')
         result += '{}\n      <{}>\n'.format(ele.text, link_text)
     browser.quit()
+    del browser  # Force cleanup now
 
     return result.rstrip()
 

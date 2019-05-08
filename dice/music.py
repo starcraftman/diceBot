@@ -266,9 +266,12 @@ __Video List__:{vids}
         """
         Only called when sure bot voice services no longer needed.
         """
-        self.stop()
-        await self.__client.disconnect()
-        self.__client = None
+        try:
+            self.stop()
+            await self.__client.disconnect()
+            self.__client = None
+        except AttributeError:
+            pass
 
     async def join_voice_channel(self):
         """
@@ -285,5 +288,5 @@ __Video List__:{vids}
                 self.__client = await asyncio.wait_for(self.target_channel.connect(),
                                                        VOICE_JOIN_TIMEOUT)
         except asyncio.TimeoutError:
-            await self.quit()
+            await self.disconnect()
             raise dice.exc.UserException(TIMEOUT_MSG)
