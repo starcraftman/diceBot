@@ -157,13 +157,17 @@ class Message(FakeObject):
         self.content = content
         self.mentions = mentions
         self.guild = guild
+        self.__mock = aiomock.AIOMock()
+        self.__mock.delete.async_return_value = True
+        self.delete = self.__mock.delete
 
     @property
     def timestamp(self):
         return datetime.datetime.utcnow()
 
-    async def delete(self):
-        pass
+    @property
+    def mock(self):
+        return self.__mock
 
     # def __repr__(self):
         # return super().__repr__() + "\n  Content: {}\n  Author: {}\n  Channel: {}\n  guild: {}".format(

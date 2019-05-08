@@ -68,13 +68,9 @@ def test_prune_cache_prefix():
 
 @pytest.mark.skipif(not os.environ.get('ALL_TESTS'), reason=YTDL_REASON)
 def test_make_stream(f_songs):
-    try:
-        tdir = tempfile.TemporaryDirectory()
-        stream = dice.music.make_stream(f_songs[0])
-        assert isinstance(stream, discord.PCMVolumeTransformer)
-        assert len(os.listdir(tdir.name)) == 1
-    finally:
-        tdir.cleanup()
+    stream = dice.music.make_stream(f_songs[0])
+    assert isinstance(stream, discord.PCMVolumeTransformer)
+    assert len(os.listdir(f_songs[0].folder)) == 1
 
 
 def test_guild_player__init__(f_songs):
