@@ -281,7 +281,10 @@ def search_songs_by_name(session, name):
     """
     Get the possible song by name.
     """
-    return session.query(Song).filter(Song.name.ilike('%{}%'.format(name))).all()
+    try:
+        return [session.query(Song).filter(Song.name == name).one()]
+    except sqla_oexc.NoResultFound:
+        return session.query(Song).filter(Song.name.ilike('%{}%'.format(name))).all()
 
 
 def get_song_by_id(session, id):

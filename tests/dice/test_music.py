@@ -13,7 +13,7 @@ import pytest
 
 import dice.music
 
-YTDL_REASON = "Uses yotube_dl, uses bandwidth and slow."
+YTDL_REASON = "Uses yotube_dl and is slow. To enable set env ALL_TESTS=True"
 
 
 @pytest.mark.skipif(not os.environ.get('ALL_TESTS'), reason=YTDL_REASON)
@@ -109,7 +109,7 @@ __Video List__:
 
 def test_guild_player__repr__(f_songs):
     player = dice.music.GuildPlayer(vids=f_songs)
-    rep = "GuildPlayer(vid_index=0, vids=(Song(id=1, name='crit', folder='/tmp/tmp', url='https://youtu.be/IrbCrwtDIUA', repeat=False, volume_int=50), Song(id=2, name='pop', folder='/tmp/tmp', url='https://youtu.be/7jgnv0xCv-k', repeat=False, volume_int=50), Song(id=3, name='late', folder='/home/starcraftman/prog/extras/music/late.opus', url=None, repeat=False, volume_int=50)), repeat_all=False, err_channel=None, target_channel=None)"
+    rep = "GuildPlayer(vid_index=0, vids=(Song(id=1, name='crit', folder='/tmp/tmp', url='https://youtu.be/IrbCrwtDIUA', repeat=False, volume_int=50), Song(id=2, name='pop', folder='/tmp/tmp', url='https://youtu.be/7jgnv0xCv-k', repeat=False, volume_int=50), Song(id=3, name='late', folder='/home/starcraftman/prog/extras/music', url=None, repeat=False, volume_int=50)), repeat_all=False, err_channel=None, target_channel=None)"
     assert re.sub(r'/tmp/\w+', '/tmp/tmp', repr(player)) == rep
 
 

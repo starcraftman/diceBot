@@ -336,7 +336,10 @@ def seed_random(seed=None):
 
 def is_valid_yt(url):
     """ Will only validate against youtube urls. Returns the unique identifier. """
-    return IS_YT.match(url).groups()[-1]
+    try:
+        return IS_YT.match(url).groups()[-1]
+    except AttributeError:
+        return None
 
 
 def is_valid_url(url):

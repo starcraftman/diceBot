@@ -25,7 +25,7 @@ def test_dice_exception_write_log():
     expect = """
 DiceException: An exception happened :(
 ====================
-GearsandCogs sent I don't like exceptions from Channel: live_hudson/Server: Gears' Hideout
+GearsandCogs sent I don't like exceptions from Channel: live_hudson/Guild: Gears' Hideout
     Discord ID: 1000
     Username: GearsandCogs#12345
     Cookie Lord on Gears' Hideout"""
@@ -73,7 +73,7 @@ To Resolve:
 
 def test_log_format():
     msg = fake_msg_gears('Hello world!')
-    expect = """GearsandCogs sent Hello world! from Channel: live_hudson/Server: Gears' Hideout
+    expect = """GearsandCogs sent Hello world! from Channel: live_hudson/Guild: Gears' Hideout
     Discord ID: 1000
     Username: GearsandCogs#12345
     Cookie Lord on Gears' Hideout"""

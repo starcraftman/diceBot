@@ -75,16 +75,16 @@ def test_pun__lt__(f_puns):
 
 def test_storedturn__repr__(f_storedturns):
     turn = f_storedturns[0]
-    assert repr(turn) == "TurnOrder(id='server1-chan1', text='TurnOrder')"
+    assert repr(turn) == "TurnOrder(id='guild1-chan1', text='TurnOrder')"
 
 
 def test_storedturn__str__(f_storedturns):
     turn = f_storedturns[0]
-    assert repr(turn) == "TurnOrder(id='server1-chan1', text='TurnOrder')"
+    assert repr(turn) == "TurnOrder(id='guild1-chan1', text='TurnOrder')"
 
 
 def test_storedturn__eq__(f_storedturns):
-    assert f_storedturns[0] == TurnOrder(id='server1-chan1', text='TurnOrder')
+    assert f_storedturns[0] == TurnOrder(id='guild1-chan1', text='TurnOrder')
 
 
 def test_parse_int():

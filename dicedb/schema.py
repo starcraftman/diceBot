@@ -196,6 +196,9 @@ class Song(Base):
 
         return "Song({})".format(', '.join(kwargs))
 
+    def __eq__(self, other):
+        return isinstance(other, Song) and self.name == other.name
+
     @property
     def fname(self):
         return os.path.join(self.folder, self.name + '.opus')

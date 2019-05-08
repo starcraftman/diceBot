@@ -18,10 +18,11 @@ import dice.bot
 import dice.parse
 import dicedb
 import dicedb.query
+from dicedb.schema import Song
 
 from tests.conftest import fake_msg_gears, fake_msg, fixed_id_fake_msg
 
-OGN_REASON = 'Skipped to be kind and not spam OGN, to enable set ALL_TESTS=True'
+OGN_REASON = "Skipped to be kind and not spam OGN. To enable set env ALL_TESTS=True"
 OGN_TEST = pytest.mark.skipif(not os.environ.get('ALL_TESTS'), reason=OGN_REASON)
 
 
@@ -470,7 +471,7 @@ async def test_cmd_turn_add(session, f_bot, db_cleanup):
         await action_map(msg, f_bot).execute()
         await action_map(msg2, f_bot).execute()
 
-        assert dicedb.query.get_turn_order(session, '{}_{}'.format(msg.server.id, msg.channel.id))
+        assert dicedb.query.get_turn_order(session, '{}_{}'.format(msg.guild.id, msg.channel.id))
         capture = str(f_bot.send_message.call_args).replace("\\n", "\n")
         for name in ['Chris', 'Orc', 'Dwarf']:
             assert name in capture
@@ -482,7 +483,7 @@ async def test_cmd_turn_add(session, f_bot, db_cleanup):
 async def test_cmd_turn_clear(session, f_bot, db_cleanup):
     msg = fixed_id_fake_msg("!turn --add Chris/7, Orc/2")
     msg2 = fixed_id_fake_msg("!turn --clear")
-    key = '{}_{}'.format(msg.server.id, msg.channel.id)
+    key = '{}_{}'.format(msg.guild.id, msg.channel.id)
 
     await action_map(msg, f_bot).execute()
     assert dicedb.query.get_turn_order(dicedb.Session(), key)
@@ -758,7 +759,10 @@ def test_validate_videos_not_youtube():
 def test_validate_videos_youtube_strip_angles():
     links = ['<https://youtube.com/watch?v=1234>']
 
-    assert dice.actions.validate_videos(links) == ['https://youtube.com/watch?v=1234']
+    expect = [Song(id=None, name='youtube_1234', folder='/tmp/videos',
+                   url='https://youtu.be/1234', repeat=False, volume_int=50)]
+
+    assert dice.actions.validate_videos(links) == expect
 
 
 def test_validate_videos_local_not_found():
@@ -768,28 +772,14 @@ def test_validate_videos_local_not_found():
         dice.actions.validate_videos(links)
 
 
-def test_validate_videos_local_found():
-    try:
-        fname = '/tmp/music/found.mp3'
-        try:
-            os.makedirs(os.path.dirname(fname))
-        except FileExistsError:
-            pass
-        with open(fname, 'w') as fout:
-            fout.write('exist')
-
-        dice.actions.MUSIC_PATH = os.path.dirname(fname)
-        links = ['found.mp3']
-        dice.actions.validate_videos(links)
-    finally:
-        dice.actions.MUSIC_PATH = '/tmp/music'
-        os.remove(fname)
-        os.rmdir(os.path.dirname(fname))
+def test_validate_videos_local_found(f_songs):
+    links = [f_songs[-1].name]
+    dice.actions.validate_videos(links)
 
 
 def test_format_a_song(f_songs):
-    expect = """        __Song 1__: song1
-        __URL__: <www.youtube.com/song1>
+    expect = """        __Song 1__: crit
+        __URL__: <https://youtu.be/IrbCrwtDIUA>
         __Tags__: ['exciting', 'action']
 
 """
@@ -801,17 +791,17 @@ def test_format_song_list(f_songs):
     footer = '\n\nA footer'
     expect = """A header
 
-        __Song 1__: song1
-        __URL__: <www.youtube.com/song1>
+        __Song 1__: crit
+        __URL__: <https://youtu.be/IrbCrwtDIUA>
         __Tags__: ['exciting', 'action']
 
-        __Song 2__: song2
-        __URL__: <www.youtube.com/song2>
-        __Tags__: ['sneaking']
+        __Song 2__: pop
+        __URL__: <https://youtu.be/7jgnv0xCv-k>
+        __Tags__: ['pop', 'public']
 
-        __Song 3__: song3
-        __URL__: <song3>
-        __Tags__: ['slow', 'sentimental']
+        __Song 3__: late
+        __URL__: <None>
+        __Tags__: ['late', 'lotr']
 
 A footer"""
 

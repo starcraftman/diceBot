@@ -91,7 +91,7 @@ class FakeObject(object):
         return "{}: {}".format(self.__class__.__name__, self.name)
 
 
-class Server(FakeObject):
+class Guild(FakeObject):
     def __init__(self, name, id=None):
         super().__init__(name, id)
         self.channels = []
@@ -105,13 +105,13 @@ class Server(FakeObject):
 
 
 class Channel(FakeObject):
-    def __init__(self, name, *, srv=None, type=0, id=None):
+    def __init__(self, name, *, guild=None, type=0, id=None):
         super().__init__(name, id)
-        self.server = srv
+        self.guild = guild
         self.type = discord.ChannelType(type)
 
     # def __repr__(self):
-        # return super().__repr__() + ", Server: {}".format(self.server.name)
+        # return super().__repr__() + ", guild: {}".format(self.guild.name)
 
 
 class VoiceState(FakeObject):
@@ -141,86 +141,89 @@ class Member(FakeObject):
 
 
 class Role(FakeObject):
-    def __init__(self, name, srv=None, *, id=None):
+    def __init__(self, name, guild=None, *, id=None):
         super().__init__(name, id)
-        self.server = srv
+        self.guild = guild
 
     # def __repr__(self):
-        # return super().__repr__() + "\n  {}".format(self.server)
+        # return super().__repr__() + "\n  {}".format(self.guild)
 
 
 class Message(FakeObject):
-    def __init__(self, content, author, srv, channel, mentions, *, id=None):
+    def __init__(self, content, author, guild, channel, mentions, *, id=None):
         super().__init__(None, id)
         self.author = author
         self.channel = channel
         self.content = content
         self.mentions = mentions
-        self.server = srv
+        self.guild = guild
 
     @property
     def timestamp(self):
         return datetime.datetime.utcnow()
 
+    async def delete(self):
+        pass
+
     # def __repr__(self):
-        # return super().__repr__() + "\n  Content: {}\n  Author: {}\n  Channel: {}\n  Server: {}".format(
-            # self.content, self.author, self.channel, self.server)
+        # return super().__repr__() + "\n  Content: {}\n  Author: {}\n  Channel: {}\n  guild: {}".format(
+            # self.content, self.author, self.channel, self.guild)
 
 
-def fake_servers():
-    """ Generate fake discord servers for testing. """
-    srv = Server("Gears' Hideout")
+def fake_guilds():
+    """ Generate fake discord guilds for testing. """
+    guild = Guild("Gears' Hideout")
     channels = [
-        Channel("feedback", srv=srv),
-        Channel("live_hudson", srv=srv),
-        Channel("private_dev", srv=srv),
-        Channel("voice1", srv=srv, type=discord.enums.ChannelType.voice),
+        Channel("feedback", guild=guild),
+        Channel("live_hudson", guild=guild),
+        Channel("private_dev", guild=guild),
+        Channel("voice1", guild=guild, type=discord.enums.ChannelType.voice),
     ]
     for cha in channels:
-        srv.add(cha)
+        guild.add(cha)
 
-    return [srv]
+    return [guild]
 
 
 def fake_msg_gears(content):
     """ Generate fake message with GearsandCogs as author. """
-    srv = fake_servers()[0]
-    roles = [Role('Everyone', srv), Role('Cookie Lord', srv)]
+    guild = fake_guilds()[0]
+    roles = [Role('Everyone', guild), Role('Cookie Lord', guild)]
     aut = Member("GearsandCogs", roles, id="1000")
-    return Message(content, aut, srv, srv.channels[1], None)
+    return Message(content, aut, guild, guild.channels[1], None)
 
 
 def fake_msg_newuser(content):
     """ Generate fake message with GearsandCogs as author. """
-    srv = fake_servers()[0]
-    roles = [Role('Everyone', srv), Role('Fighter', srv)]
+    guild = fake_guilds()[0]
+    roles = [Role('Everyone', guild), Role('Fighter', guild)]
     aut = Member("newuser", roles, id="1003")
-    return Message(content, aut, srv, srv.channels[1], None)
+    return Message(content, aut, guild, guild.channels[1], None)
 
 
 def fake_msg(content, user_id='1', name='User1', voice=False):
     """ Generate fake message with GearsandCogs as author. """
-    srv = fake_servers()[0]
-    roles = [Role('Everyone', srv), Role('Fighter', srv)]
+    guild = fake_guilds()[0]
+    roles = [Role('Everyone', guild), Role('Fighter', guild)]
     aut = Member(name, roles, id=user_id)
     if voice:
-        aut.voice = VoiceState('Voice ' + aut.name, is_afk=False, voice_channel=srv.channels[-1])
+        aut.voice = VoiceState('Voice ' + aut.name, is_afk=False, voice_channel=guild.channels[-1])
 
-    return Message(content, aut, srv, srv.channels[1], None)
+    return Message(content, aut, guild, guild.channels[1], None)
 
 
 def fixed_id_fake_msg(content, user_id='1', name='User1', voice=False):
     """ Generate fake message with GearsandCogs as author. """
-    srv = fake_servers()[0]
-    roles = [Role('Everyone', srv), Role('Fighter', srv)]
+    guild = fake_guilds()[0]
+    roles = [Role('Everyone', guild), Role('Fighter', guild)]
     aut = Member(name, roles, id=user_id)
     if voice:
-        aut.voice = VoiceState('Voice ' + aut.name, is_afk=False, voice_channel=srv.channels[-1])
+        aut.voice = VoiceState('Voice ' + aut.name, is_afk=False, voice_channel=guild.channels[-1])
 
-    srv.id = 'a_server'
-    for ind, chan in enumerate(srv.channels):
+    guild.id = 'a_guild'
+    for ind, chan in enumerate(guild.channels):
         chan.id = 'a_channel_{}'.format(ind)
-    return Message(content, aut, srv, srv.channels[1], None)
+    return Message(content, aut, guild, guild.channels[1], None)
 
 
 @pytest.fixture
@@ -249,7 +252,7 @@ def f_bot():
     fake_bot.get_member_by_substr.return_value = member
     fake_bot.delete_message.async_return_value = None
     fake_bot.emoji.fix = lambda x, y: x
-    fake_bot.servers = fake_servers()
+    fake_bot.guilds = fake_guilds()
     fake_bot.join_voice_channel.async_return_value = 'joined'
 
     def fake_exec(_, func, *args):
@@ -392,8 +395,8 @@ def f_storedturns(session):
     Fixture to insert some test Puns.
     """
     turns = (
-        TurnOrder(id='server1-chan1', text='TurnOrder'),
-        TurnOrder(id='server1-chan2', text='TurnOrder'),
+        TurnOrder(id='guild1-chan1', text='TurnOrder'),
+        TurnOrder(id='guild1-chan2', text='TurnOrder'),
     )
     session.add_all(turns)
     session.commit()
@@ -441,7 +444,7 @@ def f_songs(session):
              url="https://youtu.be/IrbCrwtDIUA", repeat=False, volume_int=50),
         Song(id=2, name="pop", folder=tdir.name,
              url="https://youtu.be/7jgnv0xCv-k", repeat=False, volume_int=50),
-        Song(id=3, name="late", folder=late_file,
+        Song(id=3, name="late", folder=os.path.dirname(late_file),
              url=None, repeat=False, volume_int=50),
     )
     tags = (
