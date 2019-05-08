@@ -4,6 +4,10 @@ Used for pytest fixtures and anything else test setup/teardown related.
 from __future__ import absolute_import, print_function
 import datetime
 import sys
+import tempfile
+import os
+from os.path import join as pjoin
+from os.path import dirname as pdirname
 
 import aiomock
 import discord
@@ -426,17 +430,27 @@ def f_songs(session):
     """
     Fixture to insert some test Songs and SongTags.
     """
+    root = os.path.abspath(os.path.dirname(__file__))
+    if os.path.dirname(__file__) == '':
+        root = os.getcwd()
+    late_file = pjoin(pdirname(pdirname(root)), 'extras', 'music', 'late.opus')
+    tdir = tempfile.TemporaryDirectory()
+
     songs = (
-        Song(id=1, name='song1', url='www.youtube.com/song1'),
-        Song(id=2, name='song2', url='www.youtube.com/song2'),
-        Song(id=3, name='song3', url='song3'),
+        Song(id=1, name="crit", folder=tdir.name,
+             url="https://youtu.be/IrbCrwtDIUA", repeat=False, volume_int=50),
+        Song(id=2, name="pop", folder=tdir.name,
+             url="https://youtu.be/7jgnv0xCv-k", repeat=False, volume_int=50),
+        Song(id=3, name="late", folder=late_file,
+             url=None, repeat=False, volume_int=50),
     )
     tags = (
         SongTag(id=1, song_key=1, name='exciting'),
         SongTag(id=2, song_key=1, name='action'),
-        SongTag(id=3, song_key=2, name='sneaking'),
-        SongTag(id=4, song_key=3, name='slow'),
-        SongTag(id=5, song_key=3, name='sentimental'),
+        SongTag(id=3, song_key=2, name='pop'),
+        SongTag(id=4, song_key=2, name='public'),
+        SongTag(id=5, song_key=3, name='late'),
+        SongTag(id=6, song_key=3, name='lotr'),
     )
     session.add_all(songs + tags)
     session.commit()
@@ -448,3 +462,23 @@ def f_songs(session):
     for matched in session.query(SongTag):
         session.delete(matched)
     session.commit()
+    tdir.cleanup()
+
+
+@pytest.fixture
+def f_vclient():
+    mock = aiomock.AIOMock()
+    mock.channel = Channel("VoiceChannel")
+    mock.source = aiomock.AIOMock()  # The AudioStream
+    mock.source.volume = 0.5
+    mock.is_connected.return_value = False
+    mock.is_playing.return_value = False
+    mock.is_paused.return_value = False
+    mock.play.return_value = True
+    mock.stop.return_value = True
+    mock.pause.return_value = True
+    mock.resume.return_value = True
+    mock.disconnect.async_return_value = True  # Async
+    mock.move_to.async_return_value = True  # Async
+
+    yield mock

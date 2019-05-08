@@ -22,9 +22,9 @@ def dump_db():  # pragma: no cover
     fname = os.path.join(tempfile.gettempdir(), 'dbdump_' + os.environ.get('COG_TOKEN', 'dev'))
     print("Dumping db contents to:", fname)
     with open(fname, 'w') as fout:
-        for Song in [DUser, Pun, SavedRoll]:
-            fout.write('---- ' + str(Song) + ' ----\n')
-            fout.writelines([str(obj) + "\n" for obj in session.query(Song)])
+        for cls in [DUser, Pun, SavedRoll, TurnChar, TurnOrder, Song, SongTag]:
+            fout.write('---- ' + str(cls) + ' ----\n')
+            fout.writelines([str(obj) + "\n" for obj in session.query(cls)])
 
 
 def get_duser(session, discord_id):

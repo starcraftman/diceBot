@@ -21,7 +21,7 @@ TIMEOUT_MSG = """ Bot joining voice took more than 5 seconds.
 
 Try again later or get Gears. """
 MPLAYER_TIMEOUT = 120  # seconds
-SONG_CACHE_SIZE = 512 * 1024 ** 2
+SONG_CACHE_SIZE = 100 * 1024 ** 2
 # Stupid youtube: https://github.com/Rapptz/discord.py/issues/315
 # Archived if go back to streaming youtube
 #  BEFORE_OPTS = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
@@ -30,7 +30,6 @@ SONG_CACHE_SIZE = 512 * 1024 ** 2
 YTDL_CMD = "youtube-dl -o -x --audio-format opus --audio-quality 0"
 
 
-# TODO: Pre-fetch NEXT video while current video streaming out, if # vids > 1.
 def youtube_dl(url, name, out_path=None):
     """
     Download a youtube video in the right audio format.
@@ -46,15 +45,25 @@ def youtube_dl(url, name, out_path=None):
     fname = os.path.join(out_path, name + ".%(ext)s")
     args = YTDL_CMD.split(' ')
     args = args[:2] + [fname] + args[2:] + [url]
-    subprocess.check_output(args)
+
+    try:
+        subprocess.check_call(args)
+    except subprocess.CalledProcessError as exc:
+        logging.getLogger('dice.music').error(str(exc))
+        raise
 
     return fname
 
 
-def prune_cache(cache_dir, limit=SONG_CACHE_SIZE):
-    """ Remove oldest videos. """
+def prune_cache(cache_dir, *, prefix=None, limit=SONG_CACHE_SIZE):
+    """
+    Remove the oldest videos in the cache_dir.
+    If prefix given select those that start with prefix.
+    Otherwise consider all files in the cache_dir.
+    """
     path = pathlib.Path(cache_dir)
-    songs = sorted(list(path.glob('youtube_*')), key=lambda x: x.stat().st_mtime)
+    matcher = '{}*'.format(prefix) if prefix else '*'
+    songs = sorted(list(path.glob(matcher)), key=lambda x: x.stat().st_mtime)
     total_size = 0
     for song in songs:
         total_size += os.stat(song).st_size
@@ -110,6 +119,7 @@ async def gplayer_monitor(players, gap=2):
         await asyncio.sleep(gap)
 
 
+# TODO: Pre-fetch NEXT video while current video streaming out, if # vids > 1.
 # Implemented in self.__client, stop, pause, resume, disconnect(async), move_to(async)
 class GuildPlayer(object):
     """
@@ -145,17 +155,14 @@ class GuildPlayer(object):
             current = ''
 
         pad = "\n    "
-        str_vids = pad
-        for vid in self.vids:
-            str_vids += str(vid) + pad
-        str_vids.rstrip()
+        str_vids = pad + pad.join([str(x) for x in self.vids])
 
         return """__**Player Status**__ :
 
 __Now Playing__: {now_play}
 __Status__: {status}
 __Repeat All__: {repeat}
-__Video List__: {vids}
+__Video List__:{vids}
 """.format(now_play=current, vids=str_vids,
            status=self.status(), repeat=self.repeat_all)
 
@@ -168,19 +175,22 @@ __Video List__: {vids}
     @property
     def cur_vid(self):
         """ The current video playing/selected. If finished, will point to first. """
-        if not self.vids:
+        try:
+            return self.vids[self.vid_index]
+        except TypeError:
             return None
-
-        return self.vids[self.vid_index]
 
     def status(self):
         state = 'stopped'
 
-        if self.is_connected():
-            if self.is_playing():
-                state = 'playing'
-            elif self.is_paused():
-                state = 'paused'
+        try:
+            if self.is_connected():
+                if self.is_playing():
+                    state = 'playing'
+                elif self.is_paused():
+                    state = 'paused'
+        except AttributeError:
+            pass
 
         return state
 
@@ -245,7 +255,7 @@ __Video List__: {vids}
         """
         Go to the previous song.
         """
-        if self.repeat_all or (self.vid_index - 1) > 0:
+        if self.repeat_all or (self.vid_index - 1) >= 0:
             self.vid_index = (self.vid_index - 1) % len(self.vids)
             self.play()
         else:
@@ -276,4 +286,4 @@ __Video List__: {vids}
                                                        VOICE_JOIN_TIMEOUT)
         except asyncio.TimeoutError:
             await self.quit()
-            raise dice.exc.InvalidCommandArgs(TIMEOUT_MSG)
+            raise dice.exc.UserException(TIMEOUT_MSG)
