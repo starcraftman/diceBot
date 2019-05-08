@@ -37,7 +37,7 @@ import dice.actions
 import dice.exc
 import dice.parse
 import dice.util
-import dice.nplayer
+import dice.music
 
 LIVE_TASKS = []
 
@@ -155,7 +155,7 @@ class DiceBot(discord.Client):
         if not LIVE_TASKS:
             LIVE_TASKS = [
                 self.loop.create_task(presence_task(self)),
-                self.loop.create_task(dice.nplayer.gplayer_monitor(dice.actions.PLAYERS)),
+                self.loop.create_task(dice.music.gplayer_monitor(dice.actions.PLAYERS)),
             ]
 
         print('DiceBot Ready!')

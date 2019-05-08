@@ -23,7 +23,7 @@ import dice.roll
 import dice.tbl
 import dice.turn
 import dice.util
-from dice.nplayer import Song, GuildPlayer
+from dice.music import Song, GuildPlayer
 
 import dicedb
 import dicedb.query
