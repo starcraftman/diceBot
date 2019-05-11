@@ -228,7 +228,7 @@ class DiceBot(discord.Client):
                 except discord.DiscordException:
                     pass
             else:
-                gears = self.get_member_by_substr("gearsand").mention
+                gears = channel.guild.owner.mention
                 await self.send_message(channel, "A critical discord error occurred, see log {}.".format(gears))
             line = "Discord.py Library raised an exception"
             line += dice.exc.log_format(content=content, author=author, channel=channel)
