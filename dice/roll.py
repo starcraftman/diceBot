@@ -276,7 +276,7 @@ def tokenize_dice_spec(spec):
 
         if 'kh' in roll and 'kl' in roll:
             raise dice.exc.InvalidCommandArgs("__kh__ and __kl__ are mutually exclusive. Pick one muppet!")
-        elif 'kl' in roll:
+        if 'kl' in roll:
             tokens += [DiceRollKeepLow(roll)]
             continue
         elif re.match(r'.*\dkh?', roll):

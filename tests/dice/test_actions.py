@@ -18,7 +18,6 @@ import dice.bot
 import dice.parse
 import dicedb
 import dicedb.query
-from dicedb.schema import Song
 
 from tests.conftest import fake_msg_gears, fake_msg, fixed_id_fake_msg
 
@@ -568,7 +567,7 @@ async def test_cmd_turn_remove_not_exists(f_bot, db_cleanup):
 
 
 @pytest.mark.asyncio
-async def test_cmd_turn_set_init(session, f_bot, f_dusers, f_storedchars):
+async def test_cmd_turn_set_init(session, f_bot, f_dusers, f_turnchars):
     try:
         msg = fixed_id_fake_msg("!turn --init 8")
 
@@ -579,7 +578,7 @@ async def test_cmd_turn_set_init(session, f_bot, f_dusers, f_storedchars):
 
 
 @pytest.mark.asyncio
-async def test_cmd_turn_set_name(session, f_bot, f_dusers, f_storedchars):
+async def test_cmd_turn_set_name(session, f_bot, f_dusers, f_turnchars):
     try:
         msg = fixed_id_fake_msg("!turn --name Jack")
 
@@ -740,34 +739,6 @@ def test_remove_user_timers():
     timers = {timer.key: timer}
     dice.actions.remove_user_timers(timers, msg.author.name)
     assert timers[timer.key].cancel
-
-
-def test_validate_videos_not_youtube():
-    links = ['https://google.com']
-
-    with pytest.raises(dice.exc.InvalidCommandArgs):
-        dice.actions.validate_videos(links)
-
-
-def test_validate_videos_youtube_strip_angles():
-    links = ['<https://youtube.com/watch?v=1234>']
-
-    expect = [Song(id=None, name='youtube_1234', folder='/tmp/videos',
-                   url='https://youtu.be/1234', repeat=False, volume_int=50)]
-
-    assert dice.actions.validate_videos(links) == expect
-
-
-def test_validate_videos_local_not_found():
-    links = ['notfound.mp3']
-
-    with pytest.raises(dice.exc.InvalidCommandArgs):
-        dice.actions.validate_videos(links)
-
-
-def test_validate_videos_local_found(f_songs):
-    links = [f_songs[-1].name]
-    dice.actions.validate_videos(links)
 
 
 def test_format_a_song(f_songs):

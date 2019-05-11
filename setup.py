@@ -188,7 +188,7 @@ class Coverage(Command):
         old_cwd = os.getcwd()
         cov_dir = os.path.join(tempfile.gettempdir(), 'diceCoverage')
         cmds = [
-            'py.test --cov=dice',
+            'py.test --cov=dice --cov=dicedb',
             'coverage html -d ' + cov_dir,
             'xdg-open ' + os.path.join(cov_dir, 'index.html'),
         ]

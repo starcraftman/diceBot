@@ -394,7 +394,7 @@ def f_puns(session):
 
 
 @pytest.fixture
-def f_storedturns(session):
+def f_turnorders(session, f_turnchars):
     """
     Fixture to insert some test Puns.
     """
@@ -413,7 +413,7 @@ def f_storedturns(session):
 
 
 @pytest.fixture
-def f_storedchars(session):
+def f_turnchars(session, f_dusers):
     """
     Fixture to insert some test Puns.
     """

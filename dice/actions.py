@@ -8,10 +8,9 @@ import asyncio
 import concurrent.futures
 import datetime
 import functools
+import inspect
 import logging
 import math
-import os
-import pathlib
 import re
 
 import aiohttp
@@ -23,7 +22,7 @@ import dice.roll
 import dice.tbl
 import dice.turn
 import dice.util
-from dice.music import Song, GuildPlayer
+from dice.music import GuildPlayer
 
 import dicedb
 import dicedb.query
@@ -172,62 +171,95 @@ class Math(Action):
 
 class Play(Action):
     """
-    Transparent mapper from actions onto the music player.
+    Transparent mapper from user input onto the music player.
     """
+    async def restart(self, mplayer):
+        """ Restart the player at current video. """
+        mplayer.vid_index = 0
+        mplayer.play()
+        return "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
+
+    async def stop(self, mplayer):
+        """ Stop the player. """
+        mplayer.finished = True
+        mplayer.stop()
+        return "Player has been stopped.\n\nRestart it or play other vids to continue."
+
+    async def pause(self, mplayer):
+        """ Pause the player. """
+        mplayer.toggle_pause()
+        return"Player is now: " + mplayer.status()
+
+    async def next(self, mplayer):
+        """ Move player to next video. """
+        mplayer.next()
+        return "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
+
+    async def prev(self, mplayer):
+        """ Move player to previous video. """
+        mplayer.prev()
+        return "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
+
+    async def repeat_all(self, mplayer):
+        """ Set player to loop to beginning. """
+        mplayer.repeat_all = not mplayer.repeat_all
+        msg = "Player will stop playing after last song in list."
+        if mplayer.repeat_all:
+            msg = "Player will return to and play first song after finishing list."
+
+        return msg
+
+    async def repeat(self, mplayer):
+        """ Set player to repeat video when it finishes normally. """
+        mplayer.cur_vid.repeat = not mplayer.cur_vid.repeat
+        msg = "Current video {} will **NO** longer repeat.".format(mplayer.cur_vid.name)
+        if mplayer.cur_vid.repeat:
+            msg = "Current video {} **will** repeat.\n\nAdvance list with '--next'.".format(mplayer.cur_vid.name)
+
+        return msg
+
+    async def status(self, mplayer):
+        """ Show current bot status. """
+        return str(mplayer)
+
+    async def vids(self, mplayer):
+        """ Initialize the player with requested videos and start playing. """
+        parts = [part.strip() for part in re.split(r'\s*,\s*', ' '.join(self.args.vids))]
+        new_vids = dicedb.query.validate_videos(parts)
+
+        if self.args.append:
+            mplayer.vids += new_vids
+        else:
+            await mplayer.prefetch_vids(first_only=True)
+            mplayer.play(new_vids)
+
+        await self.bot.send_message(self.msg.channel, str(mplayer))
+        await mplayer.prefetch_vids(first_only=False)
+
     async def execute(self):
         mplayer = get_guild_player(self.guild_id, self.msg)
         await mplayer.join_voice_channel()
 
-        if self.args.restart:
-            mplayer.vid_index = 0
-            mplayer.play()
-            msg = "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
-        elif self.args.stop:
-            mplayer.finished = True
-            mplayer.stop()
-            msg = "Player has been stopped.\n\nRestart it or play other vids to continue."
-        elif self.args.pause:
-            mplayer.toggle_pause()
-            msg = "Player is now: " + mplayer.status()
-        elif self.args.next:
-            mplayer.next()
-            msg = "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
-        elif self.args.prev:
-            mplayer.prev()
-            msg = "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
-        elif self.args.volume != 'zero':
+        if self.args.volume != 'zero':
             mplayer.set_volume(self.args.volume)
             msg = "Player volume: {}/100".format(mplayer.cur_vid.volume_int)
-        elif self.args.repeat_all:
-            mplayer.repeat_all = not mplayer.repeat_all
-            msg = "Player will stop playing after last song in list."
-            if mplayer.repeat_all:
-                msg = "Player will return to and play first song after finishing list."
-        elif self.args.repeat:
-            mplayer.cur_vid.repeat = not mplayer.cur_vid.repeat
-            msg = "Current video {} will **NO** longer repeat.".format(mplayer.cur_vid.name)
-            if mplayer.cur_vid.repeat:
-                msg = "Current video {} **will** repeat.\n\nAdvance list with '--next'.".format(mplayer.cur_vid.name)
-        elif self.args.status:
-            msg = str(mplayer)
-        elif self.args.vids:
-            parts = [part.strip() for part in re.split(r'\s*,\s*', ' '.join(self.args.vids))]
-            new_vids = validate_videos(parts)
+            await self.bot.send_message(self.msg.channel, msg)
 
-            if self.args.append:
-                mplayer.vids += new_vids
-            else:
-                mplayer.play(new_vids)
-
-            msg = str(mplayer)
+        msg = str(mplayer)
+        mets = [x[0] for x in inspect.getmembers(self, inspect.ismethod)
+                if x[0] not in ['__init__', 'execute']]
+        for name in mets:
+            if getattr(self.args, name):
+                msg = await getattr(self, name)(mplayer)
+                if msg:
+                    await self.bot.send_message(self.msg.channel, msg)
+                break
 
         if mplayer.cur_vid.id and (self.args.volume or self.args.repeat):
             song = dicedb.query.get_song_by_id(self.session, mplayer.cur_vid.id)
             song.update(mplayer.cur_vid)
             self.session.add(song)
             self.session.commit()
-
-        await self.bot.send_message(self.msg.channel, msg)
 
 
 # TODO: Deduplicate code in 'management interface', make reusable.
@@ -1079,54 +1111,6 @@ def remove_user_timers(timers, msg_author):
         timers[key_to_remove].cancel = True
 
 
-def validate_videos(list_vids, session=None):
-    """
-    Validate the videos asked to play. Accepted formats:
-        - youtube links
-        - names of songs in the song db
-        - names of files on the local HDD
-
-    Raises:
-        InvalidCommandArgs - A video link or name failed validation.
-        ValueError - Did not pass a list of videos.
-    """
-    if not isinstance(list_vids, type([])):
-        raise ValueError("Did not pass a list of videos.")
-
-    if not session:
-        session = dicedb.Session()
-
-    new_vids = []
-    for vid in list_vids:
-        match = re.match(r'\s*<\s*(\S+)\s*>\s*', vid)
-        if match:
-            vid = match.group(1)
-
-        matches = dicedb.query.search_songs_by_name(session, vid)
-        if matches and len(matches) == 1:
-            new_vids.append(matches[0])
-
-        elif dice.util.is_valid_yt(vid):
-            yt_id = dice.util.is_valid_yt(vid)
-            new_vids.append(Song(id=None, name='youtube_{}'.format(yt_id), folder='/tmp/videos',
-                                 url='https://youtu.be/' + yt_id, repeat=False, volume_int=50))
-
-        elif dice.util.is_valid_url(vid):
-            raise dice.exc.InvalidCommandArgs("Only youtube links supported: " + vid)
-
-        else:
-            pat = pathlib.Path(dice.util.get_config('paths', 'music'))
-            globbed = list(pat.glob(vid + "*"))
-            if len(globbed) != 1:
-                raise dice.exc.InvalidCommandArgs("Cannot find local video: " + vid)
-
-            name = os.path.basename(globbed[0]).replace('.opus', '')
-            new_vids.append(Song(id=None, name=name, folder=pat, url=None, repeat=False,
-                                 volume_int=50))
-
-    return new_vids
-
-
 def format_pun_list(header, entries, footer, *, cnt=1):
     """
     Generate the management list of entries.
@@ -1192,12 +1176,12 @@ def throw_in_pool(throw):  # pragma: no cover
     return throw.next()
 
 
-def check_messages(original, m):
+def check_messages(original, msg):
     """
     Simply check if message came from same author and text channel.
     Use functools to bind self.msg into original to make predicate.
     """
-    return m.author == original.author and m.channel == original.channel
+    return msg.author == original.author and msg.channel == original.channel
 
 
 def get_guild_player(guild_id, msg):

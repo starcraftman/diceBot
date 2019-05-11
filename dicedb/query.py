@@ -3,6 +3,8 @@ Module should handle logic related to querying/manipulating tables from a high l
 """
 from __future__ import absolute_import, print_function
 import os
+import pathlib
+import re
 import tempfile
 
 import numpy.random
@@ -253,7 +255,12 @@ def add_song_with_tags(session, name, url, tags=None):
     except sqla_oexc.NoResultFound:
         pass
 
-    song = Song(name=name, url=url)
+    song = Song(name=name, folder=dice.util.get_config('paths', 'music'),
+                url=None, repeat=False, volume_int=50)
+    if dice.util.is_valid_yt(url):
+        song_url = 'https://youtu.be/' + dice.util.is_valid_yt(url)
+        song = Song(name=name, folder=dice.util.get_config('paths', 'youtube'),
+                    url=song_url, repeat=True, volume_int=50)
     session.add(song)
     session.commit()
 
@@ -294,11 +301,11 @@ def get_song_by_id(session, id):
     return session.query(Song).filter(Song.id == id).one()
 
 
-def get_songs_with_tag(session, name):
+def get_songs_with_tag(session, tag_name):
     """
     Get the possible song by name.
     """
-    subq = session.query(SongTag.song_key).filter(SongTag.name == name).subquery()
+    subq = session.query(SongTag.song_key).filter(SongTag.name == tag_name).subquery()
     return session.query(Song).filter(Song.id.in_(subq)).all()
 
 
@@ -325,3 +332,51 @@ def get_tag_choices(session, similar_to=None):
         query = query.filter(SongTag.name.ilike('%{}%'.format(similar_to)))
 
     return [x[0] for x in query.order_by(SongTag.name).all()]
+
+
+def validate_videos(list_vids, session=None):
+    """
+    Validate the videos asked to play. Accepted formats:
+        - youtube links
+        - names of songs in the song db
+        - names of files on the local HDD
+
+    Raises:
+        InvalidCommandArgs - A video link or name failed validation.
+        ValueError - Did not pass a list of videos.
+    """
+    if not isinstance(list_vids, type([])):
+        raise ValueError("Did not pass a list of videos.")
+
+    if not session:
+        session = dicedb.Session()
+
+    new_vids = []
+    for vid in list_vids:
+        match = re.match(r'\s*<\s*(\S+)\s*>\s*', vid)
+        if match:
+            vid = match.group(1)
+
+        matches = dicedb.query.search_songs_by_name(session, vid)
+        if matches and len(matches) == 1:
+            new_vids.append(matches[0])
+
+        elif dice.util.is_valid_yt(vid):
+            yt_id = dice.util.is_valid_yt(vid)
+            new_vids.append(Song(id=None, name='youtube_{}'.format(yt_id), folder='/tmp/videos',
+                                 url='https://youtu.be/' + yt_id, repeat=False, volume_int=50))
+
+        elif dice.util.is_valid_url(vid):
+            raise dice.exc.InvalidCommandArgs("Only youtube links supported: " + vid)
+
+        else:
+            pat = pathlib.Path(dice.util.get_config('paths', 'music'))
+            globbed = list(pat.glob(vid + "*"))
+            if len(globbed) != 1:
+                raise dice.exc.InvalidCommandArgs("Cannot find local video: " + vid)
+
+            name = os.path.basename(globbed[0]).replace('.opus', '')
+            new_vids.append(Song(id=None, name=name, folder=pat, url=None, repeat=False,
+                                 volume_int=50))
+
+    return new_vids

@@ -151,7 +151,7 @@ class GuildPlayer(object):
     def __str__(self):
         try:
             current = self.cur_vid.name
-        except AttributeError:
+        except (AttributeError, IndexError):
             current = ''
 
         pad = "\n    "
@@ -290,3 +290,17 @@ __Video List__:{vids}
         except asyncio.TimeoutError:
             await self.disconnect()
             raise dice.exc.UserException(TIMEOUT_MSG)
+
+    async def prefetch_vids(self, *, first_only=True):
+        """
+        Helper, prefetch either all videos or just the first.
+        When it returns, videos are available.
+        """
+        if first_only:
+            streams = [asyncio.get_event_loop().run_in_executor(None, make_stream, vid)
+                       for vid in self.vids[:1]]
+        else:
+            streams = [asyncio.get_event_loop().run_in_executor(None, make_stream, vid)
+                       for vid in self.vids]
+
+        return await asyncio.gather(streams)

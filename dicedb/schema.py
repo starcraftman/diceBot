@@ -142,7 +142,7 @@ class TurnChar(Base):
         return '{}/{}'.format(self.name, self.init)
 
     def __eq__(self, other):
-        return isinstance(other, TurnChar) and self.text == other.text
+        return isinstance(other, TurnChar) and (self.user_key, self.turn_key) == (other.user_key, other.turn_key)
 
 
 class TurnOrder(Base):
@@ -167,6 +167,7 @@ class TurnOrder(Base):
         return isinstance(other, TurnOrder) and self.id == other.id
 
 
+@total_ordering
 class Song(Base):
     """
     Song object that represents a local or remote video from youtube.
@@ -199,6 +200,9 @@ class Song(Base):
     def __eq__(self, other):
         return isinstance(other, Song) and self.name == other.name
 
+    def __lt__(self, other):
+        return self.name < other.name
+
     @property
     def fname(self):
         return os.path.join(self.folder, self.name + '.opus')
@@ -223,8 +227,8 @@ class Song(Base):
     def update(self, other):
         """ Update values based on other object. """
         assert isinstance(other, self.__class__)
-        assert self.id == other.id
 
+        self.id == other.id
         self.name = other.name
         self.folder = other.folder
         self.url = other.url

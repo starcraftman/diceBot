@@ -5,7 +5,7 @@ from __future__ import absolute_import, print_function
 
 import dicedb
 import dicedb.schema
-from dicedb.schema import (DUser, Pun, SavedRoll, TurnOrder)
+from dicedb.schema import (DUser, Pun, SavedRoll, TurnOrder, TurnChar, Song)
 
 
 def test_duser__eq__(f_dusers):
@@ -73,18 +73,53 @@ def test_pun__lt__(f_puns):
     assert f_puns[0] < f_puns[1]
 
 
-def test_storedturn__repr__(f_storedturns):
-    turn = f_storedturns[0]
+def test_turnchar__init__(f_turnchars):
+    char = TurnChar(user_key='1', turn_key='turn', name='Wizard', init=7)
+    assert isinstance(char, TurnChar)
+    assert char.name == 'Wizard'
+
+
+def test_turnchar__repr__(f_turnchars):
+    char = f_turnchars[0]
+    assert repr(char) == "TurnChar(user_key='1', turn_key='turn', name='Wizard', init=7)"
+
+
+def test_turnchar__str__(f_turnchars):
+    char = f_turnchars[0]
+    assert str(char) == "Wizard/7"
+
+
+def test_turnchar__eq__(f_turnchars):
+    char = TurnChar(user_key='1', turn_key='turn', name='Wizard', init=7)
+    assert not char == TurnChar(user_key='2', turn_key='turn', name='Wizard', init=7)
+    assert char == TurnChar(user_key='1', turn_key='turn', name='Guy', init=1)
+
+
+def test_turnorder__init__(f_turnorders):
+    turn = TurnOrder(id='guild1-chan1', text='TurnOrder')
+    assert isinstance(turn, TurnOrder)
+    assert turn.text == 'TurnOrder'
+
+
+def test_turnorder__repr__(f_turnorders):
+    turn = f_turnorders[0]
     assert repr(turn) == "TurnOrder(id='guild1-chan1', text='TurnOrder')"
 
 
-def test_storedturn__str__(f_storedturns):
-    turn = f_storedturns[0]
+def test_turnorder__str__(f_turnorders):
+    turn = f_turnorders[0]
     assert repr(turn) == "TurnOrder(id='guild1-chan1', text='TurnOrder')"
 
 
-def test_storedturn__eq__(f_storedturns):
-    assert f_storedturns[0] == TurnOrder(id='guild1-chan1', text='TurnOrder')
+def test_turnorder__eq__(f_turnorders):
+    assert f_turnorders[0] == TurnOrder(id='guild1-chan1', text='TurnOrder')
+
+
+def test_song__init__(f_songs):
+    yt_id = '1234'
+    yt_song = Song(id=9, name='youtube_{}'.format(yt_id), folder='/tmp/videos',
+                   url='https://youtu.be/' + yt_id, repeat=False, volume_int=50)
+    assert isinstance(yt_song, Song)
 
 
 def test_parse_int():
