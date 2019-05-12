@@ -15,6 +15,8 @@ import dice.exc
 import dicedb
 from dicedb.schema import (DUser, Pun, SavedRoll, TurnChar, TurnOrder, Song, SongTag)
 
+DEFAULT_VOLUME = dice.util.get_config('music', 'default_volume', default=20)
+
 
 def dump_db():  # pragma: no cover
     """
@@ -256,11 +258,11 @@ def add_song_with_tags(session, name, url, tags=None):
         pass
 
     song = Song(name=name, folder=dice.util.get_config('paths', 'music'),
-                url=None, repeat=False, volume_int=50)
+                url=None, repeat=False, volume_int=DEFAULT_VOLUME)
     if dice.util.is_valid_yt(url):
         song_url = 'https://youtu.be/' + dice.util.is_valid_yt(url)
         song = Song(name=name, folder=dice.util.get_config('paths', 'youtube'),
-                    url=song_url, repeat=True, volume_int=50)
+                    url=song_url, repeat=False, volume_int=DEFAULT_VOLUME)
     session.add(song)
     session.commit()
 
@@ -364,7 +366,7 @@ def validate_videos(list_vids, session=None):
         elif dice.util.is_valid_yt(vid):
             yt_id = dice.util.is_valid_yt(vid)
             new_vids.append(Song(id=None, name='youtube_{}'.format(yt_id), folder='/tmp/videos',
-                                 url='https://youtu.be/' + yt_id, repeat=False, volume_int=50))
+                                 url='https://youtu.be/' + yt_id, repeat=False, volume_int=DEFAULT_VOLUME))
 
         elif dice.util.is_valid_url(vid):
             raise dice.exc.InvalidCommandArgs("Only youtube links supported: " + vid)
@@ -377,6 +379,6 @@ def validate_videos(list_vids, session=None):
 
             name = os.path.basename(globbed[0]).replace('.opus', '')
             new_vids.append(Song(id=None, name=name, folder=pat, url=None, repeat=False,
-                                 volume_int=50))
+                                 volume_int=DEFAULT_VOLUME))
 
     return new_vids

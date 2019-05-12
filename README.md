@@ -70,6 +70,7 @@ dbs:
     user: DB_USERNAME
 music:
   cache_limit: 100  # This many Mbs of recent songs will be cached
+  default_volume: 20  # Default volume songs will play at, stored in db if added.
   player_timeout: 120  # Timeout before bot quits empty voice channel
   voice_join_timeout: 5  # Seconds to wait before aborting join voice channel, sometimes does not complete
 paths:
