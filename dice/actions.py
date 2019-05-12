@@ -512,7 +512,7 @@ class Songs(Action):
             msg = msg.replace(self.bot.prefix + 'songs -a', '')
             parts = re.split(r'\s*,\s*', msg)
             parts = [part.strip() for part in parts]
-            name, url, tags = parts[0].lower(), parts[1], [x for x in parts[2:].lower()]
+            name, url, tags = parts[0].lower(), parts[1], [x.lower() for x in parts[2:]]
             song = self.add(name, url, tags)
 
             reply = '__Song Added__\n\n' + format_a_song(1, song)
