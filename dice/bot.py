@@ -248,9 +248,13 @@ class DiceBot(discord.Client):
         Behaves excactly like Client.send_message except it:
 
             Splits messages > 2k limit into smaller messages and transmits.
+            Returns a list of all messages sent, [1..N]
         """
+        sent_msgs = []
         for part in dice.util.complete_blocks(dice.util.msg_splitter(content)):
-            await destination.send(part, tts=tts, embed=embed)
+            sent_msgs += [await destination.send(part, tts=tts, embed=embed)]
+
+        return sent_msgs
 
     async def send_message(self, destination, content=None, *, tts=False, embed=None):
         """

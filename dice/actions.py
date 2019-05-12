@@ -486,7 +486,7 @@ class Songs(Action):
             reply += format_a_song(cnt, song)
             cnt += 1
 
-        await self.bot.send_message(self.msg.channel, reply)
+        await self.bot.send_long_message(self.msg.channel, reply)
 
     async def search_tags(self, term):
         """
@@ -495,18 +495,16 @@ class Songs(Action):
         reply = '**__Songs DB__** - Searching Tags for __{}__\n\n'.format(term)
         cnt = 1
 
-        l_term = ' '.join(term).lower().strip()
         session = dicedb.Session()
-        tags = dicedb.query.get_tag_choices(session, l_term)
-        print(tags)
-        for tag in tags:
+        l_term = ' '.join(term).lower().strip()
+        for tag in dicedb.query.get_tag_choices(session, l_term):
             reply += '__**{}**__\n'.format(tag)
             for song in dicedb.query.get_songs_with_tag(session, tag):
                 reply += format_a_song(cnt, song)
                 cnt += 1
             reply += "\n"
 
-        await self.bot.send_message(self.msg.channel, reply)
+        await self.bot.send_long_message(self.msg.channel, reply)
 
     async def execute(self):
         if self.args.add:
