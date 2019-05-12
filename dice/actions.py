@@ -323,7 +323,7 @@ class Songs(Action):
             except ValueError:
                 await self.bot.send_message(
                     self.msg.channel,
-                    'Selection not understood. Make choice in [1, {}]'.format(len(LIMIT_SONGS))
+                    'Selection not understood. Make choice in [1, {}]'.format(LIMIT_SONGS)
                 )
             finally:
                 user_select = None
