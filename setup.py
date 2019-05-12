@@ -111,6 +111,27 @@ class InstallDeps(Command):
             except subprocess.TimeoutExpired:
                 print('Deps installation took over {} seconds, something is wrong.'.format(timeout))
 
+        try:
+            subprocess.run(['ffmpeg', '-version'], stdout=subprocess.DEVNULL)
+        except subprocess.CalledProcessError:
+            print("ERROR: Cannot find 'ffmpeg' on $PATH. Needed for music player.")
+
+        try:
+            subprocess.run(['chromedriver', '--help'], stdout=subprocess.DEVNULL)
+        except subprocess.CalledProcessError:
+            print("""ERROR: Cannot find 'chromedriver' on $PATH.
+
+This is needed for searching commands like !pf
+Select the version that matches your installed chromium/chrome version.
+Chromedriver Site:
+    http://chromedriver.chromium.org/
+
+If you do not have chrome and want the latest stable use below PPA:
+Google Chrome PPA:
+    https://www.ubuntuupdates.org/ppa/google_chrome
+""")
+
+
 
 class Test(Command):
     """
