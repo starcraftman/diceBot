@@ -7,6 +7,8 @@ Examples of features:
     - Implements a simple turn order manager for turn based combat.
     - Simple ability to set per user timers for reminders.
 
+Support for discord.py <= 1.0.0 is discontinued.
+
 ## Required Permissions
 
 The bot doesn't need any perms for core functions other than read/send to channel.
@@ -35,13 +37,23 @@ For example on a debian machine, the following commands will suffice ...
 wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
 sudo sh -c 'echo "deb http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
 sudo apt-get update
-sudo apt-get install mysql-server mysql-client ffmpeg google-chrome-stable
+sudo apt-get install mysql-server mysql-client ffmpeg chromium-browser
 ```
 Do :s/mysql/mariadb/g if you want the latter.
 
 After that get the corresponding chromedriver for the current version of chrome.
 Varies by changes to chrome itself.
 
+### Chrome & Chromedriver
+
+If you do not have chrome/chromium available in packages
+and want the latest stable use below PPA:
+Google Chrome PPA:
+    https://www.ubuntuupdates.org/ppa/google_chrome
+
+Select the version that matches your installed chromium/chrome version.
+Chromedriver Site:
+    http://chromedriver.chromium.org/
 
 ### Config File
 

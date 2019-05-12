@@ -126,7 +126,7 @@ Select the version that matches your installed chromium/chrome version.
 Chromedriver Site:
     http://chromedriver.chromium.org/
 
-If you do not have chrome and want the latest stable use below PPA:
+If you do not have chrome available and want the latest stable use below PPA:
 Google Chrome PPA:
     https://www.ubuntuupdates.org/ppa/google_chrome
 """)
@@ -282,7 +282,7 @@ class UMLDocs(Command):
 SHORT_DESC = 'Simple Dice Bot for Discord'
 MY_NAME = 'Jeremy Pallats / starcraft.man'
 MY_EMAIL = 'N/A'
-RUN_DEPS = ['argparse', 'decorator', 'discord.py', 'numpy',
+RUN_DEPS = ['argparse', 'decorator', 'discord.py>=1.0.0', 'numpy',
             'pymysql', 'pynacl', 'pyyaml', 'selenium', 'SQLalchemy',
             'uvloop', 'youtube_dl']
 TEST_DEPS = ['coverage', 'flake8', 'aiomock', 'mock', 'pylint', 'pytest', 'pytest-asyncio',

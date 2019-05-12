@@ -28,6 +28,7 @@ import dicedb
 import dicedb.query
 
 CHECK_TIMER_GAP = 5
+PAGING_STOP_WORDS = ['done', 'exit', 'stop']
 TIMERS = {}
 TIMER_OFFSETS = ["60:00", "15:00", "5:00", "1:00"]
 TIMER_MSG_TEMPLATE = "{}: Timer '{}'"
@@ -300,7 +301,7 @@ class Songs(Action):
                     messages += [user_select]
                     user_select.content = user_select.content.lower().strip()
 
-                if not user_select or user_select.content in ['done', 'exit', 'stop']:
+                if not user_select or user_select.content in PAGING_STOP_WORDS:
                     await self.bot.send_message(self.msg.channel, 'List terminated.')
                     break
 
@@ -348,7 +349,7 @@ class Songs(Action):
                     messages += [user_select]
                     user_select.content = user_select.content.lower().strip()
 
-                if not user_select or user_select.content in ['done', 'exit', 'stop']:
+                if not user_select or user_select.content in PAGING_STOP_WORDS:
                     await self.bot.send_message(self.msg.channel, "Management terminated.")
                     break
 
@@ -392,7 +393,7 @@ class Songs(Action):
                     messages += [user_select]
                     user_select.content = user_select.content.lower().strip()
 
-                if not user_select or user_select.content in ['done', 'exit', 'stop']:
+                if not user_select or user_select.content in PAGING_STOP_WORDS:
                     await self.bot.send_message(self.msg.channel, 'Play db terminated.')
                     break
 
@@ -448,7 +449,7 @@ class Songs(Action):
                     messages += [user_select]
                     user_select.content = user_select.content.lower().strip()
 
-                if not user_select or user_select.content in ['done', 'exit', 'stop']:
+                if not user_select or user_select.content in PAGING_STOP_WORDS:
                     await self.bot.send_message(self.msg.channel, 'Play db terminated.')
                     break
 
@@ -796,7 +797,7 @@ class Timers(Action):
                     messages += [user_select]
                     user_select.content = user_select.content.lower().strip()
 
-                if not user_select or user_select.content in ['done', 'exit', 'stop']:
+                if not user_select or user_select.content in PAGING_STOP_WORDS:
                     return
 
                 choice = int(user_select.content) - 1
@@ -1034,7 +1035,7 @@ class Pun(Action):
                     messages += [user_select]
                     user_select.content = user_select.content.lower().strip()
 
-                if not user_select or user_select.content in ['done', 'exit', 'stop']:
+                if not user_select or user_select.content in PAGING_STOP_WORDS:
                     break
 
                 elif user_select.content == 'next':
