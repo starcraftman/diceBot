@@ -6,6 +6,7 @@ import datetime
 import logging
 import os
 import pathlib
+import random
 import subprocess
 import time
 
@@ -46,11 +47,17 @@ def youtube_dl(url, name, out_path=None):
     args = YTDL_CMD.split(' ')
     args = args[:2] + [fname] + args[2:] + [url]
 
-    try:
-        subprocess.check_call(args)
-    except subprocess.CalledProcessError as exc:
-        logging.getLogger('dice.music').error(str(exc))
-        raise
+    retries = 3
+    while retries:
+        try:
+            subprocess.check_call(args)
+            break
+        except subprocess.CalledProcessError as exc:
+            logging.getLogger('dice.music').error(str(exc))
+            if not retries:
+                raise
+        retries -= 1
+        time.sleep(random.randint(0, 5))
 
     return fname
 
@@ -302,4 +309,4 @@ __Video List__:{vids}
             streams = [asyncio.get_event_loop().run_in_executor(None, make_stream, vid)
                        for vid in self.vids]
 
-        return await asyncio.gather(streams)
+        return await asyncio.gather(*streams)
