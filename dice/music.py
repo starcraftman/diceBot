@@ -7,6 +7,7 @@ import logging
 import os
 import pathlib
 import random
+import shlex
 import subprocess
 import time
 
@@ -44,7 +45,7 @@ def youtube_dl(url, name, out_path=None):
         pass
 
     fname = os.path.join(out_path, name + ".%(ext)s")
-    args = YTDL_CMD.split(' ')
+    args = shlex.split(YTDL_CMD)
     args = args[:2] + [fname] + args[2:] + [url]
 
     retries = 3
@@ -183,7 +184,7 @@ __Video List__:{vids}
         """ The current video playing/selected. If finished, will point to first. """
         try:
             return self.vids[self.vid_index]
-        except TypeError:
+        except (IndexError, TypeError):
             return None
 
     def status(self):
