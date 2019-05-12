@@ -236,26 +236,26 @@ class UMLDocs(Command):
     def run(self):
         self.check_prereqs()
         old_cwd = os.getcwd()
-        diagrams = []
         cmds = [
-            'pyreverse dice',
+            'pyreverse dicedb',
             'dot -Tpng classes.dot -o ./extras/dice_class_diagram.png',
-            'pyreverse dice',
-            'dot -Tpng packages.dot -o ./extras/overall_module_diagram.png',
+            'dot -Tpng packages.dot -o ./extras/overall_dice_module_diagram.png',
+            'pyreverse dice dicedb',
+            'dot -Tpng classes.dot -o ./extras/dicedb_class_diagram.png',
+            'dot -Tpng packages.dot -o ./extras/overall_dicedb_module_diagram.png',
         ]
 
         try:
             os.chdir(ROOT)
             for cmd in cmds:
                 subprocess.call(shlex.split(cmd))
-            diagrams = [os.path.abspath(pic) for pic in glob.glob('extras/*diagram.png')]
         finally:
             for fname in glob.glob('*.dot'):
                 os.remove(fname)
             os.chdir(old_cwd)
 
         print('\nDiagrams generated:')
-        print('  ' + '\n  '.join(diagrams))
+        print('  ' + '\n  '.join(glob.glob('extras/*diagram.png')))
 
 
 SHORT_DESC = 'Simple Dice Bot for Discord'

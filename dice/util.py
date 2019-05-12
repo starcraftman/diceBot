@@ -124,9 +124,16 @@ def rel_to_abs(*path_parts):
     return os.path.join(ROOT_DIR, *path_parts)
 
 
-def get_config(*keys):
+def get_config(*keys, default=None):
     """
     Return keys straight from yaml config.
+
+    Kwargs
+        Default if provided, will be returned if config entry not found.
+
+    Raises
+        KeyError: No such key in the config.
+        dice.exc.MissingConfigFile: Failed to load the configuration file.
     """
     try:
         with open(YAML_FILE) as fin:
@@ -134,8 +141,13 @@ def get_config(*keys):
     except FileNotFoundError:
         raise dice.exc.MissingConfigFile("Missing config.yml. Expected at: " + YAML_FILE)
 
-    for key in keys:
-        conf = conf[key]
+    try:
+        for key in keys:
+            conf = conf[key]
+    except KeyError:
+        if default:
+            return default
+        raise
 
     return conf
 

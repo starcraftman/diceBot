@@ -59,18 +59,6 @@ def test_no_match():
     assert str(error) == "No matches for 'Person1' in persons."
 
 
-def test_name_collision_error():
-    expect = """**Critical Error**
-----------------
-CMDR "Gears" found in rows [20, 33] of the Cattle Sheet
-
-To Resolve:
-    Delete or rename the cmdr in one of these rows
-    Then execute `admin scan` to reload the db"""
-    error = dice.exc.NameCollisionError('Cattle', 'Gears', [20, 33])
-    assert error.reply() == expect
-
-
 def test_log_format():
     msg = fake_msg_gears('Hello world!')
     expect = """GearsandCogs sent Hello world! from Channel: live_hudson/Guild: Gears' Hideout

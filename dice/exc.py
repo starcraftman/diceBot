@@ -110,12 +110,6 @@ class InternalException(DiceException):
         super().__init__(msg, lvl)
 
 
-class ColOverflow(InternalException):
-    """ Raise when a column has reached end, increment next column.  """
-    def __init__(self):
-        super().__init__('Serious problem, uncaught overflow.', 'exception')
-
-
 class MissingConfigFile(InternalException):
     """ Thrown if a config isn't set properly.  """
 
@@ -126,48 +120,10 @@ class MsgTooLong(InternalException):
     """
 
 
-class NoMoreTargets(InternalException):
-    """
-    There are no more fort targets.
-    """
-
-
 class RemoteError(InternalException):
     """
     Can no longer communicate with a remote that is required.
     """
-
-
-class SheetParsingError(InternalException):
-    """
-    During sheet parsing, could not determine cell anchors properly.
-    """
-    def __init__(self):
-        super().__init__('Serious problem, this message should not print.')
-
-
-class NameCollisionError(SheetParsingError):
-    """
-    During parsing, two cmdr names collided.
-    """
-    def __init__(self, sheet, name, rows):
-        super().__init__()
-        self.name = name
-        self.sheet = sheet
-        self.rows = rows
-
-    def reply(self):
-        lines = [
-            "**Critical Error**",
-            "----------------",
-            "CMDR \"{}\" found in rows {} of the {} Sheet".format(self.name, str(self.rows),
-                                                                  self.sheet),
-            "",
-            "To Resolve:",
-            "    Delete or rename the cmdr in one of these rows",
-            "    Then execute `admin scan` to reload the db",
-        ]
-        return "\n".join(lines)
 
 
 def log_format(*, content, author, channel):

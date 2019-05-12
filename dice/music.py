@@ -17,18 +17,18 @@ import dice.util
 from dicedb.schema import Song  # noqa F401 pylint: disable=unused-import
 
 
-VOICE_JOIN_TIMEOUT = 5  # seconds
-TIMEOUT_MSG = """ Bot joining voice took more than 5 seconds.
+CACHE_LIMIT = dice.util.get_config('music', 'cache_limit', default=100) * 1024 ** 2
+PLAYER_TIMEOUT = dice.util.get_config('music', 'player_timeout', default=120)  # seconds
+VOICE_JOIN_TIMEOUT = dice.util.get_config('music', 'voice_join_timeout', default=5)  # seconds
+TIMEOUT_MSG = """ Bot joining voice took more than {} seconds.
 
-Try again later or get Gears. """
-MPLAYER_TIMEOUT = 120  # seconds
-SONG_CACHE_SIZE = 100 * 1024 ** 2
+Try again later or get Gears. """.format(VOICE_JOIN_TIMEOUT)
+# Filename goes after o flag, urls at end
+YTDL_CMD = "youtube-dl -o -x --audio-format opus --audio-quality 0"
+
 # Stupid youtube: https://github.com/Rapptz/discord.py/issues/315
 # Archived if go back to streaming youtube
 #  BEFORE_OPTS = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
-#  YTDL_CMD = "youtube-dl -o {} -x --audio-format opus --audio-quality 0"
-# Filename goes after o flag, urls at end
-YTDL_CMD = "youtube-dl -o -x --audio-format opus --audio-quality 0"
 
 
 def youtube_dl(url, name, out_path=None):
@@ -62,7 +62,7 @@ def youtube_dl(url, name, out_path=None):
     return fname
 
 
-def prune_cache(cache_dir, *, prefix=None, limit=SONG_CACHE_SIZE):
+def prune_cache(cache_dir, *, prefix=None, limit=CACHE_LIMIT):
     """
     Remove the oldest videos in the cache_dir.
     If prefix given select those that start with prefix.
@@ -119,7 +119,7 @@ async def gplayer_monitor(players, gap=2):
                 activity[pid] = cur_date
 
             real_users = [x for x in player.target_channel.members if not x.bot]
-            has_timed_out = (datetime.datetime.utcnow() - activity[pid]).seconds > MPLAYER_TIMEOUT
+            has_timed_out = (datetime.datetime.utcnow() - activity[pid]).seconds > PLAYER_TIMEOUT
             if not real_users or has_timed_out:
                 await player.disconnect()
 
@@ -302,10 +302,9 @@ __Video List__:{vids}
         Helper, prefetch either all videos or just the first.
         When it returns, videos are available.
         """
-        if first_only:
-            streams = [asyncio.get_event_loop().run_in_executor(None, make_stream, vid)
-                       for vid in self.vids[:1]]
-        else:
+        streams = [asyncio.get_event_loop().run_in_executor(None, make_stream, vid)
+                   for vid in self.vids[:1]]
+        if not first_only:
             streams = [asyncio.get_event_loop().run_in_executor(None, make_stream, vid)
                        for vid in self.vids]
 

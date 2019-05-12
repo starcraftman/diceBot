@@ -56,10 +56,14 @@ dbs:
     host: localhost
     pass: DB_PASSWORD
     user: DB_USERNAME
+music:
+  cache_limit: 100  # This many Mbs of recent songs will be cached
+  player_timeout: 120  # Timeout before bot quits empty voice channel
+  voice_join_timeout: 5  # Seconds to wait before aborting join voice channel, sometimes does not complete
 paths:
   log_conf: data/log.yml
   music: extras/music  # Any permanent songs you want local store here. Free to change path relative to root.
-  youtube: /tmp/videos  # Youtube videos cache here, <= 100mb
+  youtube: /tmp/videos  # Youtube videos cache here, <= cache_limit MB above
 ttl: 60  # Self deleting messages last this long
 
 # vim: set ft=yaml :

@@ -39,6 +39,12 @@ def test_dict_to_columns():
 
 def test_get_config():
     assert dice.util.get_config('paths', 'log_conf') == 'data/log.yml'
+    with pytest.raises(KeyError):
+        dice.util.get_config('zzzzz', 'not_there')
+
+
+def test_get_config_default():
+    assert dice.util.get_config('zzzzz', 'not_there', default=True) is True
 
 
 def test_rel_to_abs():
