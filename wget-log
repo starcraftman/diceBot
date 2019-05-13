@@ -1,11 +1,0 @@
---2019-05-13 07:06:26--  https://www.youtube.com/watch?v=O9qUdpgcWVY
-Resolving www.youtube.com (www.youtube.com)... 172.217.165.14, 172.217.164.238, 172.217.164.206, ...
-Connecting to www.youtube.com (www.youtube.com)|172.217.165.14|:443... connected.
-HTTP request sent, awaiting response... 200 OK
-Length: unspecified [text/html]
-Saving to: ‘watch?v=O9qUdpgcWVY’
-
-watch?v=O9qUdpgcWVY                           [<=>                                                                                ]       0  --.-KB/s               watch?v=O9qUdpgcWVY                           [ <=>                                                                               ]  74.64K   189KB/s               watch?v=O9qUdpgcWVY                           [  <=>                                                                              ] 179.29K   430KB/s    in 0.4s    
-
-2019-05-13 07:06:27 (430 KB/s) - ‘watch?v=O9qUdpgcWVY’ saved [183588]
-
