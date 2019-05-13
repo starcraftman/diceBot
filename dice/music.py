@@ -48,6 +48,7 @@ def youtube_dl(url, name, out_path=None):
     args = shlex.split(YTDL_CMD)
     args = args[:2] + [fname] + args[2:] + [url]
 
+    # Occaisonally receive a 403 probably due to limits, just wait and retry
     retries = 3
     while retries:
         try:
@@ -58,7 +59,7 @@ def youtube_dl(url, name, out_path=None):
             if not retries:
                 raise
         retries -= 1
-        time.sleep(random.randint(0, 5))
+        time.sleep(random.randint(2, 6))
 
     return fname
 
