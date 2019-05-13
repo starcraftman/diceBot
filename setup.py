@@ -258,11 +258,11 @@ class UMLDocs(Command):
         old_cwd = os.getcwd()
         cmds = [
             'pyreverse dicedb',
-            'dot -Tpng classes.dot -o ./extras/dice_class_diagram.png',
-            'dot -Tpng packages.dot -o ./extras/overall_dice_module_diagram.png',
-            'pyreverse dice dicedb',
             'dot -Tpng classes.dot -o ./extras/dicedb_class_diagram.png',
-            'dot -Tpng packages.dot -o ./extras/overall_dicedb_module_diagram.png',
+            'dot -Tpng packages.dot -o ./extras/dicedb_module_diagram.png',
+            'pyreverse dice dicedb',
+            'dot -Tpng classes.dot -o ./extras/overall_class_diagram.png',
+            'dot -Tpng packages.dot -o ./extras/overall_module_diagram.png',
         ]
 
         try:
