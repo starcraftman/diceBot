@@ -96,7 +96,7 @@ def make_stream(video):
     return discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(video.fname), video.volume)
 
 
-async def gplayer_monitor(players, gap=2):
+async def gplayer_monitor(players, gap=3):
     """
     Thi simple task monitors for:
         - prune old youtube videos cached
@@ -120,7 +120,7 @@ async def gplayer_monitor(players, gap=2):
                 activity[pid] = cur_date
 
             real_users = [x for x in player.target_channel.members if not x.bot]
-            has_timed_out = (datetime.datetime.utcnow() - activity[pid]).seconds > PLAYER_TIMEOUT
+            has_timed_out = (cur_date - activity[pid]).seconds > PLAYER_TIMEOUT
             if not real_users or has_timed_out:
                 await player.disconnect()
 
