@@ -226,11 +226,21 @@ class Play(Action):
     async def vids(self, mplayer):
         """ Initialize the player with requested videos and start playing. """
         parts = [part.strip() for part in re.split(r'\s*,\s*', ' '.join(self.args.vids))]
-        new_vids = dicedb.query.validate_videos(parts)
+
+        if dice.util.is_valid_playlist(parts[0]):
+            vid_info = dice.util.get_youtube_info(parts[0])
+            new_vids = dicedb.query.validate_videos([x[0] for x in vid_info])
+            for vid in new_vids:
+                _, title = vid_info[0]
+                vid_info = vid_info[1:]
+                vid.name = title[:30]
+        else:
+            new_vids = dicedb.query.validate_videos(parts)
 
         if self.args.append:
             mplayer.vids += new_vids
         else:
+            mplayer.vids = new_vids
             await mplayer.prefetch_vids(first_only=True)
             mplayer.play(new_vids)
 
@@ -251,9 +261,12 @@ class Play(Action):
                 if x[0] not in ['__init__', 'execute']]
         for name in mets:
             if getattr(self.args, name):
-                msg = await getattr(self, name)(mplayer)
+                try:
+                    msg = await getattr(self, name)(mplayer)
+                except dice.exc.RemoteError as exc:
+                    msg = str(exc)
                 if msg:
-                    await self.bot.send_message(self.msg.channel, msg)
+                    await self.bot.send_long_message(self.msg.channel, msg)
                 break
 
         if mplayer.cur_vid.id and (self.args.volume or self.args.repeat):

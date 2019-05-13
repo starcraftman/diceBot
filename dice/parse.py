@@ -83,6 +83,8 @@ def subs_play(subs, prefix):
 
 {prefix}play youtube_link, song db name, local_name ...
         Play one or more youtube links or local files on server.
+{prefix}play youtube_playlist
+        Play the playlist from start to finish. Only 1 playlist supported. Will play all vids therein.
 {prefix}play -p
 {prefix}play --pause
         Pause or resume playing the music.

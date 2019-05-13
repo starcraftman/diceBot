@@ -157,7 +157,7 @@ class GuildPlayer(object):
 
     def __str__(self):
         try:
-            current = self.cur_vid.name
+            current = str(self.cur_vid).split('\n')[0]
         except (AttributeError, IndexError):
             current = ''
 
@@ -166,7 +166,8 @@ class GuildPlayer(object):
 
         return """__**Player Status**__ :
 
-__Now Playing__: {now_play}
+__Now Playing__:
+    {now_play}
 __Status__: {status}
 __Repeat All__: {repeat}
 __Video List__:{vids}
@@ -219,6 +220,8 @@ __Video List__:{vids}
         if not self.vids:
             raise dice.exc.InvalidCommandArgs("No videos set to play.")
 
+        if not self.is_connected():
+            raise dice.exc.RemoteError("Bot no longer connected to voice.")
         if self.is_playing():
             self.stop()
 

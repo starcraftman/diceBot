@@ -88,15 +88,16 @@ def test_guild_player__getattr__(f_songs, f_vclient):
 def test_guild_player__str__(f_songs):
     expect = """__**Player Status**__ :
 
-__Now Playing__: crit
+__Now Playing__:
+    **crit**    __<https://youtu.be/IrbCrwtDIUA>__
 __Status__: stopped
 __Repeat All__: False
 __Video List__:
-    Video Name: crit URL: <https://youtu.be/IrbCrwtDIUA>
+    **crit**    __<https://youtu.be/IrbCrwtDIUA>__
         Volume: 50/100 Repeat: False
-    Video Name: pop URL: <https://youtu.be/7jgnv0xCv-k>
+    **pop**    __<https://youtu.be/7jgnv0xCv-k>__
         Volume: 50/100 Repeat: False
-    Video Name: late
+    **late**
         Volume: 50/100 Repeat: False
 """
     player = dice.music.GuildPlayer(vids=f_songs)
@@ -160,10 +161,21 @@ def test_guild_player_toggle_pause(f_songs, f_vclient):
 
 
 @mock.patch('dice.music.make_stream', lambda x: x)
+def test_guild_player_play_no_connect(f_songs, f_vclient):
+    player = dice.music.GuildPlayer(vids=[], client=f_vclient)
+    player.vid_index = 2
+
+    f_vclient.is_playing.return_value = True
+    with pytest.raises(dice.exc.RemoteError):
+        player.play(f_songs)
+
+
+@mock.patch('dice.music.make_stream', lambda x: x)
 def test_guild_player_play(f_songs, f_vclient):
     player = dice.music.GuildPlayer(vids=[], client=f_vclient)
     player.vid_index = 2
 
+    f_vclient.is_connected.return_value = True
     f_vclient.is_playing.return_value = True
     player.play(f_songs)
     assert player.vid_index == 0

@@ -142,6 +142,13 @@ def test_is_valid_yt():
         assert dice.util.is_valid_yt(link)
 
 
+def test_is_valid_playlist():
+    links = ['https://www.youtube.com/watch?v=oyvOJlX4ZkE&list=PLC4ahUUtnTVBNotg5DWbRwSZ2DX_A8aVs',
+             'https://youtu.be/oyvOJlX4ZkE?list=PLC4ahUUtnTVBNotg5DWbRwSZ2DX_A8aVs']
+    for link in links:
+        assert dice.util.is_valid_playlist(link)
+
+
 def test_is_valid_url():
     valid = ['http://www.google.ca', 'https://www.google.ca', 'https://google.ca', 'google.ca',
              'google.ca/subdomain']
@@ -151,6 +158,13 @@ def test_is_valid_url():
     not_valid = ['word', 'word/sub', 'extras/music/no.mp3', '.com', '/tmp/music/found.mp3']
     for link in not_valid:
         assert not dice.util.is_valid_url(link)
+
+
+@pytest.mark.skipif(not os.environ.get('ALL_TESTS'), reason="Long test.")
+def test_get_youtube_info():
+    url = 'https://www.youtube.com/watch?v=O9qUdpgcWVY&list=PLFItFVrQwOi45Y4YlWn1Myz-YQvSZ6MEL'
+    expect = ('https://youtu.be/O9qUdpgcWVY', 'Obey the Groove')
+    assert expect == dice.util.get_youtube_info(url)[0]
 
 
 def test_init_chrome():

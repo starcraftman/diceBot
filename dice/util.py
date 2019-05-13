@@ -3,13 +3,17 @@ Utility functions, mainly matching now.
 """
 from __future__ import absolute_import, print_function
 import datetime
+import json
 import logging
 import logging.handlers
 import logging.config
-import os
 import math
+import os
+import pathlib
 import random
 import re
+import shutil
+import tempfile
 
 import numpy.random
 import selenium.webdriver
@@ -19,6 +23,7 @@ try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:  # pragma: no cover
     from yaml import Loader, Dumper
+import youtube_dl
 
 import dice.exc
 
@@ -26,6 +31,8 @@ BOT = None
 MSG_LIMIT = 1985  # Number chars before message truncation
 IS_YT = re.compile(r'https?://((www.)?youtube.com/watch\?v=|youtu.be/|y2u.be/)(\S+)',
                    re.ASCII | re.IGNORECASE)
+IS_YT_LIST = re.compile(r'https?://((www.)?youtube.com/watch\?v=\S+&|youtu.be/\S+\?)list=(\S+)',
+                        re.ASCII | re.IGNORECASE)
 IS_URL = re.compile(r'(https?://)?(\w+\.)+(com|org|net|ca|be)(/\S+)*', re.ASCII | re.IGNORECASE)
 MAX_SEED = int(math.pow(2, 32) - 1)
 
@@ -346,6 +353,14 @@ def seed_random(seed=None):
     return seed
 
 
+def is_valid_playlist(url):
+    """ Will only validate youtube playlists. Returns the playist ID. """
+    try:
+        return IS_YT_LIST.match(url).groups()[-1]
+    except AttributeError:
+        return None
+
+
 def is_valid_yt(url):
     """ Will only validate against youtube urls. Returns the unique identifier. """
     try:
@@ -357,6 +372,45 @@ def is_valid_yt(url):
 def is_valid_url(url):
     """ Will match any valid URL. """
     return IS_URL.match(url)
+
+
+#  TODO: Alternatively regex parse first page, all info there. Appears rendering varies.
+def get_youtube_info(url):
+    """
+    Fetches information on a youtube playlist url.
+    Parses it for pairs of (url_id, video_title).
+    Returns all pairs in a list.
+    """
+    tdir = tempfile.TemporaryDirectory()
+    output_template = "{}/%(playlist_index)s-%(title)s.mp4".format(tdir.name)
+    try:
+        shutil.rmtree(os.path.dirname(output_template))
+    except OSError:
+        pass
+
+    ydl_opts = {
+        "format": "140",
+        "ignoreerrors": True,
+        "outtmpl": output_template,
+        "skip_download": True,
+        "writeinfojson": True,
+    }
+
+    try:
+        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+
+        playlist_info = []
+        for fname in sorted(list(pathlib.Path(tdir.name).glob('*'))):
+            with open(fname, 'r') as fin:
+                info = json.load(fin)
+                url = 'https://youtu.be/' + is_valid_yt(info['webpage_url'])
+                title = info['title'].replace('/', '')
+                playlist_info += [(url, title)]
+
+        return playlist_info
+    finally:
+        tdir.cleanup()
 
 
 def init_chrome():
