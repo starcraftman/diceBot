@@ -132,7 +132,6 @@ Google Chrome PPA:
 """)
 
 
-
 class Test(Command):
     """
     Run the tests and track coverage.
