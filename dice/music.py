@@ -38,6 +38,7 @@ YTDL_CMD = "youtube-dl -o -x --audio-format opus --audio-quality 0"
 #  BEFORE_OPTS = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
 
 
+# TODO: Dedupe this with get_yt_video
 def get_yt_playlist(url, ydl_opts):
     """ Simple blocking wrapper, run in executor. """
     with youtube_dl.YoutubeDL(ydl_opts) as ydl:
@@ -100,9 +101,8 @@ def make_stream(video):
     Fetches a local copy of the video if required.
     Then just returns the stream object required for the voice client.
     """
-    # TODO: Remove this later, ensure not needed.
-    if video.is_remote() and not os.path.exists(video.fname):
-        get_yt_video(video.url, video.name, video.folder)
+    if not os.path.exists(video.fname):
+        raise dice.exc.InternalException("The video is not available to stream.")
 
     now = time.time()
     os.utime(video.fname, (now, now))
@@ -141,12 +141,11 @@ async def gplayer_monitor(players, gap=3):
         await asyncio.sleep(gap)
 
 
-# TODO: Merge this with youtube_dl somehow
 async def prefetch_vids(vids):
     """
     Helper, prefetch any vids in the list.
     """
-    streams = [asyncio.get_event_loop().run_in_executor(None, make_stream, vid)
+    streams = [asyncio.get_event_loop().run_in_executor(None, get_yt_video, vid.url, vid.name, vid.folder)
                for vid in vids]
 
     return await asyncio.gather(*streams)
@@ -210,7 +209,7 @@ class GuildPlayer(object):
         self.err_channel = err_channel  # Set to originating channel invoked
         self.target_channel = target_channel
         self.__client = client
-        self.__now_playing = None
+        self.__now_playing = None  # Unfortunately necessitated by shuffle, see cur_vid
 
     def __getattr__(self, attr):
         """
@@ -325,7 +324,7 @@ __Video List__:{vids}
                 self.resume()
 
     def toggle_shuffle(self):
-        """ Toggle shuffling the list. """
+        """ Toggle shuffling the playlist. """
         if self.shuffle:
             self.shuffle = None
             self.__now_playing = None
@@ -333,31 +332,27 @@ __Video List__:{vids}
             self.shuffle = copy.copy(self.vids)
 
     def restart_shuffle(self):
-        """ Vids were added, restart shuffle. """
+        """ Simply repopulate the shuffled list. """
         self.shuffle = copy.copy(self.vids)
 
     def next(self):
         """
         Go to the next song.
         """
-        if self.shuffle:
-            selected = rand.choice(self.shuffle)
-            self.shuffle.remove(selected)
-            if not self.shuffle:
-                self.restart_shuffle()
-            self.__now_playing = selected
-            self.play(selected)
-        elif self.repeat_all or (self.vid_index + 1) < len(self.vids):
-            self.vid_index = (self.vid_index + 1) % len(self.vids)
-            self.play(self.cur_vid)
-        else:
-            self.stop()
-            self.finished = True
+        self.__select_next_song(lambda self: (self.vid_index + 1) < len(self.vids),
+                                lambda self: (self.vid_index + 1) % len(self.vids))
 
     def prev(self):
         """
         Go to the previous song.
         """
+        self.__select_next_song(lambda self: (self.vid_index - 1) >= 0,
+                                lambda self: (self.vid_index - 1) % len(self.vids))
+
+    def __select_next_song(self, check_func, inc_func):
+        """
+        Select the next song to play, depends on check_func and inc_func.
+        """
         if self.shuffle:
             selected = rand.choice(self.shuffle)
             self.shuffle.remove(selected)
@@ -365,8 +360,8 @@ __Video List__:{vids}
                 self.restart_shuffle()
             self.__now_playing = selected
             self.play(selected)
-        elif self.repeat_all or (self.vid_index - 1) >= 0:
-            self.vid_index = (self.vid_index - 1) % len(self.vids)
+        elif self.repeat_all or check_func(self):
+            self.vid_index = inc_func(self)
             self.play()
         else:
             self.stop()

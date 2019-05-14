@@ -168,7 +168,7 @@ def test_guild_player_toggle_pause(f_songs, f_vclient):
     assert f_vclient.resume.called
 
 
-@mock.patch('dice.music.make_stream', lambda x: x)
+@mock.patch('dice.music.get_yt_video', lambda x, y, z,: x)
 def test_guild_player_play_no_connect(f_songs, f_vclient):
     player = dice.music.GuildPlayer(vids=[f_songs], client=f_vclient)
     player.vid_index = 0
@@ -178,7 +178,7 @@ def test_guild_player_play_no_connect(f_songs, f_vclient):
         player.play()
 
 
-@mock.patch('dice.music.make_stream', lambda x: x)
+@mock.patch('dice.music.get_yt_video', lambda x, y, z,: x)
 def test_guild_player_play(f_songs, f_vclient):
     player = dice.music.GuildPlayer(vids=[f_songs], client=f_vclient)
     player.vid_index = 0
