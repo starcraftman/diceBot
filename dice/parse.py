@@ -85,6 +85,9 @@ def subs_play(subs, prefix):
         Play one or more youtube links or local files on server.
 {prefix}play youtube_playlist
         Play the playlist from start to finish. Only 1 playlist supported. Will play all vids therein.
+{prefix}play -a youtube_link_1 local_name_1
+{prefix}play --append youtube_link_1 local_name_1
+        Append the following songs to the list.
 {prefix}play -p
 {prefix}play --pause
         Pause or resume playing the music.
@@ -107,15 +110,15 @@ def subs_play(subs, prefix):
         Set the current song to repeat when it plays.
 {prefix}play --repeat-all
         Set the player to start back at front of list when finished all.
-{prefix}play -a youtube_link_1 local_name_1
-{prefix}play --append youtube_link_1 local_name_1
-        Append the following songs to the list.
+{prefix}play --shuffle
+        Player will enable shuffle mode and randomly play every song once then restart.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'play', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Play')
     sub.add_argument('-a', '--append', action="store_true", help='Append songs to playlist.')
     sub.add_argument('--repeat', action="store_true", help='Toggle looping the video, permanent.')
     sub.add_argument('--repeat-all', action="store_true", help='Toggle looping the music once list finished.')
+    sub.add_argument('--shuffle', action="store_true", help='Toggle music shuffling.')
     sub.add_argument('-p', '--pause', action="store_true", help='Toggle pausing the player.')
     sub.add_argument('-r', '--restart', action="store_true", help='Restart current song.')
     sub.add_argument('--status', action="store_true", help='Show player status.')

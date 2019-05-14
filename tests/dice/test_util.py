@@ -160,13 +160,6 @@ def test_is_valid_url():
         assert not dice.util.is_valid_url(link)
 
 
-@pytest.mark.skipif(not os.environ.get('ALL_TESTS'), reason="Long test.")
-def test_get_youtube_info():
-    url = 'https://www.youtube.com/watch?v=O9qUdpgcWVY&list=PLFItFVrQwOi45Y4YlWn1Myz-YQvSZ6MEL'
-    expect = ('https://youtu.be/O9qUdpgcWVY', 'Obey the Groove')
-    assert expect == dice.util.get_youtube_info(url)[0]
-
-
 def test_init_chrome():
     try:
         browser = dice.util.init_chrome()

@@ -17,10 +17,18 @@ YTDL_REASON = "Uses yotube_dl and is slow. To enable set env ALL_TESTS=True"
 
 
 @pytest.mark.skipif(not os.environ.get('ALL_TESTS'), reason=YTDL_REASON)
-def test_yotube_dl(f_songs):
+@pytest.mark.asyncio
+async def test_get_youtube_info():
+    url = 'https://www.youtube.com/watch?v=O9qUdpgcWVY&list=PLFItFVrQwOi45Y4YlWn1Myz-YQvSZ6MEL'
+    expect = ('https://youtu.be/O9qUdpgcWVY', 'Obey the Groove')
+    assert expect == (await dice.music.get_youtube_info(url))[0]
+
+
+@pytest.mark.skipif(not os.environ.get('ALL_TESTS'), reason=YTDL_REASON)
+def test_get_yt_video(f_songs):
     try:
         tdir = tempfile.TemporaryDirectory()
-        dice.music.youtube_dl(f_songs[0].url, 'song', tdir.name)
+        dice.music.get_yt_video(f_songs[0].url, 'song', tdir.name)
         assert os.path.isfile(os.path.join(tdir.name, 'song.opus'))
     finally:
         tdir.cleanup()
@@ -162,22 +170,22 @@ def test_guild_player_toggle_pause(f_songs, f_vclient):
 
 @mock.patch('dice.music.make_stream', lambda x: x)
 def test_guild_player_play_no_connect(f_songs, f_vclient):
-    player = dice.music.GuildPlayer(vids=[], client=f_vclient)
-    player.vid_index = 2
+    player = dice.music.GuildPlayer(vids=[f_songs], client=f_vclient)
+    player.vid_index = 0
 
     f_vclient.is_playing.return_value = True
     with pytest.raises(dice.exc.RemoteError):
-        player.play(f_songs)
+        player.play()
 
 
 @mock.patch('dice.music.make_stream', lambda x: x)
 def test_guild_player_play(f_songs, f_vclient):
-    player = dice.music.GuildPlayer(vids=[], client=f_vclient)
-    player.vid_index = 2
+    player = dice.music.GuildPlayer(vids=[f_songs], client=f_vclient)
+    player.vid_index = 0
 
     f_vclient.is_connected.return_value = True
     f_vclient.is_playing.return_value = True
-    player.play(f_songs)
+    player.play()
     assert player.vid_index == 0
     assert not player.finished
     assert f_vclient.stop.called
@@ -187,7 +195,7 @@ def test_guild_player_play(f_songs, f_vclient):
 def test_guild_player_play_no_vids(f_songs, f_vclient):
     player = dice.music.GuildPlayer(vids=[])
     with pytest.raises(dice.exc.InvalidCommandArgs):
-        player.play([])
+        player.play()
 
 
 def test_guild_player_after_call(f_songs, f_vclient):

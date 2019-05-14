@@ -2,16 +2,22 @@
 New Music player for the bot.
 """
 import asyncio
+import copy
 import datetime
+import json
 import logging
 import os
 import pathlib
 import random
 import shlex
+import shutil
 import subprocess
+import tempfile
 import time
 
 import discord
+from numpy import random as rand
+import youtube_dl
 
 import dice.exc
 import dice.util
@@ -32,7 +38,13 @@ YTDL_CMD = "youtube-dl -o -x --audio-format opus --audio-quality 0"
 #  BEFORE_OPTS = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
 
 
-def youtube_dl(url, name, out_path=None):
+def get_yt_playlist(url, ydl_opts):
+    """ Simple blocking wrapper, run in executor. """
+    with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
+
+
+def get_yt_video(url, name, out_path=None):
     """
     Download a youtube video in the right audio format.
     """
@@ -88,8 +100,9 @@ def make_stream(video):
     Fetches a local copy of the video if required.
     Then just returns the stream object required for the voice client.
     """
+    # TODO: Remove this later, ensure not needed.
     if video.is_remote() and not os.path.exists(video.fname):
-        youtube_dl(video.url, video.name, video.folder)
+        get_yt_video(video.url, video.name, video.folder)
 
     now = time.time()
     os.utime(video.fname, (now, now))
@@ -128,6 +141,56 @@ async def gplayer_monitor(players, gap=3):
         await asyncio.sleep(gap)
 
 
+# TODO: Merge this with youtube_dl somehow
+async def prefetch_vids(vids):
+    """
+    Helper, prefetch any vids in the list.
+    """
+    streams = [asyncio.get_event_loop().run_in_executor(None, make_stream, vid)
+               for vid in vids]
+
+    return await asyncio.gather(*streams)
+
+
+# TODO: Alternatively regex parse first page, all info there. Appears rendering varies.
+async def get_youtube_info(url):
+    """
+    Fetches information on a youtube playlist url.
+    Parses it for pairs of (url_id, video_title).
+    Returns all pairs in a list.
+    """
+    tdir = tempfile.TemporaryDirectory()
+    output_template = "{}/%(playlist_index)s-%(title)s.mp4".format(tdir.name)
+    try:
+        shutil.rmtree(os.path.dirname(output_template))
+    except OSError:
+        pass
+
+    ydl_opts = {
+        "format": "140",
+        "ignoreerrors": True,
+        "outtmpl": output_template,
+        "skip_download": True,
+        "writeinfojson": True,
+    }
+
+    try:
+        await asyncio.get_event_loop().run_in_executor(
+            None, get_yt_playlist, url, ydl_opts)
+
+        playlist_info = []
+        for fname in sorted(list(pathlib.Path(tdir.name).glob('*'))):
+            with open(fname, 'r') as fin:
+                info = json.load(fin)
+                url = 'https://youtu.be/' + dice.util.is_valid_yt(info['webpage_url'])
+                title = info['title'].replace('/', '')
+                playlist_info += [(url, title)]
+
+        return playlist_info
+    finally:
+        tdir.cleanup()
+
+
 # Implemented in self.__client, stop, pause, resume, disconnect(async), move_to(async)
 class GuildPlayer(object):
     """
@@ -140,12 +203,14 @@ class GuildPlayer(object):
             vids = []
         self.vids = vids
         self.vid_index = vid_index
+        self.shuffle = None  # When enable, put copy of vids list here and select from.
         self.repeat_all = False  # Repeat vids list when last song finished
         self.finished = False  # Set only when player should be stopped
 
         self.err_channel = err_channel  # Set to originating channel invoked
         self.target_channel = target_channel
         self.__client = client
+        self.__now_playing = None
 
     def __getattr__(self, attr):
         """
@@ -185,7 +250,7 @@ __Video List__:{vids}
     def cur_vid(self):
         """ The current video playing/selected. If finished, will point to first. """
         try:
-            return self.vids[self.vid_index]
+            return self.__now_playing if self.__now_playing else self.vids[self.vid_index]
         except (IndexError, TypeError):
             return None
 
@@ -210,24 +275,32 @@ __Video List__:{vids}
         except AttributeError:
             pass
 
-    def play(self, replace_vids=None):
+    def replace_vids(self, new_vids):
+        for vid in new_vids:
+            if not isinstance(vid, Song):
+                raise ValueError("Must add Songs to the GuildPlayer.")
+
+        self.vids = new_vids
+        self.vid_index = 0
+
+    def play(self, next_vid=None):
         """
-        Play the vids in the list.
-        If optional replace_vids passed, replace current queue and reset to start.
+        Play or restart the current video.
+        Optional play next_vid instead of cur_vid.
         """
-        if replace_vids:
-            self.vids = replace_vids
-            self.vid_index = 0
         if not self.vids:
-            raise dice.exc.InvalidCommandArgs("No videos set to play.")
+            raise dice.exc.InvalidCommandArgs("No videos set to play. Add some!")
 
         if not self.is_connected():
             raise dice.exc.RemoteError("Bot no longer connected to voice.")
         if self.is_playing():
             self.stop()
 
+        vid = self.cur_vid
+        if next_vid:
+            vid = next_vid
         self.finished = False
-        self.__client.play(make_stream(self.cur_vid), after=self.after_call)
+        self.__client.play(make_stream(vid), after=self.after_call)
 
     def after_call(self, error):
         """
@@ -251,13 +324,32 @@ __Video List__:{vids}
             elif self.is_paused():
                 self.resume()
 
+    def toggle_shuffle(self):
+        """ Toggle shuffling the list. """
+        if self.shuffle:
+            self.shuffle = None
+            self.__now_playing = None
+        else:
+            self.shuffle = copy.copy(self.vids)
+
+    def restart_shuffle(self):
+        """ Vids were added, restart shuffle. """
+        self.shuffle = copy.copy(self.vids)
+
     def next(self):
         """
         Go to the next song.
         """
-        if self.repeat_all or (self.vid_index + 1) < len(self.vids):
+        if self.shuffle:
+            selected = rand.choice(self.shuffle)
+            self.shuffle.remove(selected)
+            if not self.shuffle:
+                self.restart_shuffle()
+            self.__now_playing = selected
+            self.play(selected)
+        elif self.repeat_all or (self.vid_index + 1) < len(self.vids):
             self.vid_index = (self.vid_index + 1) % len(self.vids)
-            self.play()
+            self.play(self.cur_vid)
         else:
             self.stop()
             self.finished = True
@@ -266,7 +358,14 @@ __Video List__:{vids}
         """
         Go to the previous song.
         """
-        if self.repeat_all or (self.vid_index - 1) >= 0:
+        if self.shuffle:
+            selected = rand.choice(self.shuffle)
+            self.shuffle.remove(selected)
+            if not self.shuffle:
+                self.restart_shuffle()
+            self.__now_playing = selected
+            self.play(selected)
+        elif self.repeat_all or (self.vid_index - 1) >= 0:
             self.vid_index = (self.vid_index - 1) % len(self.vids)
             self.play()
         else:
@@ -301,16 +400,3 @@ __Video List__:{vids}
         except asyncio.TimeoutError:
             await self.disconnect()
             raise dice.exc.UserException(TIMEOUT_MSG)
-
-    async def prefetch_vids(self, *, first_only=True):
-        """
-        Helper, prefetch either all videos or just the first.
-        When it returns, videos are available.
-        """
-        streams = [asyncio.get_event_loop().run_in_executor(None, make_stream, vid)
-                   for vid in self.vids[:1]]
-        if not first_only:
-            streams = [asyncio.get_event_loop().run_in_executor(None, make_stream, vid)
-                       for vid in self.vids]
-
-        return await asyncio.gather(*streams)

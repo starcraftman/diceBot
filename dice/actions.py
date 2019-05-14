@@ -219,6 +219,11 @@ class Play(Action):
 
         return msg
 
+    async def shuffle(self, mplayer):
+        """ Set player to repeat video when it finishes normally. """
+        mplayer.toggle_shuffle()
+        return "Player shuffle is now: **{}abled**".format('En' if mplayer.shuffle else 'Dis')
+
     async def status(self, mplayer):
         """ Show current bot status. """
         return str(mplayer)
@@ -228,7 +233,7 @@ class Play(Action):
         parts = [part.strip() for part in re.split(r'\s*,\s*', ' '.join(self.args.vids))]
 
         if dice.util.is_valid_playlist(parts[0]):
-            vid_info = dice.util.get_youtube_info(parts[0])
+            vid_info = await dice.music.get_youtube_info(parts[0])
             new_vids = dicedb.query.validate_videos([x[0] for x in vid_info])
             for vid in new_vids:
                 _, title = vid_info[0]
@@ -240,12 +245,15 @@ class Play(Action):
         if self.args.append:
             mplayer.vids += new_vids
         else:
-            mplayer.vids = new_vids
-            await mplayer.prefetch_vids(first_only=True)
-            mplayer.play(new_vids)
+            mplayer.replace_vids(new_vids)
+            await dice.music.prefetch_vids([mplayer.cur_vid])
+
+        if mplayer.shuffle:
+            mplayer.restart_shuffle()
 
         await self.bot.send_message(self.msg.channel, str(mplayer))
-        await mplayer.prefetch_vids(first_only=False)
+        mplayer.play()
+        await dice.music.prefetch_vids(mplayer.vids)
 
     async def execute(self):
         mplayer = get_guild_player(self.guild_id, self.msg)
@@ -330,7 +338,9 @@ class Songs(Action):
 
                     mplayer = get_guild_player(self.guild_id, self.msg)
                     await mplayer.join_voice_channel()
-                    mplayer.play([selected])
+                    mplayer.replace_vids([selected])
+                    await dice.music.prefetch_vids([selected])
+                    mplayer.play()
 
                     await self.bot.send_message(self.msg.channel, '**Song Started**\n\n' + format_a_song(1, selected))
                     break
@@ -425,7 +435,9 @@ class Songs(Action):
 
                     mplayer = get_guild_player(self.guild_id, self.msg)
                     await mplayer.join_voice_channel()
-                    mplayer.play([selected])
+                    mplayer.replace_vids([selected])
+                    await dice.music.prefetch_vids([selected])
+                    mplayer.play()
 
                     await self.bot.send_message(self.msg.channel, '**Song Started**\n\n' + format_a_song(1, selected))
                     break
