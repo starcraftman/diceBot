@@ -362,7 +362,7 @@ __Video List__:{vids}
         Join the right channel before beginning transmission.
 
         Raises:
-            InvalidCommandArgs - The bot could not join voice within a timeout. Discord network issue?
+            UserException - The bot could not join voice within a timeout. Discord network issue?
         """
         try:
             if self.__client:
