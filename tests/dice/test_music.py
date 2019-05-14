@@ -16,12 +16,16 @@ import dice.music
 YTDL_REASON = "Uses yotube_dl and is slow. To enable set env ALL_TESTS=True"
 
 
-@pytest.mark.skipif(not os.environ.get('ALL_TESTS'), reason=YTDL_REASON)
+def test_run_cmd_with_retries():
+    actual = dice.music.run_cmd_with_retries(['echo', 'Hello'], retries=5)
+    assert actual == "Hello\n"
+
+
 @pytest.mark.asyncio
-async def test_get_youtube_info():
+async def test_get_yt_info():
     url = 'https://www.youtube.com/watch?v=O9qUdpgcWVY&list=PLFItFVrQwOi45Y4YlWn1Myz-YQvSZ6MEL'
     expect = ('https://youtu.be/O9qUdpgcWVY', 'Obey the Groove')
-    assert expect == (await dice.music.get_youtube_info(url))[0]
+    assert expect == (await dice.music.get_yt_info(url))[0]
 
 
 @pytest.mark.skipif(not os.environ.get('ALL_TESTS'), reason=YTDL_REASON)
@@ -74,11 +78,23 @@ def test_prune_cache_prefix():
         tdir.cleanup()
 
 
-@pytest.mark.skipif(not os.environ.get('ALL_TESTS'), reason=YTDL_REASON)
 def test_make_stream(f_songs):
-    stream = dice.music.make_stream(f_songs[0])
-    assert isinstance(stream, discord.PCMVolumeTransformer)
-    assert len(os.listdir(f_songs[0].folder)) == 1
+    try:
+        with open(f_songs[0].fname, 'w') as fout:
+            fout.write('a')
+        stream = dice.music.make_stream(f_songs[0])
+        assert isinstance(stream, discord.PCMVolumeTransformer)
+        assert len(os.listdir(f_songs[0].folder)) == 1
+    finally:
+        try:
+            os.remove(f_songs[0].fname)
+        except OSError:
+            pass
+
+
+def test_make_stream_not_exists(f_songs):
+    with pytest.raises(dice.exc.InternalException):
+        dice.music.make_stream(f_songs[0])
 
 
 def test_guild_player__init__(f_songs):
@@ -168,9 +184,9 @@ def test_guild_player_toggle_pause(f_songs, f_vclient):
     assert f_vclient.resume.called
 
 
-@mock.patch('dice.music.get_yt_video', lambda x, y, z,: x)
+@mock.patch('dice.music.get_yt_video', lambda x, y, z: x)
 def test_guild_player_play_no_connect(f_songs, f_vclient):
-    player = dice.music.GuildPlayer(vids=[f_songs], client=f_vclient)
+    player = dice.music.GuildPlayer(vids=f_songs, client=f_vclient)
     player.vid_index = 0
 
     f_vclient.is_playing.return_value = True
@@ -178,14 +194,16 @@ def test_guild_player_play_no_connect(f_songs, f_vclient):
         player.play()
 
 
-@mock.patch('dice.music.get_yt_video', lambda x, y, z,: x)
+@mock.patch('dice.music.get_yt_video', lambda x, y, z: x)
+@mock.patch('dice.music.make_stream', lambda x: x)
 def test_guild_player_play(f_songs, f_vclient):
-    player = dice.music.GuildPlayer(vids=[f_songs], client=f_vclient)
+    player = dice.music.GuildPlayer(vids=f_songs, client=f_vclient)
     player.vid_index = 0
-
     f_vclient.is_connected.return_value = True
     f_vclient.is_playing.return_value = True
+
     player.play()
+
     assert player.vid_index == 0
     assert not player.finished
     assert f_vclient.stop.called

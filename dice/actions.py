@@ -233,7 +233,7 @@ class Play(Action):
         parts = [part.strip() for part in re.split(r'\s*,\s*', ' '.join(self.args.vids))]
 
         if dice.util.is_valid_playlist(parts[0]):
-            vid_info = await dice.music.get_youtube_info(parts[0])
+            vid_info = await dice.music.get_yt_info(parts[0])
             new_vids = dicedb.query.validate_videos([x[0] for x in vid_info])
             for vid in new_vids:
                 _, title = vid_info[0]
@@ -253,7 +253,7 @@ class Play(Action):
 
         await self.bot.send_message(self.msg.channel, str(mplayer))
         mplayer.play()
-        await dice.music.prefetch_vids(mplayer.vids)
+        await dice.music.prefetch_vids([x for x in mplayer.vids if x != mplayer.cur_vid])
 
     async def execute(self):
         mplayer = get_guild_player(self.guild_id, self.msg)
