@@ -262,7 +262,6 @@ def subs_status(subs, prefix):
     sub.set_defaults(cmd='Status')
 
 
-# FIXME: Resolve disparity between next/next_num
 @register_parser
 def subs_turn(subs, prefix):
     """ Subcommand parsing for turn """
@@ -297,7 +296,7 @@ def subs_turn(subs, prefix):
     sub.add_argument('-c', '--clear', action='store_true', help='Clear the turn order.')
     sub.add_argument('--init', type=int, help='Set turn order init.')
     sub.add_argument('--name', nargs='+', help='Set turn order name.')
-    sub.add_argument('-n', '--next', action='store_true', help='Add a user to the turn order.')
+    sub.add_argument('-n', '--next', nargs='?', default='zero', help='Advance n chars in order.')
     sub.add_argument('--unset', action='store_true', help='Remove yourself from default turn order.')
     sub.add_argument('-r', '--remove', nargs='+', help='Remove a user.')
     sub.add_argument('--update', nargs='+', help='Update the following users.')
@@ -314,8 +313,8 @@ def subs_n(subs, prefix):
         Show and advance next num players.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'n', description=desc, formatter_class=RawHelp)
-    sub.add_argument('next_num', nargs='?', type=int, default=None, help='Advance n chars.')
-    sub.set_defaults(cmd='Turn', next=True, clear=False, remove=False, add=False)
+    sub.add_argument('next', nargs='?', default='zero', help='Advance n chars in order.')
+    sub.set_defaults(cmd='Turn', add=False, clear=False, next=True, remove=False)
 
 
 @register_parser

@@ -265,9 +265,9 @@ class Play(Action):
             await self.bot.send_message(self.msg.channel, msg)
 
         msg = str(mplayer)
-        mets = [x[0] for x in inspect.getmembers(self, inspect.ismethod)
-                if x[0] not in ['__init__', 'execute']]
-        for name in mets:
+        methods = [x[0] for x in inspect.getmembers(self, inspect.ismethod)
+                   if x[0] not in ['__init__', 'execute']]
+        for name in methods:
             if getattr(self.args, name):
                 try:
                     msg = await getattr(self, name)(mplayer)
@@ -893,7 +893,7 @@ class Turn(Action):
                                       self.chan_id, name=name_str)
         return 'Updated **name** for {} to: {}'.format(self.msg.author.name, name_str)
 
-    def next(self, session, order):
+    def __single_next(self, session, order):
         """
         Advance the turn order.
         """
@@ -911,17 +911,16 @@ class Turn(Action):
 
         return msg
 
-    def next_num(self, _, order):
+    def next(self, _, order):
         """
-        Advance the turn order next_num places.
+        Advance the turn order next places.
         """
-        if self.args.next_num < 1:
+        if self.args.next < 1:
             raise dice.exc.InvalidCommandArgs('!next requires number in range [1, +∞]')
 
-        text = ''
-        cnt = self.args.next_num
+        text, cnt = '', self.args.next
         while cnt:
-            text += self.next(_, order) + '\n\n'
+            text += self.__single_next(_, order) + '\n\n'
             cnt -= 1
 
         return text.rstrip()
@@ -970,18 +969,28 @@ class Turn(Action):
         dicedb.query.ensure_duser(self.session, self.msg.author)
 
         order = dice.turn.parse_order(dicedb.query.get_turn_order(self.session, self.chan_id))
-        msg = str(order)
-        if not order and (self.args.next or self.args.remove):
-            raise dice.exc.InvalidCommandArgs('Please add some users first.')
-        if not order:
-            msg = 'No turn order to report.'
+        msg = str(order) if order else 'No turn order to report.'
 
-        for action in ['add', 'clear', 'init', 'name', 'next_num',
-                       'next', 'remove', 'unset', 'update']:
+        if not order and (self.args.next != 'zero' or self.args.remove):
+            raise dice.exc.InvalidCommandArgs('Please add some users first.')
+
+        try:
+            # Non-numeric default is 'zero', when arg not provided is None
             try:
-                var = getattr(self.args, action)
+                self.args.next = int(self.args.next)
+            except TypeError:
+                self.args.next = 1
+            msg = getattr(self, 'next')(self.session, order)
+        except (AttributeError, ValueError):
+            pass
+
+        methods = [x[0] for x in inspect.getmembers(self, inspect.ismethod)
+                   if x[0] not in ['__init__', 'execute', '__single_next', 'next']]
+        for name in methods:
+            try:
+                var = getattr(self.args, name)
                 if var is not None and var is not False:  # 0 is allowed for init
-                    msg = getattr(self, action)(self.session, order)
+                    msg = getattr(self, name)(self.session, order)
                     break
             except AttributeError:
                 pass

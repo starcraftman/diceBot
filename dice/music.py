@@ -241,6 +241,7 @@ class GuildPlayer(object):
         now_playing: Required due to shuffle implementation, see cur_vid.
         target_channel: The voice channel to connect to.
         __client: The reference to discord.VoiceClient, needed to manipulate underlying client.
+                  Do no use directly, just use as if was self.
     """
     def __init__(self, *, vids=None, vid_index=0, repeat_all=False, shuffle=None, finished=False,
                  now_playing=None, target_channel=None, client=None):
@@ -322,9 +323,7 @@ __Video List__:{vids}
         return state
 
     def set_volume(self, new_volume):
-        """
-        Set the volume for the current song playing and persist choice.
-        """
+        """ Set the volume for the current song playing and persist choice.  """
         self.cur_vid.set_volume(new_volume)
         try:
             self.source.volume = self.cur_vid.volume
@@ -332,6 +331,7 @@ __Video List__:{vids}
             pass
 
     def replace_vids(self, new_vids):
+        """ Replace the current videos and reset index. """
         for vid in new_vids:
             if not isinstance(vid, Song):
                 raise ValueError("Must add Songs to the GuildPlayer.")
@@ -341,8 +341,8 @@ __Video List__:{vids}
 
     def play(self, next_vid=None):
         """
-        Play or restart the current video.
-        Optional play next_vid instead of cur_vid.
+        Play the cur_vid, if it is playing it will be restarted.
+        Optional play next_vid instead of cur_vid if it is provided.
         """
         if not self.vids:
             raise dice.exc.InvalidCommandArgs("No videos set to play. Add some!")
@@ -393,22 +393,23 @@ __Video List__:{vids}
         self.shuffle = copy.copy(self.vids)
 
     def next(self):
-        """
-        Go to the next song.
-        """
+        """ Go to the next song. """
         self.__select_next_song(lambda self: (self.vid_index + 1) < len(self.vids),
                                 lambda self: (self.vid_index + 1) % len(self.vids))
 
     def prev(self):
-        """
-        Go to the previous song.
-        """
+        """ Go to the previous song. """
         self.__select_next_song(lambda self: (self.vid_index - 1) >= 0,
                                 lambda self: (self.vid_index - 1) % len(self.vids))
 
     def __select_next_song(self, check_func, inc_func):
         """
-        Select the next song to play, depends on check_func and inc_func.
+        Select the next song to play, depends upon passed functions.
+
+        Args:
+            check_func: Predicate takes GuildPlayer object and determines
+                        if it can go next or back.
+            inc_func: Function takes GuildPlayer object, changes cur_vid accordingly.
         """
         if self.shuffle:
             self.now_playing = rand.choice(self.shuffle)
@@ -426,6 +427,8 @@ __Video List__:{vids}
     async def disconnect(self):
         """
         Only called when sure bot voice services no longer needed.
+
+        Stops playing, disconnects bot from channel and unsets the voice client.
         """
         try:
             self.stop()
@@ -436,7 +439,8 @@ __Video List__:{vids}
 
     async def join_voice_channel(self):
         """
-        Join the right channel before beginning transmission.
+        Join the right channel before beginning transmission. If client is currently
+        connected then move to the correct channel.
 
         Raises:
             UserException - The bot could not join voice within a timeout. Discord network issue?
