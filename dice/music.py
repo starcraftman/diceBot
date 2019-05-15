@@ -311,7 +311,7 @@ __Video List__:{vids}
             self.shuffle = None
             self.now_playing = None
         else:
-            self.shuffle = copy.copy(self.vids)
+            self.restart_shuffle()
 
     def restart_shuffle(self):
         """ Simply repopulate the shuffled list. """
@@ -336,12 +336,11 @@ __Video List__:{vids}
         Select the next song to play, depends on check_func and inc_func.
         """
         if self.shuffle:
-            selected = rand.choice(self.shuffle)
-            self.shuffle.remove(selected)
+            self.now_playing = rand.choice(self.shuffle)
+            self.shuffle.remove(self.now_playing)
             if not self.shuffle:
                 self.restart_shuffle()
-            self.now_playing = selected
-            self.play(selected)
+            self.play(self.now_playing)
         elif self.repeat_all or check_func(self):
             self.vid_index = inc_func(self)
             self.play()

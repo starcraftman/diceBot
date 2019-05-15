@@ -281,10 +281,12 @@ def subs_turn(subs, prefix):
 {prefix}turn --remove a user, another user
 {prefix}turn -r a user, another user
         Remove a user from the turn order.
-{prefix}turn --char A name
+{prefix}turn --name A name
         Set your character name for turn order.
 {prefix}turn --init -5
         Set your character init for turn order.
+{prefix}turn --unset
+        Remove your character from the default turn order for this channel.
 {prefix}turn --update Chris/1, Noggles/22, ...
         Override the rolls for init for matching characters.
     """.format(prefix=prefix)
@@ -295,6 +297,7 @@ def subs_turn(subs, prefix):
     sub.add_argument('--init', type=int, help='Set turn order init.')
     sub.add_argument('--name', nargs='+', help='Set turn order name.')
     sub.add_argument('-n', '--next', action='store_true', help='Add a user to the turn order.')
+    sub.add_argument('--unset', action='store_true', help='Remove yourself from default turn order.')
     sub.add_argument('-r', '--remove', nargs='+', help='Remove a user.')
     sub.add_argument('--update', nargs='+', help='Update the following users.')
 

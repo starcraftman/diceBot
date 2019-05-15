@@ -55,6 +55,7 @@ def ensure_duser(session, member):
         duser.display_name = member.display_name
     except dice.exc.NoMatch:
         duser = add_duser(session, member)
+    session.commit()
 
     return duser
 
@@ -65,7 +66,6 @@ def add_duser(session, member):
     """
     new_duser = DUser(id=str(member.id), display_name=member.display_name)
     session.add(new_duser)
-    session.commit()
 
     return new_duser
 
@@ -192,7 +192,7 @@ def get_turn_order(session, key):
         return None
 
 
-def rem_turn_order(session, key):
+def remove_turn_order(session, key):
     """
     Remove the turn order from the db.
     """
@@ -204,13 +204,23 @@ def rem_turn_order(session, key):
         pass
 
 
+def generate_inital_turn_users(session, turn_key):
+    """
+    Find all potential turn order users for that turn_key.
+    """
+    chars = session.query(TurnChar).filter(TurnChar.turn_key == turn_key,
+                                           TurnChar.init is not None,
+                                           TurnChar.name is not None).all()
+    return ['{}/{}'.format(char.name, char.init) for char in chars]
+
+
 def get_turn_char(session, user_key, turn_key):
     """
     Fetch the character identified by the combination user_key & turn_key.
     """
     try:
-        return session.query(TurnChar).filter(TurnChar.user_key == user_key and
-                                              TurnChar.turn_order_key == turn_key).one()
+        return session.query(TurnChar).filter(TurnChar.user_key == user_key,
+                                              TurnChar.turn_key == turn_key).one()
     except sqla_oexc.NoResultFound:
         return None
 
@@ -220,7 +230,7 @@ def update_turn_char(session, user_key, turn_key, *, name=None, init=None):
     Given user and turn ids, set a character and/or init value.
     """
     try:
-        char = session.query(TurnChar).filter(TurnChar.user_key == user_key and
+        char = session.query(TurnChar).filter(TurnChar.user_key == user_key,
                                               TurnChar.turn_key == turn_key).one()
         if name:
             char.name = name
@@ -228,23 +238,23 @@ def update_turn_char(session, user_key, turn_key, *, name=None, init=None):
             char.init = init
 
     except sqla_oexc.NoResultFound:
-        if not name:
-            name = ''
-        if not init:
-            init = ''
         char = TurnChar(user_key=user_key, turn_key=turn_key, name=name, init=init)
 
     session.add(char)
     session.commit()
 
 
-def generate_inital_turn_users(session, turn_key):
+def remove_turn_char(session, user_key, turn_key):
     """
-    Find all potential turn order users for that turn_key.
+    Delete the turn character from db.
     """
-    chars = session.query(TurnChar).filter(TurnChar.turn_key == turn_key and
-                                           TurnChar.init != '' and TurnChar.name != '').all()
-    return ['{}/{}'.format(char.name, char.init) for char in chars]
+    try:
+        char = session.query(TurnChar).filter(TurnChar.user_key == user_key,
+                                              TurnChar.turn_key == turn_key).one()
+        session.delete(char)
+        session.commit()
+    except sqla_oexc.NoResultFound:
+        pass
 
 
 def add_song_with_tags(session, name, url, tags=None):

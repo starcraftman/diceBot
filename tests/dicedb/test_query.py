@@ -121,16 +121,39 @@ def test_get_turn_order(session, f_turnorders):
     assert dicedb.query.get_turn_order(session, 'a_key') is None
 
 
-def test_rem_turn_order(session, f_turnorders):
+def test_remove_turn_order(session, f_turnorders):
     key = f_turnorders[0].id
 
-    dicedb.query.rem_turn_order(session, key)
-    dicedb.query.rem_turn_order(session, key)
+    dicedb.query.remove_turn_order(session, key)
+    dicedb.query.remove_turn_order(session, key)
     assert dicedb.query.get_turn_order(session, 'key') is None
 
 
 def test_generate_initial_turn_users(session, f_dusers, f_turnchars):
     assert dicedb.query.generate_inital_turn_users(session, 'turn') == ['Wizard/7', 'Fighter/2', 'Rogue/3']
+
+
+def test_get_turn_char(session, f_turnchars):
+    turn_char = f_turnchars[0]
+
+    assert dicedb.query.get_turn_char(session, turn_char.user_key, 'turn') == turn_char
+
+
+def test_update_turn_char(session, f_turnchars):
+    turn_char = f_turnchars[0]
+
+    dicedb.query.update_turn_char(session, turn_char.user_key, 'turn',
+                                  name='NotWizard', init=-1)
+    up_char = dicedb.query.get_turn_char(session, turn_char.user_key, 'turn')
+    assert up_char.init == -1
+    assert up_char.name == 'NotWizard'
+
+
+def test_remove_turn_char(session, f_turnchars):
+    turn_char = f_turnchars[0]
+
+    dicedb.query.remove_turn_char(session, turn_char.user_key, 'turn')
+    assert dicedb.query.get_turn_char(session, turn_char.user_key, 'turn') is None
 
 
 def test_add_song_with_tags_update_existing(session, f_songs):

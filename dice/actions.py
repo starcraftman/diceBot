@@ -851,7 +851,7 @@ class Timers(Action):
 
 class Turn(Action):
     """
-    Manipulate a global turn order tracker.
+    Manipulate a turn order tracker.
     """
     def add(self, session, order):
         """
@@ -859,16 +859,12 @@ class Turn(Action):
         start a new turn order if needed.
         """
         parts = ' '.join(self.args.add).split(',')
-        users = dice.turn.parse_turn_users(parts)
 
-        if order:
-            order.add_all(users)
-        else:
+        if not order:
             order = dice.turn.TurnOrder()
-            init_users = dice.turn.parse_turn_users(
-                dicedb.query.generate_inital_turn_users(session, self.chan_id))
-            order.add_all(init_users + users)
+            parts += dicedb.query.generate_inital_turn_users(session, self.chan_id)
 
+        order.add_all(dice.turn.parse_turn_users(parts))
         dicedb.query.update_turn_order(session, self.chan_id, order)
 
         return str(order)
@@ -877,7 +873,7 @@ class Turn(Action):
         """
         Clear the turn order.
         """
-        dicedb.query.rem_turn_order(session, self.chan_id)
+        dicedb.query.remove_turn_order(session, self.chan_id)
         return 'Turn order cleared.'
 
     def init(self, session, _):
@@ -887,6 +883,15 @@ class Turn(Action):
         dicedb.query.update_turn_char(session, str(self.msg.author.id),
                                       self.chan_id, init=self.args.init)
         return 'Updated **init** for {} to: {}'.format(self.msg.author.name, self.args.init)
+
+    def name(self, session, _):
+        """
+        Update a user's character name for turn order.
+        """
+        name_str = ' '.join(self.args.name)
+        dicedb.query.update_turn_char(session, str(self.msg.author.id),
+                                      self.chan_id, name=name_str)
+        return 'Updated **name** for {} to: {}'.format(self.msg.author.name, name_str)
 
     def next(self, session, order):
         """
@@ -934,14 +939,14 @@ class Turn(Action):
         msg = 'Removed the following users:\n'
         return msg + '\n  - ' + '\n  - '.join(users)
 
-    def name(self, session, _):
+    def unset(self, session, _):
         """
-        Update a user's character name for turn order.
+        Unset the default character you set for the channel.
         """
-        name_str = ' '.join(self.args.name)
-        dicedb.query.update_turn_char(session, str(self.msg.author.id),
-                                      self.chan_id, name=name_str)
-        return 'Updated **name** for {} to: {}'.format(self.msg.author.name, name_str)
+        dicedb.query.remove_turn_char(session, str(self.msg.author.id),
+                                      self.chan_id)
+
+        return "Removed you from the default turn order."
 
     def update(self, session, order):
         """
@@ -971,7 +976,8 @@ class Turn(Action):
         if not order:
             msg = 'No turn order to report.'
 
-        for action in ['add', 'clear', 'init', 'name', 'next_num', 'next', 'remove', 'update']:
+        for action in ['add', 'clear', 'init', 'name', 'next_num',
+                       'next', 'remove', 'unset', 'update']:
             try:
                 var = getattr(self.args, action)
                 if var is not None and var is not False:  # 0 is allowed for init

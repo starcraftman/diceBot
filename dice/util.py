@@ -10,8 +10,6 @@ import math
 import os
 import random
 import re
-import subprocess
-import time
 
 import numpy.random
 import selenium.webdriver
