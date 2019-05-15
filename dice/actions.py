@@ -1226,11 +1226,7 @@ def get_guild_player(guild_id, msg):
                                     msg.guild.channels)
 
     if guild_id not in PLAYERS:
-        PLAYERS[guild_id] = GuildPlayer(vids=[], target_channel=target,
-                                        err_channel=msg.channel)
+        PLAYERS[guild_id] = GuildPlayer(vids=[], target_channel=target)
+    PLAYERS[guild_id].target_channel = target
 
-    player = PLAYERS[guild_id]
-    player.target_channel = target
-    player.err_channel = msg.channel
-
-    return player
+    return PLAYERS[guild_id]

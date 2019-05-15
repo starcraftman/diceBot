@@ -1,5 +1,13 @@
 """
-New Music player for the bot.
+Implement a complete music player to play local media and youtube videos.
+
+    Employ youtube_dl to fetch/transcode youtube videos to a cache.
+    A general purpose player supporting basic features like
+        play/pause/next/previous/shuffle
+    Use a general Song object to modle/persist played volume & repeat settings per song.
+    Simple tagging system for music.
+
+See related Song/SongTag in dicedb.schema
 """
 import asyncio
 import copy
@@ -27,7 +35,7 @@ PLAYER_TIMEOUT = dice.util.get_config('music', 'player_timeout', default=120)  #
 VOICE_JOIN_TIMEOUT = dice.util.get_config('music', 'voice_join_timeout', default=5)  # seconds
 TIMEOUT_MSG = """ Bot joining voice took more than {} seconds.
 
-Try again later or get Gears. """.format(VOICE_JOIN_TIMEOUT)
+Try again later or contact bot owner. """.format(VOICE_JOIN_TIMEOUT)
 # Filename goes after o flag, urls at end
 YTDL_CMD = "youtube-dl -x --audio-format opus --audio-quality 0 -o"  # + out_template + url
 YTDL_PLAYLIST = "youtube-dl -j --flat-playlist"  # + url
@@ -39,10 +47,19 @@ YTDL_PLAYLIST = "youtube-dl -j --flat-playlist"  # + url
 
 def run_cmd_with_retries(args, retries=3):
     """
-    Execute args command, ensure out_path exists before running.
+    Execute a command (args) on the local system.
+    If the command fails, retry after a short delay retries times.
+
+    Args:
+        args: The command to execute as a list of strings.
+        retries: Retry any failed command this many times.
 
     Raises:
-        CalledProcessError - When the command fails after retries times.
+        CalledProcessError - Failed retries times, the last time command returned not zero.
+        TimeoutExpired - Failed retries times, the last time command timed out.
+
+    Returns:
+        The decoded unicode string of the captured STDOUT of the command run.
     """
     if retries < 1 or retries > 20:
         retries = 3
@@ -61,7 +78,19 @@ def run_cmd_with_retries(args, retries=3):
 
 def get_yt_video(url, name, out_path):
     """
-    Download a youtube video to the the out_path folder with name.
+    Download a video off youtube, extract the audio
+    and save the video as an opus encoded media file.
+
+    Args:
+        url: The url of a youtube video.
+        name: The name the video should be saved to.
+        out_path: The folder to download the video to.
+
+    Raises:
+        See run_cmd_with_retries
+
+    Returns:
+        The path to the downloaded video.
     """
     try:
         os.makedirs(os.path.dirname(out_path))
@@ -71,35 +100,45 @@ def get_yt_video(url, name, out_path):
     fname = os.path.join(out_path, name + ".%(ext)s")
     run_cmd_with_retries(shlex.split(YTDL_CMD) + [fname, url])
 
-    return fname
+    return os.path.join(out_path, name + ".opus")
 
 
 async def get_yt_info(url):
     """
     Fetches information on a youtube playlist url.
-    Returns all pairs of [(video_url, title), ...]
+    Returns a list that contains pairs of (video_url, title) for
+    every video in the palylist.
+
+    Raises:
+        See run_cmd_with_retries
+
+    Returns:
+        [(video_url_1, title_1), (video_url_2, title_2), ...]
     """
-    try:
-        args = shlex.split(YTDL_PLAYLIST) + [url]
-        proc = subprocess.Popen(args, stdout=subprocess.PIPE)
-        await asyncio.get_event_loop().run_in_executor(None, proc.wait, CMD_TIMEOUT)
-        capture, _ = proc.communicate()
-    except subprocess.TimeoutExpired:
-        raise dice.exc.UserException("Playlist fetch impossible at this time.")
+    args = shlex.split(YTDL_PLAYLIST) + [url]
+    capture = await asyncio.get_event_loop().run_in_executor(None, run_cmd_with_retries, args)
 
     playlist_info = []
-    json_str = '[' + ','.join(capture.strip().decode().strip().split('\n')) + ']'
+    json_str = '[' + ','.join(capture.strip().strip().split('\n')) + ']'
     for info in json.loads(json_str):
         playlist_info += [('https://youtu.be/' + info['id'], info['title'].replace('/', ''))]
 
     return playlist_info
 
 
-def prune_cache(cache_dir, *, prefix=None, limit=CACHE_LIMIT):
+def prune_cache(cache_dir, limit=CACHE_LIMIT, *, prefix=None):
     """
-    Remove the oldest videos in the cache_dir.
-    If prefix given select those that start with prefix.
-    Otherwise consider all files in the cache_dir.
+    Scan a folder for all files or if optional prefix provided, only those matching it.
+    Total their filesize and keep removing the oldest video until
+    total filesize < limit.
+
+    Args:
+        cache_dir: Path to local files to examine.
+        limit: The maximum size of the cache_dir before pruning older files.
+        prefix: Optional kwarg prefix, if provided only match files with this prefix.
+
+    Raises:
+        OSError: Error during file removal, likely permissions problem.
     """
     path = pathlib.Path(cache_dir)
     matcher = '{}*'.format(prefix) if prefix else '*'
@@ -114,25 +153,40 @@ def prune_cache(cache_dir, *, prefix=None, limit=CACHE_LIMIT):
         songs = songs[1:]
 
 
-def make_stream(video):
+def make_stream(vid):
     """
     Fetches a local copy of the video if required.
     Then just returns the stream object required for the voice client.
+
+    Args:
+        cache_dir: Path to local files to examine.
+        limit: The maximum size of the cache_dir before pruning older files.
+        prefix: Optional kwarg prefix, if provided only match files with this prefix.
+
+    Raises:
+        InternalException: Attempted to play a song that did not exist locally.
+
+    Returns:
+        An AudioStream ready to be served by the discord voice client.
     """
-    if not os.path.exists(video.fname):
-        raise dice.exc.InternalException("The video is not available to stream.")
+    if not os.path.exists(vid.fname):
+        raise dice.exc.InternalException("The vid is not available to stream.")
 
     now = time.time()
-    os.utime(video.fname, (now, now))
+    os.utime(vid.fname, (now, now))
 
-    return discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(video.fname), video.volume)
+    return discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(vid.fname), vid.volume)
 
 
 async def gplayer_monitor(players, gap=3):
     """
-    Thi simple task monitors for:
-        - prune old youtube videos cached
-        - check if bots left without listeners in voice channels
+    An asynchronous task to monitor to ...
+        - Disconnect the player when no users in channel or stopped for timeout.
+        - Prune the cache of old videos to reclaim space when limit reached.
+
+    Args:
+        players: A reference to the structure containing all GuildPlayers.
+        gap: Time to wait between checking the gplayer for idle connections.
     """
     activity = {}
 
@@ -140,9 +194,8 @@ async def gplayer_monitor(players, gap=3):
         prune_cache(dice.util.get_config('paths', 'youtube'))
 
         cur_date = datetime.datetime.utcnow()
-        for pid in players:
+        for pid, player in players.items():
             try:
-                player = players[pid]
                 if not player.target_channel or not player.is_connected():
                     raise AttributeError
             except (AttributeError, IndexError):
@@ -161,22 +214,36 @@ async def gplayer_monitor(players, gap=3):
 
 async def prefetch_vids(vids):
     """
-    Helper, prefetch any vids in the list.
+    Aynchronously wait until all songs are downloaded by processes in the background.
+    Upon return, all videos must be available.
+
+    Args:
+        vids: A list of Songs to download.
     """
     streams = [asyncio.get_event_loop().run_in_executor(None, get_yt_video, vid.url, vid.name, vid.folder)
                for vid in vids]
 
-    return await asyncio.gather(*streams)
+    await asyncio.gather(*streams)
 
 
 # Implemented in self.__client, stop, pause, resume, disconnect(async), move_to(async)
 class GuildPlayer(object):
     """
-    Player represents the management of the video queue for
-    a particular guild.
+    A player that wraps a discord.VoiceClient, extending the functionality to
+    encompass a standard player with a builtin music queue and standard features.
+
+    Attributes:
+        vids: A list of Songs, they store per video settings and provide a path to the file to stream.
+        vid_index: The index of the current Song being played.
+        shuffle: When True next video is randomly selected until all videos fairly visited.
+        repeat_all: When True, restart the queue at the beginning when finished.
+        finished: When true, the player has exhausted the queue and stopped playing until started manually.
+        now_playing: Required due to shuffle implementation, see cur_vid.
+        target_channel: The voice channel to connect to.
+        __client: The reference to discord.VoiceClient, needed to manipulate underlying client.
     """
     def __init__(self, *, vids=None, vid_index=0, repeat_all=False, shuffle=None, finished=False,
-                 now_playing=None, target_channel=None, err_channel=None, client=None):
+                 now_playing=None, target_channel=None, client=None):
         if not vids:
             vids = []
         self.vids = vids
@@ -185,21 +252,19 @@ class GuildPlayer(object):
         self.repeat_all = repeat_all  # Repeat vids list when last song finished
         self.finished = finished  # Set only when player should be stopped
         self.now_playing = now_playing  # Unfortunately necessitated by shuffle, see cur_vid
-
-        self.err_channel = err_channel  # Set to originating channel invoked
         self.target_channel = target_channel
+
         self.__client = client
 
     def __getattr__(self, attr):
-        """
-        Transparently pass calls to client, we are extending it
-        to play a series of videos and cache volume/repeat prefs of songs."""
+        """ Transparently pass calls to the client we are extending. """
         if not self.__client:
             raise AttributeError("Client is not set.")
 
         return getattr(self.__client, attr)
 
     def __str__(self):
+        """ Summarize the status of the GuildPlayer for a user. """
         try:
             current = str(self.cur_vid).split('\n')[0]
         except (AttributeError, IndexError):
@@ -222,20 +287,27 @@ __Video List__:{vids}
 
     def __repr__(self):
         keys = ['vid_index', 'vids', 'repeat_all', 'shuffle', 'finished',
-                'now_playing', 'err_channel', 'target_channel']
+                'now_playing', 'target_channel']
         kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
 
         return "GuildPlayer({})".format(', '.join(kwargs))
 
     @property
     def cur_vid(self):
-        """ The current video playing/selected. If finished, will point to first. """
+        """
+        The current video selected. If finished, will point to last video played.
+
+        Returns:
+            None: No videos are set/available.
+            Song: The currently playing video or the last video played before finished.
+        """
         try:
             return self.now_playing if self.now_playing else self.vids[self.vid_index]
         except (IndexError, TypeError):
             return None
 
     def status(self):
+        """ The status of the player, either 'paused', 'playing' or 'stopped'. """
         state = 'stopped'
 
         try:
@@ -250,6 +322,9 @@ __Video List__:{vids}
         return state
 
     def set_volume(self, new_volume):
+        """
+        Set the volume for the current song playing and persist choice.
+        """
         self.cur_vid.set_volume(new_volume)
         try:
             self.source.volume = self.cur_vid.volume

@@ -262,6 +262,7 @@ def subs_status(subs, prefix):
     sub.set_defaults(cmd='Status')
 
 
+# FIXME: Resolve disparity between next/next_num
 @register_parser
 def subs_turn(subs, prefix):
     """ Subcommand parsing for turn """

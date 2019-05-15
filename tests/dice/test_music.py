@@ -135,7 +135,7 @@ def test_guild_player__repr__(f_songs):
 url='https://youtu.be/IrbCrwtDIUA', repeat=False, volume_int=50), Song(id=2, name='pop', \
 folder='/tmp/tmp', url='https://youtu.be/7jgnv0xCv-k', repeat=False, volume_int=50), \
 Song(id=3, name='late', folder='/home/starcraftman/prog/extras/music', url=None, repeat=False, \
-volume_int=50)), repeat_all=False, shuffle=None, finished=False, now_playing=None, err_channel=None, target_channel=None)"
+volume_int=50)), repeat_all=False, shuffle=None, finished=False, now_playing=None, target_channel=None)"
 
     assert re.sub(r'/tmp/\w+', '/tmp/tmp', repr(player)) == expect
 
