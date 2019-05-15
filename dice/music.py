@@ -175,20 +175,20 @@ class GuildPlayer(object):
     Player represents the management of the video queue for
     a particular guild.
     """
-    def __init__(self, *, vids=None, vid_index=0, repeat_all=False,
-                 target_channel=None, err_channel=None, client=None):
+    def __init__(self, *, vids=None, vid_index=0, repeat_all=False, shuffle=None, finished=False,
+                 now_playing=None, target_channel=None, err_channel=None, client=None):
         if not vids:
             vids = []
         self.vids = vids
         self.vid_index = vid_index
-        self.shuffle = None  # When enable, put copy of vids list here and select from.
-        self.repeat_all = False  # Repeat vids list when last song finished
-        self.finished = False  # Set only when player should be stopped
+        self.shuffle = shuffle  # When enable, put copy of vids list here and select from.
+        self.repeat_all = repeat_all  # Repeat vids list when last song finished
+        self.finished = finished  # Set only when player should be stopped
+        self.now_playing = now_playing  # Unfortunately necessitated by shuffle, see cur_vid
 
         self.err_channel = err_channel  # Set to originating channel invoked
         self.target_channel = target_channel
         self.__client = client
-        self.__now_playing = None  # Unfortunately necessitated by shuffle, see cur_vid
 
     def __getattr__(self, attr):
         """
@@ -214,12 +214,15 @@ __Now Playing__:
     {now_play}
 __Status__: {status}
 __Repeat All__: {repeat}
+__Shuffle__: {shuffle}
 __Video List__:{vids}
-""".format(now_play=current, vids=str_vids,
-           status=self.status(), repeat=self.repeat_all)
+""".format(now_play=current, vids=str_vids, status=self.status().capitalize(),
+           repeat='{}abled'.format('En' if self.repeat_all else 'Dis'),
+           shuffle='{}abled'.format('En' if self.shuffle else 'Dis'))
 
     def __repr__(self):
-        keys = ['vid_index', 'vids', 'repeat_all', 'err_channel', 'target_channel']
+        keys = ['vid_index', 'vids', 'repeat_all', 'shuffle', 'finished',
+                'now_playing', 'err_channel', 'target_channel']
         kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
 
         return "GuildPlayer({})".format(', '.join(kwargs))
@@ -228,7 +231,7 @@ __Video List__:{vids}
     def cur_vid(self):
         """ The current video playing/selected. If finished, will point to first. """
         try:
-            return self.__now_playing if self.__now_playing else self.vids[self.vid_index]
+            return self.now_playing if self.now_playing else self.vids[self.vid_index]
         except (IndexError, TypeError):
             return None
 
@@ -306,7 +309,7 @@ __Video List__:{vids}
         """ Toggle shuffling the playlist. """
         if self.shuffle:
             self.shuffle = None
-            self.__now_playing = None
+            self.now_playing = None
         else:
             self.shuffle = copy.copy(self.vids)
 
@@ -337,7 +340,7 @@ __Video List__:{vids}
             self.shuffle.remove(selected)
             if not self.shuffle:
                 self.restart_shuffle()
-            self.__now_playing = selected
+            self.now_playing = selected
             self.play(selected)
         elif self.repeat_all or check_func(self):
             self.vid_index = inc_func(self)

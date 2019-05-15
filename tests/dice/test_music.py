@@ -114,8 +114,9 @@ def test_guild_player__str__(f_songs):
 
 __Now Playing__:
     **crit**    __<https://youtu.be/IrbCrwtDIUA>__
-__Status__: stopped
-__Repeat All__: False
+__Status__: Stopped
+__Repeat All__: Disabled
+__Shuffle__: Disabled
 __Video List__:
     **crit**    __<https://youtu.be/IrbCrwtDIUA>__
         Volume: 50/100 Repeat: False
@@ -130,8 +131,13 @@ __Video List__:
 
 def test_guild_player__repr__(f_songs):
     player = dice.music.GuildPlayer(vids=f_songs)
-    rep = "GuildPlayer(vid_index=0, vids=(Song(id=1, name='crit', folder='/tmp/tmp', url='https://youtu.be/IrbCrwtDIUA', repeat=False, volume_int=50), Song(id=2, name='pop', folder='/tmp/tmp', url='https://youtu.be/7jgnv0xCv-k', repeat=False, volume_int=50), Song(id=3, name='late', folder='/home/starcraftman/prog/extras/music', url=None, repeat=False, volume_int=50)), repeat_all=False, err_channel=None, target_channel=None)"
-    assert re.sub(r'/tmp/\w+', '/tmp/tmp', repr(player)) == rep
+    expect = "GuildPlayer(vid_index=0, vids=(Song(id=1, name='crit', folder='/tmp/tmp', \
+url='https://youtu.be/IrbCrwtDIUA', repeat=False, volume_int=50), Song(id=2, name='pop', \
+folder='/tmp/tmp', url='https://youtu.be/7jgnv0xCv-k', repeat=False, volume_int=50), \
+Song(id=3, name='late', folder='/home/starcraftman/prog/extras/music', url=None, repeat=False, \
+volume_int=50)), repeat_all=False, shuffle=None, finished=False, now_playing=None, err_channel=None, target_channel=None)"
+
+    assert re.sub(r'/tmp/\w+', '/tmp/tmp', repr(player)) == expect
 
 
 def test_guild_player_cur_vid(f_songs):
