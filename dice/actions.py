@@ -1002,36 +1002,58 @@ class Effect(Action):
     """
     Manage effects for users in the turn order.
     """
-    def update_targets(self, session, order):
+    def add(self, chars, new_effects):
         """
-        Update effects for characters in the turn order.
-        """
-        targets = [target.lstrip() for target in ' '.join(self.args.targets).split(',')]
-        tusers = [user for user in order.users if user.name in targets]
-        new_effects = [x.strip().split('/') for x in (' '.join(self.args.effects)).split(',')]
+        Add recurring effects to characters in the turn order.
 
+        Args:
+            chars: The TurnOrder characters to modify.
+            new_effects: The new effects to apply to them.
+        """
         msg = ''
-        for tuser in tusers:
+        for char in chars:
             for new_effect in new_effects:
                 try:
-                    if self.args.add:
-                        tuser.add_effect(new_effect[0], int(new_effect[1]))
-                        msg += '{}: Added {} for {} turns.\n'.format(tuser.name, new_effect[0], new_effect[1])
-
-                    elif self.args.remove:
-                        tuser.remove_effect(new_effect[0])
-                        msg += '{}: Removed {}.\n'.format(tuser.name, new_effect[0])
-
-                    elif self.args.update:
-                        tuser.update_effect(new_effect[0], int(new_effect[1]))
-                        msg += '{}: Updated {} for {} turns.\n'.format(tuser.name, new_effect[0], new_effect[1])
-
-                    else:
-                        msg = 'No action selected for targets [--add|remove|update].'
+                    char.add_effect(new_effect[0], int(new_effect[1]))
+                    msg += '{}: Added {} for {} turns.\n'.format(char.name, new_effect[0], new_effect[1])
                 except (IndexError, ValueError):
                     raise dice.exc.InvalidCommandArgs("Invalid round count for effect.")
 
-        dicedb.query.update_turn_order(session, self.chan_id, order)
+        return msg
+
+    def remove(self, chars, new_effects):
+        """
+        Remove recurring effects from characters in turn order.
+
+        Args:
+            chars: The TurnOrder characters to modify.
+            new_effects: The effects to remove from them.
+        """
+        msg = ''
+        for char in chars:
+            for new_effect in new_effects:
+                char.remove_effect(new_effect[0])
+                msg += '{}: Removed {}.\n'.format(char.name, new_effect[0])
+
+        return msg
+
+    def update(self, chars, new_effects):
+        """
+        Update recurring effects on characters in turn order.
+
+        Args:
+            chars: The TurnOrder characters to modify.
+            new_effects: The effects to update,
+                         should be textual match to original name with different turn count.
+        """
+        msg = ''
+        for char in chars:
+            for new_effect in new_effects:
+                try:
+                    char.update_effect(new_effect[0], int(new_effect[1]))
+                    msg += '{}: Updated {} for {} turns.\n'.format(char.name, new_effect[0], new_effect[1])
+                except (IndexError, ValueError):
+                    raise dice.exc.InvalidCommandArgs("Invalid round count for effect.")
 
         return msg
 
@@ -1040,14 +1062,27 @@ class Effect(Action):
         if not order:
             raise dice.exc.InvalidCommandArgs('No turn order set to add effects.')
 
-        if self.args.targets:
-            msg = self.update_targets(self.session, order)
+        targets = [target.lstrip() for target in ' '.join(self.args.targets).split(',')
+                   if target.lstrip()]
+        chars = [user for user in order.users if user.name in targets]
 
-        else:
-            msg = '__Characters With Effects__\n\n'
-            for tuser in order.users:
-                if tuser.effects:
-                    msg += '{}\n\n'.format(tuser)
+        msg = '__Characters With Effects__\n\n'
+        for char in order.users:
+            if char.effects:
+                msg += '{}\n\n'.format(char)
+
+        effects_args = None
+        for name in ['add', 'remove', 'update']:
+            effects_args = getattr(self.args, name)
+            if effects_args:
+                new_effects = [x.strip().split('/') for x in (' '.join(effects_args)).split(',')]
+                msg = getattr(self, name)(chars, new_effects)
+                break
+
+        if targets and not effects_args:
+            msg = 'No action selected for targets [--add|--remove|--update].'
+
+        dicedb.query.update_turn_order(self.session, self.chan_id, order)
 
         await self.bot.send_message(self.msg.channel, msg)
 

@@ -320,23 +320,24 @@ def subs_n(subs, prefix):
 @register_parser
 def subs_effect(subs, prefix):
     """ Subcommand parsing for roll """
-    desc = """Evaluate some simple math operations.
+    desc = """Track effects on characters in the turn order.
+Any text is allowed, the number following is the number of turns to persist.
+The turn counter will decrement at the end of a character's turn.
 
-{prefix}effect --add Poison/3, Stun/3 -t Char1, Char2
-        Add the poison and stun effects to the user for 3 turns each.
-{prefix}effect --remove Poison, Stun -t Char1
-        Remove the poison and stun effects for the user.
-{prefix}effect --update Poison/1, Stun/1 -t Char1
-        Update the poison effect for the user to 1 turn left.
+{prefix}effect Char1, Char2 --add Poison/3, Stun/3
+        Add the poison and stun effects to the characters for 3 turns each.
+{prefix}effect Char1 --remove Poison, Stun
+        Remove the poison and stun effects for the characters.
+{prefix}effect Char1 --update Poison/1, Stun/1
+        Update the poison effect for the characters to 1 turn left.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'effect', aliases=[prefix + 'e'],
                           description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Effect')
-    sub.add_argument('effects', nargs='*', help='Update the remaining turns for user.')
-    sub.add_argument('-a', '--add', action='store_true', help='Add effects for the user.')
-    sub.add_argument('-r', '--remove', action='store_true', help='remove the effect from a user.')
-    sub.add_argument('-u', '--update', action='store_true', help='Update the effects turns for user.')
-    sub.add_argument('-t', '--targets', nargs='+', help='Users to target with effects.')
+    sub.add_argument('targets', nargs='*', help='Users to target with effects.')
+    sub.add_argument('-a', '--add', nargs='+', help='Add effects for the user.')
+    sub.add_argument('-r', '--remove', nargs='+', help='remove the effect from a user.')
+    sub.add_argument('-u', '--update', nargs='+', help='Update the effects turns for user.')
 
 
 @register_parser

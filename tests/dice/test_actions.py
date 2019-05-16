@@ -518,7 +518,7 @@ async def test_cmd_turn_next_num(f_bot, db_cleanup):
 async def test_cmd_turn_next_with_effects(f_bot, db_cleanup):
     try:
         msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
-        msg2 = fixed_id_fake_msg("!effect --add poison/1, blind/3 -t Chris")
+        msg2 = fixed_id_fake_msg("!effect Chris --add poison/1, blind/3")
         msg3 = fixed_id_fake_msg("!turn --next")
 
         await action_map(msg, f_bot).execute()
@@ -611,7 +611,7 @@ async def test_cmd_turn_update_user(f_bot, f_dusers):
 async def test_cmd_effect_add(f_bot, db_cleanup):
     try:
         msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
-        msg2 = fixed_id_fake_msg("!effect --add poison/2, blind/3 -t Chris")
+        msg2 = fixed_id_fake_msg("!effect Chris --add poison/2, blind/3")
         msg3 = fixed_id_fake_msg("!effect")
 
         await action_map(msg, f_bot).execute()
@@ -634,8 +634,8 @@ Chris (7): 21.00
 async def test_cmd_effect_update(f_bot, db_cleanup):
     try:
         msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
-        msg2 = fixed_id_fake_msg("!effect --add poison/2, blind/3 -t Chris")
-        msg3 = fixed_id_fake_msg("!effect --update poison/1, blind/1 -t Chris")
+        msg2 = fixed_id_fake_msg("!effect Chris --add poison/2, blind/3")
+        msg3 = fixed_id_fake_msg("!effect Chris --update poison/1, blind/1")
         msg4 = fixed_id_fake_msg("!effect")
 
         await action_map(msg, f_bot).execute()
@@ -659,8 +659,8 @@ Chris (7): 21.00
 async def test_cmd_effect_remove(f_bot, db_cleanup):
     try:
         msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
-        msg2 = fixed_id_fake_msg("!effect --add poison/2, blind/3 -t Chris")
-        msg3 = fixed_id_fake_msg("!effect --remove poison -t Chris")
+        msg2 = fixed_id_fake_msg("!effect Chris --add poison/2, blind/3")
+        msg3 = fixed_id_fake_msg("!effect Chris --remove poison")
         msg4 = fixed_id_fake_msg("!effect")
 
         await action_map(msg, f_bot).execute()
@@ -683,12 +683,12 @@ Chris (7): 21.00
 async def test_cmd_effect_no_action(f_bot, db_cleanup):
     try:
         msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
-        msg2 = fixed_id_fake_msg("!effect poison/2, blind/3 -t Chris")
+        msg2 = fixed_id_fake_msg("!effect Chris poison/2, blind/3")
 
         await action_map(msg, f_bot).execute()
         await action_map(msg2, f_bot).execute()
 
-        expect = 'No action selected for targets [--add|remove|update].'
+        expect = 'No action selected for targets [--add|--remove|--update].'
         f_bot.send_message.assert_called_with(msg2.channel, expect)
     finally:
         await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
@@ -698,7 +698,7 @@ async def test_cmd_effect_no_action(f_bot, db_cleanup):
 async def test_cmd_effect_default_status(f_bot, db_cleanup):
     try:
         msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
-        msg2 = fixed_id_fake_msg("!effect --add poison/2, blind/3 -t Chris")
+        msg2 = fixed_id_fake_msg("!effect Chris --add poison/2, blind/3")
         msg3 = fixed_id_fake_msg("!effect")
 
         await action_map(msg, f_bot).execute()
@@ -720,7 +720,7 @@ Chris (7): 21.00
 @pytest.mark.asyncio
 async def test_cmd_effect_turn_order_none(f_bot, db_cleanup):
     try:
-        msg = fixed_id_fake_msg("!effect --add poison/2, blind/3 -t Chris")
+        msg = fixed_id_fake_msg("!effect Chris --add poison/2, blind/3")
 
         with pytest.raises(dice.exc.InvalidCommandArgs):
             await action_map(msg, f_bot).execute()
