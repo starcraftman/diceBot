@@ -671,7 +671,7 @@ class Roll(Action):
             resp += await self.make_rolls(full_spec)
             msg = '\n'.join(resp)
 
-        await self.bot.send_message(self.msg.channel, msg)
+        await self.bot.send_long_message(self.msg.channel, msg)
 
 
 class Timer(Action):

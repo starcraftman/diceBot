@@ -8,12 +8,6 @@ import pytest
 import dice.roll
 
 
-def test_dice_parent_roll():
-    die = dice.roll.Dice('4')
-    with pytest.raises(NotImplementedError):
-        die.roll()
-
-
 def test_fixed__str__():
     die = dice.roll.FixedRoll('5')
     assert str(die) == '(5)'
@@ -68,7 +62,7 @@ def test_fixed_sub_raise():
 def test_dice__init__():
     die = dice.roll.DiceRoll('2d6')
     assert die.rolls == 2
-    assert die.dice == 6
+    assert die.sides == 6
 
 
 def test_dice__str__():
@@ -100,12 +94,12 @@ def test_dicekeephigh__init__():
     die = dice.roll.DiceRollKeepHigh('3d6kh2')
     assert die.keep == 2
     assert die.rolls == 3
-    assert die.dice == 6
+    assert die.sides == 6
 
     die = dice.roll.DiceRollKeepHigh('3d6k2')
     assert die.keep == 2
     assert die.rolls == 3
-    assert die.dice == 6
+    assert die.sides == 6
 
 
 def test_dicekeephigh__str__():
@@ -135,7 +129,7 @@ def test_dicekeeplow__init__():
     die = dice.roll.DiceRollKeepLow('3d6kl2')
     assert die.keep == 2
     assert die.rolls == 3
-    assert die.dice == 6
+    assert die.sides == 6
 
 
 def test_dicekeeplow__str__():
@@ -162,7 +156,7 @@ def test_dicekeeplow_spec():
 
 
 def test_throw__init__():
-    die = dice.roll.DiceRoll('2d6', dice.roll.OP_DICT['-'])
+    die = dice.roll.DiceRoll('2d6', next_op=dice.roll.OP_DICT['-'])
     die2 = dice.roll.FixedRoll('4')
     throw = dice.roll.Throw([die, die2])
     assert throw.dice == [die, die2]
@@ -183,7 +177,7 @@ def test_throw_add_dice_raise():
 
 
 def test_throw_next():
-    die = dice.roll.DiceRoll('2d6', dice.roll.OP_DICT['+'])
+    die = dice.roll.DiceRoll('2d6', next_op=dice.roll.OP_DICT['+'])
     die2 = dice.roll.FixedRoll('1')
     throw = dice.roll.Throw([die, die2])
     throw.next()
@@ -195,7 +189,7 @@ def test_throw_next():
 
 
 def test_throw_next_excessive():
-    die = dice.roll.DiceRoll('2d6', dice.roll.OP_DICT['+'])
+    die = dice.roll.DiceRoll('2d6', next_op=dice.roll.OP_DICT['+'])
     die.rolls = dice.roll.DICE_ROLL_LIMIT + 1
     die2 = dice.roll.FixedRoll('1')
     throw = dice.roll.Throw([die, die2])
@@ -204,9 +198,9 @@ def test_throw_next_excessive():
 
 
 def test_parse_dice_spec():
-    assert dice.roll.parse_dice_spec('2d6') == (2, 6)
-    assert dice.roll.parse_dice_spec('2D6') == (2, 6)
-    assert dice.roll.parse_dice_spec('6') == (1, 6)
+    assert dice.roll.parse_dice_spec('2d6') == {'rolls': 2, 'sides': 6}
+    assert dice.roll.parse_dice_spec('2D6') == {'rolls': 2, 'sides': 6}
+    assert dice.roll.parse_dice_spec('6') == {'rolls': 1, 'sides': 6}
 
 
 def test_parse_dice_spec_raise():
