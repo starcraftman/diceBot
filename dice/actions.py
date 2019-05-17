@@ -176,7 +176,6 @@ class Play(Action):
     """
     async def restart(self, mplayer):
         """ Restart the player at current video. """
-        mplayer.vid_index = 0
         mplayer.play()
         return "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
 
@@ -336,11 +335,7 @@ class Songs(Action):
                         raise ValueError
                     selected = entries[choice]
 
-                    mplayer = get_guild_player(self.guild_id, self.msg)
-                    await mplayer.join_voice_channel()
-                    mplayer.replace_vids([selected])
-                    await dice.music.prefetch_vids([selected])
-                    mplayer.play()
+                    await get_guild_player(self.guild_id, self.msg).replace_and_play([selected])
 
                     await self.bot.send_message(self.msg.channel, '**Song Started**\n\n' + format_a_song(1, selected))
                     break
@@ -433,11 +428,7 @@ class Songs(Action):
                         raise ValueError
                     selected = page_songs[choice]
 
-                    mplayer = get_guild_player(self.guild_id, self.msg)
-                    await mplayer.join_voice_channel()
-                    mplayer.replace_vids([selected])
-                    await dice.music.prefetch_vids([selected])
-                    mplayer.play()
+                    await get_guild_player(self.guild_id, self.msg).replace_and_play([selected])
 
                     await self.bot.send_message(self.msg.channel, '**Song Started**\n\n' + format_a_song(1, selected))
                     break
@@ -465,7 +456,7 @@ class Songs(Action):
                     tagged_songs = dicedb.query.get_songs_with_tag(self.session, tag)
                     tag_msg += '        **{}**) {} ({} songs)\n'.format(ind, tag, len(tagged_songs))
                 tag_msg = tag_msg.rstrip()
-                tag_msg += SONG_FOOTER
+                tag_msg += SONG_FOOTER.replace('__play ', '__') + "Type __all 1__ to play all songs with tag 1."
                 messages = [await self.bot.send_message(self.msg.channel, tag_msg)]
                 user_select = await self.bot.wait_for(
                     'message', check=functools.partial(check_messages, self.msg), timeout=30)
@@ -482,12 +473,15 @@ class Songs(Action):
                     all_tags = all_tags[LIMIT_TAGS:]
 
                 else:
-                    choice = int(user_select.content) - 1
+                    choice = int(user_select.content.replace('play', '').replace('all', '')) - 1
                     if choice < 0 or choice >= num_entries:
                         raise ValueError
 
                     songs = dicedb.query.get_songs_with_tag(self.session, page_tags[choice])
-                    asyncio.ensure_future(self.select_song(songs))
+                    if 'all' in user_select.content:
+                        await get_guild_player(self.guild_id, self.msg).replace_and_play(songs)
+                    else:
+                        await self.select_song(songs)
                     break
             except ValueError:
                 await self.bot.send_message(

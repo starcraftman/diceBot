@@ -10,7 +10,6 @@ Implement a complete music player to play local media and youtube videos.
 See related Song/SongTag in dicedb.schema
 """
 import asyncio
-import copy
 import datetime
 import json
 import logging
@@ -221,7 +220,7 @@ async def prefetch_vids(vids):
         vids: A list of Songs to download.
     """
     streams = [asyncio.get_event_loop().run_in_executor(None, get_yt_video, vid.url, vid.name, vid.folder)
-               for vid in vids]
+               for vid in vids if vid.url]
 
     await asyncio.gather(*streams)
 
@@ -339,6 +338,9 @@ __Video List__:{vids}
         self.vids = new_vids
         self.vid_index = 0
 
+        if self.shuffle:
+            self.restart_shuffle()
+
     def play(self, next_vid=None):
         """
         Play the cur_vid, if it is playing it will be restarted.
@@ -389,8 +391,13 @@ __Video List__:{vids}
             self.restart_shuffle()
 
     def restart_shuffle(self):
-        """ Simply repopulate the shuffled list. """
-        self.shuffle = copy.copy(self.vids)
+        """
+        Repopulate the shuffled list with a copy of vids.
+        Ensure on return that a new valid selection has been made.
+        """
+        self.shuffle = self.vids.copy()
+        self.now_playing = rand.choice(self.shuffle)
+        self.shuffle.remove(self.now_playing)
 
     def next(self):
         """ Go to the next song. """
@@ -415,7 +422,7 @@ __Video List__:{vids}
             self.now_playing = rand.choice(self.shuffle)
             self.shuffle.remove(self.now_playing)
             if not self.shuffle:
-                self.restart_shuffle()
+                self.shuffle = self.vids.copy()
             self.play(self.now_playing)
         elif self.repeat_all or check_func(self):
             self.vid_index = inc_func(self)
@@ -423,6 +430,24 @@ __Video List__:{vids}
         else:
             self.stop()
             self.finished = True
+
+    async def replace_and_play(self, new_vids):
+        """
+        Replace the playlist with new_vids.
+        Take care to download them if needed and play them.
+
+        Args:
+            new_vids: New Songs to play, will replace the current queue.
+        """
+        await self.join_voice_channel()
+
+        self.replace_vids(new_vids)
+        await dice.music.prefetch_vids([self.cur_vid])
+        self.play(self.cur_vid)
+
+        rest = self.vids.copy()
+        rest.remove(self.cur_vid)
+        await dice.music.prefetch_vids(rest)
 
     async def disconnect(self):
         """

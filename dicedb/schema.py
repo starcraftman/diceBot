@@ -211,9 +211,6 @@ class Song(Base):
     def volume(self):
         return float(self.volume_int) / 100
 
-    def is_remote(self):
-        return self.url
-
     def set_volume(self, new_volume=None):
         try:
             new_volume = int(new_volume)

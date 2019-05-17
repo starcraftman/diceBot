@@ -272,3 +272,18 @@ def test_guild_player_prev(f_songs, f_vclient):
     assert player.vid_index == 0
     assert player.finished
     assert f_vclient.stop.called
+
+
+@pytest.mark.asyncio
+async def test_guild_player_replace_and_play(f_songs, f_vclient):
+    player = dice.music.GuildPlayer(vids=[], client=f_vclient)
+    player.vid_index = 2
+    player.play = aiomock.Mock()
+    f_vclient.is_connected.return_value = True
+
+    await player.replace_and_play(list(f_songs))
+    assert player.vids == list(f_songs)
+    assert player.vid_index == 0
+    assert not player.finished
+    assert not f_vclient.stop.called
+    assert os.path.exists(f_songs[0].fname)
