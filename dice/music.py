@@ -277,11 +277,11 @@ class GuildPlayer(object):
 
 __Now Playing__:
     {now_play}
-__Status__: {status}
+__State__: {state}
 __Repeat All__: {repeat}
 __Shuffle__: {shuffle}
 __Video List__:{vids}
-""".format(now_play=current, vids=str_vids, status=self.status().capitalize(),
+""".format(now_play=current, vids=str_vids, state=self.state.capitalize(),
            repeat='{}abled'.format('En' if self.repeat_all else 'Dis'),
            shuffle='{}abled'.format('En' if self.shuffle else 'Dis'))
 
@@ -306,8 +306,9 @@ __Video List__:{vids}
         except (IndexError, TypeError):
             return None
 
-    def status(self):
-        """ The status of the player, either 'paused', 'playing' or 'stopped'. """
+    @property
+    def state(self):
+        """ The state of the player, either 'paused', 'playing' or 'stopped'. """
         state = 'stopped'
 
         try:
@@ -323,13 +324,13 @@ __Video List__:{vids}
 
     def set_volume(self, new_volume):
         """ Set the volume for the current song playing and persist choice.  """
-        self.cur_vid.set_volume(new_volume)
+        self.cur_vid.volume = new_volume
         try:
             self.source.volume = self.cur_vid.volume
         except AttributeError:
             pass
 
-    def replace_vids(self, new_vids):
+    def set_vids(self, new_vids):
         """ Replace the current videos and reset index. """
         for vid in new_vids:
             if not isinstance(vid, Song):
@@ -435,13 +436,14 @@ __Video List__:{vids}
         """
         Replace the playlist with new_vids.
         Take care to download them if needed and play them.
+        Thia is primarily a convenience compounding a useful flow.
 
         Args:
             new_vids: New Songs to play, will replace the current queue.
         """
         await self.join_voice_channel()
 
-        self.replace_vids(new_vids)
+        self.set_vids(new_vids)
         await dice.music.prefetch_vids([self.cur_vid])
         self.play(self.cur_vid)
 

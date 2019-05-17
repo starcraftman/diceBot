@@ -114,7 +114,7 @@ def test_guild_player__str__(f_songs):
 
 __Now Playing__:
     **crit**    __<https://youtu.be/IrbCrwtDIUA>__
-__Status__: Stopped
+__State__: Stopped
 __Repeat All__: Disabled
 __Shuffle__: Disabled
 __Video List__:
@@ -147,17 +147,17 @@ def test_guild_player_cur_vid(f_songs):
     assert player.cur_vid == f_songs[1]
 
 
-def test_guild_player_status(f_songs, f_vclient):
+def test_guild_player_state(f_songs, f_vclient):
     player = dice.music.GuildPlayer(vids=f_songs, client=f_vclient)
-    assert player.status() == 'stopped'
+    assert player.state == 'stopped'
 
     f_vclient.is_playing.return_value = True
     f_vclient.is_connected.return_value = True
-    assert player.status() == 'playing'
+    assert player.state == 'playing'
 
     f_vclient.is_playing.return_value = False
     f_vclient.is_paused.return_value = True
-    assert player.status() == 'paused'
+    assert player.state == 'paused'
 
 
 def test_guild_player_set_volume(f_songs, f_vclient):

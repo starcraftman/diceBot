@@ -188,7 +188,7 @@ class Play(Action):
     async def pause(self, mplayer):
         """ Pause the player. """
         mplayer.toggle_pause()
-        return"Player is now: " + mplayer.status()
+        return"Player is now: " + mplayer.state
 
     async def next(self, mplayer):
         """ Move player to next video. """
@@ -244,7 +244,7 @@ class Play(Action):
         if self.args.append:
             mplayer.vids += new_vids
         else:
-            mplayer.replace_vids(new_vids)
+            mplayer.set_vids(new_vids)
             await dice.music.prefetch_vids([mplayer.cur_vid])
 
         if mplayer.shuffle:

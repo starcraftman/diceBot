@@ -211,7 +211,8 @@ class Song(Base):
     def volume(self):
         return float(self.volume_int) / 100
 
-    def set_volume(self, new_volume=None):
+    @volume.setter
+    def volume(self, new_volume):
         try:
             new_volume = int(new_volume)
             if new_volume < 0 or new_volume > 100:
