@@ -13,8 +13,6 @@ DICE_ROLL_LIMIT = 1000000
 MAX_DIE = 10000
 MAX_DIE_STR = 20
 OP_DICT = {
-    '__add__': '+',
-    '__sub__': '-',
     '+': '__add__',
     '-': '__sub__',
 }
@@ -32,9 +30,6 @@ Supported dice format:
 DICE_REGEX = re.compile(r'(\d*)d(\d+)((kh?|kl)?(\d+))?', re.ASCII | re.IGNORECASE)
 
 
-# TODO: Remove OP_DICT and associated, replace by always adding and when subtraction
-#       requested simply multiply num on request by -1.
-#       That is default op always +, and explicit ops get put on right operand.
 class Dice(abc.ABC):
     """
     An abstract interface for a dice.
@@ -111,7 +106,7 @@ class Dice(abc.ABC):
         """
         The operation to combine this dice with next.
         """
-        return ' {} '.format(OP_DICT[self.next_op]) if self.next_op else ""
+        return ' {} '.format(self.next_op) if self.next_op else ""
 
     @abc.abstractmethod
     def roll(self):
@@ -297,7 +292,7 @@ I won't waste my otherworldly resources on it, insufferable mortal.".format(die.
             die.roll()
 
         self.all_dice[0].acu = str(self.all_dice[0])
-        tot = functools.reduce(lambda x, y: getattr(x, x.next_op)(y), self.all_dice)
+        tot = functools.reduce(lambda x, y: getattr(x, OP_DICT[x.next_op])(y), self.all_dice)
 
         return "{} = {}".format(tot.acu, tot.num)
 
@@ -359,7 +354,7 @@ def tokenize_dice_spec(spec):
 
     for dice_spec in re.split(r'\s+', spec):
         if dice_spec in ['+', '-'] and tokens:
-            tokens[-1].next_op = OP_DICT[dice_spec]
+            tokens[-1].next_op = dice_spec
 
         else:
             tokens += [Dice.factory(dice_spec)]

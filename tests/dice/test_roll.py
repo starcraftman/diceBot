@@ -11,9 +11,9 @@ import dice.roll
 def test_fixed__str__():
     die = dice.roll.FixedRoll('5')
     assert str(die) == '(5)'
-    die.next_op = '__add__'
+    die.next_op = '+'
     assert str(die) == '(5) + '
-    die.next_op = '__sub__'
+    die.next_op = '-'
     assert str(die) == '(5) - '
 
 
@@ -168,7 +168,7 @@ def test_dicekeeplow_spec():
 
 
 def test_throw__init__():
-    die = dice.roll.DiceRoll('2d6', next_op=dice.roll.OP_DICT['-'])
+    die = dice.roll.DiceRoll('2d6', next_op='-')
     die2 = dice.roll.FixedRoll('4')
     throw = dice.roll.Throw([die, die2])
     assert throw.all_dice == [die, die2]
@@ -189,7 +189,7 @@ def test_throw_add_all_raise():
 
 
 def test_throw_next():
-    die = dice.roll.DiceRoll('2d6', next_op=dice.roll.OP_DICT['+'])
+    die = dice.roll.DiceRoll('2d6', next_op='+')
     die2 = dice.roll.FixedRoll('1')
     throw = dice.roll.Throw([die, die2])
     throw.next()
@@ -201,7 +201,7 @@ def test_throw_next():
 
 
 def test_throw_next_excessive():
-    die = dice.roll.DiceRoll('2d6', next_op=dice.roll.OP_DICT['+'])
+    die = dice.roll.DiceRoll('2d6', next_op='+')
     die.rolls = dice.roll.DICE_ROLL_LIMIT + 1
     die2 = dice.roll.FixedRoll('1')
     throw = dice.roll.Throw([die, die2])
@@ -231,11 +231,11 @@ def test_tokenize_dice_spec():
 
     dies = dice.roll.tokenize_dice_spec(spec)
     assert isinstance(dies[0], dice.roll.DiceRollKeepHigh)
-    assert dies[0].next_op == dice.roll.OP_DICT['+']
+    assert dies[0].next_op == '+'
     assert isinstance(dies[1], dice.roll.DiceRoll)
-    assert dies[1].next_op == dice.roll.OP_DICT['-']
+    assert dies[1].next_op == '-'
     assert isinstance(dies[2], dice.roll.FixedRoll)
-    assert dies[2].next_op == dice.roll.OP_DICT['+']
+    assert dies[2].next_op == '+'
     assert isinstance(dies[3], dice.roll.DiceRollKeepLow)
     assert len(dies) == 4
 
