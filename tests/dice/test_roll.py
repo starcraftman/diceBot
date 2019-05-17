@@ -43,7 +43,7 @@ def test_fixed_add():
 
 def test_fixed_add_raise():
     die = dice.roll.FixedRoll('4')
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         die + 4
 
 
@@ -55,7 +55,7 @@ def test_fixed_sub():
 
 def test_fixed_sub_raise():
     die = dice.roll.FixedRoll('4')
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         die - 4
 
 
@@ -63,6 +63,12 @@ def test_dice__init__():
     die = dice.roll.DiceRoll('2d6')
     assert die.rolls == 2
     assert die.sides == 6
+
+
+def test_dice__repr__():
+    die = dice.roll.DiceRoll('2d6')
+    die.values = [2, 3]
+    assert repr(die) == "DiceRoll(rolls=2, sides=6, next_op='', values=[2, 3], acu='')"
 
 
 def test_dice__str__():
@@ -100,6 +106,12 @@ def test_dicekeephigh__init__():
     assert die.keep == 2
     assert die.rolls == 3
     assert die.sides == 6
+
+
+def test_dicekeephigh__repr__():
+    die = dice.roll.DiceRollKeepHigh('3d6kh2')
+    die.values = [3, 2, 5]
+    assert repr(die) == "DiceRollKeepHigh(rolls=3, sides=6, keep=2, next_op='', values=[3, 2, 5], acu='')"
 
 
 def test_dicekeephigh__str__():
@@ -159,21 +171,21 @@ def test_throw__init__():
     die = dice.roll.DiceRoll('2d6', next_op=dice.roll.OP_DICT['-'])
     die2 = dice.roll.FixedRoll('4')
     throw = dice.roll.Throw([die, die2])
-    assert throw.dice == [die, die2]
+    assert throw.all_dice == [die, die2]
 
 
-def test_throw_add_dice():
+def test_throw_add_all():
     die = dice.roll.FixedRoll('4')
     throw = dice.roll.Throw()
-    throw.add_dice([die])
-    assert throw.dice == [die]
+    throw.add_all([die])
+    assert throw.all_dice == [die]
 
 
-def test_throw_add_dice_raise():
+def test_throw_add_all_raise():
     die = dice.roll.FixedRoll('4')
     throw = dice.roll.Throw()
-    with pytest.raises(ValueError):
-        throw.add_dice([die, 2])
+    with pytest.raises(TypeError):
+        throw.add_all([die, 2])
 
 
 def test_throw_next():
@@ -183,7 +195,7 @@ def test_throw_next():
     throw.next()
 
     total = 0
-    for die in throw.dice:
+    for die in throw.all_dice:
         total += die.num
     assert total in list(range(3, 14))
 

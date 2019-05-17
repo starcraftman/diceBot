@@ -76,7 +76,7 @@ class Dice(abc.ABC):
         Add one dice to another dice. Always returns a FixedRoll (i.e. fixed Dice).
         """
         if not isinstance(other, Dice):
-            raise ValueError("Can only add Dice")
+            raise TypeError("Must add a subclass of Dice.")
 
         return FixedRoll(str(self.num + other.num), next_op=other.next_op,
                          acu=self.acu + str(other))
@@ -86,7 +86,7 @@ class Dice(abc.ABC):
         Subtract one dice from another dice. Always returns a FixedRoll (i.e. fixed Dice).
         """
         if not isinstance(other, Dice):
-            raise ValueError("Can only add Dice")
+            raise TypeError("Must add a subclass of Dice.")
 
         return FixedRoll(str(self.num - other.num), next_op=other.next_op,
                          acu=self.acu + str(other))
@@ -252,40 +252,52 @@ class DiceRollKeepLow(DiceRollKeepHigh):
 
 class Throw(object):
     """
-    Throws 1 or more Dice. Acts as a simple container.
-    Can be used primarily to reroll a complex dice setup.
-    """
-    def __init__(self, n_dice=None):
-        self.dice = n_dice
-        if not self.dice:
-            self.dice = []
+    A container to throw a collection of dice and format the response to users.
 
-    def add_dice(self, n_dice):
+    Attributes:
+        all_dice: The list of Dice objects to roll each time.
+    """
+    def __init__(self, all_dice=None):
+        if not all_dice:
+            all_dice = []
+        self.all_dice = all_dice
+
+    def add_all(self, new_dice):
         """
-        Add one or more dice to be thrown.
+        Add one or more dice to the container.
 
         Args:
-            dice: A list of Dice.
+            new_dice: A list of Dice to add to the collection.
         """
-        for die in n_dice:
+        for die in new_dice:
             if not issubclass(die.__class__, Dice):
-                raise ValueError("Must add subclass of Dice")
+                raise TypeError("Must add a subclass of Dice.")
 
-        self.dice += n_dice
+        self.all_dice += new_dice
 
     def next(self):
-        """ Throw the dice and return the individual rolls and total. """
-        for die in self.dice:
+        """
+        Throw all_dice and return the formatted rolls as a string that shows the
+        individual components of the rolls.
+
+        Raises:
+            InvalidCommandArgs - Requested an excessive amount of dice rolls, refuse
+                                 to waste cycles on the server.
+
+        Returns:
+            A string that shows the user how he rolled.
+        """
+        for die in self.all_dice:
             if die.rolls > DICE_ROLL_LIMIT or die.sides > MAX_DIE:
                 msg = "{} is excessive.\n\n\
 I won't waste my otherworldly resources on it, insufferable mortal.".format(die.spec[1:-1])
                 raise dice.exc.InvalidCommandArgs(msg)
 
-        for die in self.dice:
+        for die in self.all_dice:
             die.roll()
 
-        self.dice[0].acu = str(self.dice[0])
-        tot = functools.reduce(lambda x, y: getattr(x, x.next_op)(y), self.dice)
+        self.all_dice[0].acu = str(self.all_dice[0])
+        tot = functools.reduce(lambda x, y: getattr(x, x.next_op)(y), self.all_dice)
 
         return "{} = {}".format(tot.acu, tot.num)
 
