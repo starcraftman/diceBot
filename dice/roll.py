@@ -22,9 +22,9 @@ DICE_WARN = """Malformed dice string was received. Please check what you wrote!
 
 Supported dice format:
 
-    4d6: Roll 4 d6 dice and sum results.
-    4d6kh2: Roll 4d6 and keep 2 highest results.
-    4d6kl1: Roll 4d6 and keep the lowest result.
+    **4d6** Roll 4 d6 dice and sum results.
+    **4d6kh2** Roll 4d6 and keep 2 highest results.
+    **4d6kl1** Roll 4d6 and keep the lowest result.
 
     All values must be in range [1, +∞].
     If leading number omitted, one roll is made.
