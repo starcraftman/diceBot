@@ -18,6 +18,18 @@ OP_DICT = {
     '+': '__add__',
     '-': '__sub__',
 }
+DICE_WARN = """Malformed dice string was received. Please check what you wrote!
+
+Supported dice format:
+
+    4d6: Roll 4 d6 dice and sum results.
+    4d6kh2: Roll 4d6 and keep 2 highest results.
+    4d6kl1: Roll 4d6 and keep the lowest result.
+
+    All values must be in range [1, +∞].
+    If leading number omitted, one roll is made.
+"""
+DICE_REGEX = re.compile(r'(\d*)d(\d+)((kh?|kl)?(\d+))?', re.ASCII | re.IGNORECASE)
 
 
 # TODO: Remove OP_DICT and associated, replace by always adding and when subtraction
@@ -47,7 +59,7 @@ class Dice(abc.ABC):
         keys = ['rolls', 'sides', 'next_op', 'values', 'acu']
         kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
 
-        return "Dice({})".format(', '.join(kwargs))
+        return "{}({})".format(self.__class__.__name__, ', '.join(kwargs))
 
     def __str__(self):
         """
@@ -108,6 +120,26 @@ class Dice(abc.ABC):
         """
         raise NotImplementedError
 
+    @staticmethod
+    def factory(dice_spec):
+        """
+        Given a dice_spec, return the applicable Dice subclass.
+
+        Raises:
+            InvalidCommandArgs - Bad dice spec input from user.
+
+        Returns:
+            An instance of Dice subclass.
+        """
+        if 'kh' in dice_spec and 'kl' in dice_spec:
+            raise dice.exc.InvalidCommandArgs("__kh__ and __kl__ are mutually exclusive. Pick one!")
+
+        kwargs = parse_dice_spec(dice_spec, include_cls=True)
+        cls = kwargs['cls']
+        del kwargs['cls']
+
+        return cls(**kwargs)
+
 
 class FixedRoll(Dice):
     """
@@ -117,18 +149,12 @@ class FixedRoll(Dice):
     def __init__(self, dice_spec=None, **kwargs):
         if dice_spec:
             kwargs.update(parse_dice_spec(dice_spec))
-            kwargs['values'] = [kwargs['sides']]
+        kwargs['values'] = [kwargs['sides']]
         super().__init__(**kwargs)
 
     @property
     def spec(self):
         return str(self)
-
-    def __repr__(self):
-        keys = ['rolls', 'sides', 'next_op', 'values', 'acu']
-        kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
-
-        return "FixedRoll({})".format(', '.join(kwargs))
 
     def roll(self):
         return self.num
@@ -147,12 +173,6 @@ class DiceRoll(Dice):
     def spec(self):
         return "({}d{})".format(self.rolls, self.sides)
 
-    def __repr__(self):
-        keys = ['rolls', 'sides', 'next_op', 'values', 'acu']
-        kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
-
-        return "DiceRoll({})".format(', '.join(kwargs))
-
     def roll(self):
         self.values = rand.randint(1, self.sides + 1, self.rolls)
         return self.num
@@ -162,24 +182,21 @@ class DiceRollKeepHigh(DiceRoll):
     """
     Same as a dice roll but only keep n high rolls.
     """
-    def __init__(self, dice_spec=None, keep=None, **kwargs):
+    def __init__(self, dice_spec=None, **kwargs):
         if dice_spec:
-            front = dice_spec[:dice_spec.rindex('k')]
-            kwargs.update(parse_dice_spec(front))
+            kwargs.update(parse_dice_spec(dice_spec))
+
+        keep = kwargs['keep']
+        del kwargs['keep']
         super().__init__(**kwargs)
 
-        if keep:
-            self.keep = keep
-        else:
-            match = re.match(r'.*kh?(\d+)', dice_spec)
-            if match:
-                self.keep = int(match.group(1))
+        self.keep = keep
 
     def __repr__(self):
         keys = ['rolls', 'sides', 'keep', 'next_op', 'values', 'acu']
         kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
 
-        return "DiceRollKeepHigh({})".format(', '.join(kwargs))
+        return "{}({})".format(self.__class__.__name__, ', '.join(kwargs))
 
     def __str__(self):
         if len(self.values) > MAX_DIE_STR:
@@ -205,29 +222,10 @@ class DiceRollKeepHigh(DiceRoll):
         return functools.reduce(lambda x, y: x + y, vals)
 
 
-class DiceRollKeepLow(DiceRoll):
+class DiceRollKeepLow(DiceRollKeepHigh):
     """
     Same as a dice roll but only keep n low rolls.
     """
-    def __init__(self, dice_spec=None, keep=None, **kwargs):
-        if dice_spec:
-            front = dice_spec[:dice_spec.rindex('kl')]
-            kwargs.update(parse_dice_spec(front))
-        super().__init__(**kwargs)
-
-        if keep:
-            self.keep = keep
-        else:
-            match = re.match(r'.*kl(\d+)', dice_spec)
-            if match:
-                self.keep = int(match.group(1))
-
-    def __repr__(self):
-        keys = ['rolls', 'sides', 'keep', 'next_op', 'values', 'acu']
-        kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
-
-        return "DiceRollKeepLow({})".format(', '.join(kwargs))
-
     def __str__(self):
         if len(self.values) > MAX_DIE_STR:
             return "({}, ..., {})".format(self.values[0], self.values[-1]) + self.trailing_op
@@ -292,46 +290,54 @@ I won't waste my otherworldly resources on it, insufferable mortal.".format(die.
         return "{} = {}".format(tot.acu, tot.num)
 
 
-def parse_dice_spec(spec):
+def parse_dice_spec(spec, *, include_cls=False):
     """
-    Parses a single dice spec of form 2d6.
+    Parses a single dice spec of form 2d6(kh|kl)2
 
     Args:
         spec: A dice specification of form 2d6. If leading number missing, assume 1 roll.
+        include_cls: Provide the correct subclass to instantiate in returned dictionary.
 
     Raises:
         InvalidCommandArgs: The spec was not properly formatted, user likely made a mistake.
 
     Returns:
-        {'rolls': num_rolls, 'sides': num_sides}
+        A dictionary of the form below, can be used to instantiate the dice.
+        The cls entry denotes what class should be created and passed rest of kwargs.
+        {
+            'rolls': num_rolls,
+            'sides': num_sides,
+            'keep': num_to_keep,
+            'cls': Dice subclass
+        }
     """
-    terms = str(spec).lower().split('d')
-    terms.reverse()
-
-    if terms == ['']:
-        raise dice.exc.InvalidCommandArgs("Cannot determine dice.")
-
+    spec = str(spec).lower()
     try:
-        sides = int(terms[0])
-        if sides < 1:
-            raise dice.exc.InvalidCommandArgs("Invalid number for dice (d__6__). Number must be [1, +∞]")
-        if terms[1] == '':
-            rolls = 1
-        else:
-            rolls = int(terms[1])
-            if rolls < 1:
-                raise dice.exc.InvalidCommandArgs("Invalid number for rolls (__r__d6). Number must be [1, +∞] or blank (1).")
-    except IndexError:
-        rolls = 1
+        parsed = {'rolls': 1, 'sides': int(spec), 'cls': FixedRoll}
     except ValueError:
-        raise dice.exc.InvalidCommandArgs("Invalid number for rolls or dice. Please clarify: " + spec)
+        match = DICE_REGEX.match(spec)
+        if not match:
+            raise dice.exc.InvalidCommandArgs(DICE_WARN)
 
-    return {'rolls': rolls, 'sides': sides}
+        parsed = {
+            'rolls': int(match.group(1)) if match.group(1) else 1,
+            'sides': int(match.group(2)),
+            'cls': DiceRoll,
+        }
+
+        if match.group(3):
+            parsed['keep'] = int(match.group(5))
+            parsed['cls'] = DiceRollKeepLow if match.group(4) == 'kl' else DiceRollKeepHigh
+
+    if not include_cls:
+        del parsed['cls']
+
+    return parsed
 
 
 def tokenize_dice_spec(spec):
     """
-    Tokenize a single string into multiple Dice.
+    Tokenize a single string into individual Dice.
     String should be of form:
 
         4d6 + 10d6kh2 - 4
@@ -339,21 +345,11 @@ def tokenize_dice_spec(spec):
     tokens = []
     spec = re.sub(r'([+-])', r' \1 ', spec.lower())  # People sometimes do not space.
 
-    for roll_spec in re.split(r'\s+', spec):
-        if roll_spec in ['+', '-'] and tokens:
-            tokens[-1].next_op = OP_DICT[roll_spec]
-            continue
+    for dice_spec in re.split(r'\s+', spec):
+        if dice_spec in ['+', '-'] and tokens:
+            tokens[-1].next_op = OP_DICT[dice_spec]
 
-        if 'kh' in roll_spec and 'kl' in roll_spec:
-            raise dice.exc.InvalidCommandArgs("__kh__ and __kl__ are mutually exclusive. Pick one!")
-
-        if 'kl' in roll_spec:
-            tokens.append(DiceRollKeepLow(roll_spec))
-        elif 'k' in roll_spec:
-            tokens.append(DiceRollKeepHigh(roll_spec))
-        elif 'd' in roll_spec:
-            tokens.append(DiceRoll(roll_spec))
         else:
-            tokens.append(FixedRoll(roll_spec))
+            tokens += [Dice.factory(dice_spec)]
 
     return tokens

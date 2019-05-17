@@ -260,7 +260,7 @@ async def test_cmd_roll(f_bot):
 
     await action_map(msg, f_bot).execute()
 
-    actual = str(f_bot.send_message.call_args).replace("\\n", "\n")
+    actual = str(f_bot.send_long_message.call_args).replace("\\n", "\n")
     actual = actual[actual.index("__Dice Rolls"):]
     act = actual.split('\n')
 
@@ -276,7 +276,7 @@ async def test_cmd_roll_alias(f_bot):
 
     await action_map(msg, f_bot).execute()
 
-    actual = str(f_bot.send_message.call_args).replace("\\n", "\n")
+    actual = str(f_bot.send_long_message.call_args).replace("\\n", "\n")
     actual = actual[actual.index("__Dice Rolls"):]
     act = actual.split('\n')
 
@@ -292,7 +292,7 @@ async def test_cmd_roll_recall(f_bot, f_saved_rolls):
 
     await action_map(msg, f_bot).execute()
 
-    capture = str(f_bot.send_message.call_args).replace("\\n", "\n")
+    capture = str(f_bot.send_long_message.call_args).replace("\\n", "\n")
     assert '(Crossbow)' in capture
     assert 'd20 + 7' in capture
 
@@ -308,7 +308,7 @@ __Staff__: d20 + 2, d6"""
 
     await action_map(msg, f_bot).execute()
 
-    assert expect in str(f_bot.send_message.call_args).replace("\\n", "\n")
+    assert expect in str(f_bot.send_long_message.call_args).replace("\\n", "\n")
 
 
 @pytest.mark.asyncio
@@ -319,12 +319,12 @@ async def test_cmd_roll_remove(f_bot, f_saved_rolls):
     msg = fake_msg("!roll --remove bow")
 
     await action_map(msg_list, f_bot).execute()
-    assert removed in str(f_bot.send_message.call_args).replace("\\n", "\n")
+    assert removed in str(f_bot.send_long_message.call_args).replace("\\n", "\n")
 
     await action_map(msg, f_bot).execute()
 
     await action_map(msg_list, f_bot).execute()
-    assert removed not in str(f_bot.send_message.call_args).replace("\\n", "\n")
+    assert removed not in str(f_bot.send_long_message.call_args).replace("\\n", "\n")
 
 
 @pytest.mark.asyncio
@@ -335,12 +335,12 @@ async def test_cmd_roll_save(f_bot, f_saved_rolls):
     msg = fake_msg("!roll --save Wand d20 + 6, 10d6")
 
     await action_map(msg_list, f_bot).execute()
-    assert added not in str(f_bot.send_message.call_args).replace("\\n", "\n")
+    assert added not in str(f_bot.send_long_message.call_args).replace("\\n", "\n")
 
     await action_map(msg, f_bot).execute()
 
     await action_map(msg_list, f_bot).execute()
-    assert added in str(f_bot.send_message.call_args).replace("\\n", "\n")
+    assert added in str(f_bot.send_long_message.call_args).replace("\\n", "\n")
 
 
 @pytest.mark.asyncio
