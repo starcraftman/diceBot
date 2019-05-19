@@ -152,25 +152,22 @@ def prune_cache(cache_dir, limit=CACHE_LIMIT, *, prefix=None):
         songs = songs[1:]
 
 
-# TODO: Make async, wait on possibility video doesn't exist for a timeout.
 def make_stream(vid):
     """
-    Fetches a local copy of the video if required.
     Then just returns the stream object required for the voice client.
 
     Args:
-        cache_dir: Path to local files to examine.
-        limit: The maximum size of the cache_dir before pruning older files.
-        prefix: Optional kwarg prefix, if provided only match files with this prefix.
+        vid: The Song to play over the stream.
 
     Raises:
-        InternalException: Attempted to play a song that did not exist locally.
+        dice.exc.InternalException: Attempted to play a song that did not exist locally.
 
     Returns:
         An AudioStream ready to be served by the discord voice client.
     """
     if not os.path.exists(vid.fname):
-        raise dice.exc.InternalException("The vid is not available to stream.")
+        raise dice.exc.InternalException("The vid is not available to stream at this time.")
+    # TODO: Perhaps this and other exceptions should be reviewed, this could be FileNotFoundError.
 
     now = time.time()
     os.utime(vid.fname, (now, now))
