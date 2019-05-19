@@ -314,14 +314,22 @@ class TurnOrder(object):
     def remove(self, name):
         """
         Remove a user from the turn order and adjust index.
+
+        Returns:
+            The removed user.
         """
         if self.cur_user and self.cur_user.name == name:
             self.next()
 
-        for user in self.users[:]:
+        for ind, user in enumerate(self.users[:]):
             if user.name == name:
+                if user == self.users[-1]:
+                    self.user_index = 0
+                elif ind < self.user_index:
+                    self.user_index -= 1
+
                 self.users.remove(user)
-                return
+                return user
 
         raise dice.exc.InvalidCommandArgs("User not found: " + name)
 

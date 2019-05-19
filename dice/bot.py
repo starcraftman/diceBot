@@ -154,8 +154,8 @@ class DiceBot(discord.Client):
         global LIVE_TASKS
         if not LIVE_TASKS:
             LIVE_TASKS = [
-                self.loop.create_task(presence_task(self)),
-                self.loop.create_task(dice.music.gplayer_monitor(dice.actions.PLAYERS)),
+                asyncio.ensure_future(presence_task(self)),
+                asyncio.ensure_future(dice.music.gplayer_monitor(dice.actions.PLAYERS, {})),
             ]
 
         print('DiceBot Ready!')

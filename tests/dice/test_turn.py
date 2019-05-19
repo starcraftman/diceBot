@@ -306,19 +306,62 @@ def test_torder_next_empty_users():
         order.next()
 
 
-def test_torder_remove():
+def test_torder_remove_current():
     order = TurnOrder()
     user = TurnUser('Chris', 7, 27)
-    user2 = TurnUser('Orc', 2, 10)
-    user3 = TurnUser('Dwarf', 3, 12)
+    user2 = TurnUser('Dwarf', 3, 12)
+    user3 = TurnUser('Orc', 2, 10)
     order.add_all([user, user2, user3])
     order.next()
-    order.remove('Orc')
+    assert order.user_index == 1
+    assert order.cur_user == user2
 
+    order.remove(user2.name)
+
+    assert order.user_index == 1
     assert user in order.users
     assert user2 not in order.users
     assert user3 in order.users
     assert order.cur_user == user3
+
+
+def test_torder_remove_prev():
+    order = TurnOrder()
+    user = TurnUser('Chris', 7, 27)
+    user2 = TurnUser('Dwarf', 3, 12)
+    user3 = TurnUser('Orc', 2, 10)
+    order.add_all([user, user2, user3])
+    order.next()
+    assert order.user_index == 1
+    assert order.cur_user == user2
+
+    order.remove(user.name)
+
+    assert order.user_index == 0
+    assert user not in order.users
+    assert user2 in order.users
+    assert user3 in order.users
+    assert order.cur_user == user2
+
+
+def test_torder_remove_last():
+    order = TurnOrder()
+    user = TurnUser('Chris', 7, 27)
+    user2 = TurnUser('Dwarf', 3, 12)
+    user3 = TurnUser('Orc', 2, 10)
+    order.add_all([user, user2, user3])
+    order.next()
+    order.next()
+    assert order.user_index == 2
+    assert order.cur_user == user3
+
+    order.remove(user3.name)
+
+    assert order.user_index == 0
+    assert user in order.users
+    assert user2 in order.users
+    assert user3 not in order.users
+    assert order.cur_user == user
 
 
 def test_torder_update_user():

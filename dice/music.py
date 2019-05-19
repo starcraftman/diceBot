@@ -152,6 +152,7 @@ def prune_cache(cache_dir, limit=CACHE_LIMIT, *, prefix=None):
         songs = songs[1:]
 
 
+# TODO: Make async, wait on possibility video doesn't exist for a timeout.
 def make_stream(vid):
     """
     Fetches a local copy of the video if required.
@@ -177,7 +178,7 @@ def make_stream(vid):
     return discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(vid.fname), vid.volume)
 
 
-async def gplayer_monitor(players, gap=3):
+async def gplayer_monitor(players, activity, gap=3):
     """
     An asynchronous task to monitor to ...
         - Disconnect the player when no users in channel or stopped for timeout.
@@ -185,30 +186,32 @@ async def gplayer_monitor(players, gap=3):
 
     Args:
         players: A reference to the structure containing all GuildPlayers.
+        activity: A dictionary containing tracking info on last activity of players.
         gap: Time to wait between checking the gplayer for idle connections.
     """
-    activity = {}
+    await asyncio.sleep(gap)
+    asyncio.ensure_future(gplayer_monitor(players, activity, gap))
 
-    while True:
-        prune_cache(dice.util.get_config('paths', 'youtube'))
+    log = logging.getLogger('dice.music')
+    prune_cache(dice.util.get_config('paths', 'youtube'))
 
-        cur_date = datetime.datetime.utcnow()
-        for pid, player in players.items():
-            try:
-                if not player.target_channel or not player.is_connected():
-                    raise AttributeError
-            except (AttributeError, IndexError):
-                continue
+    cur_date = datetime.datetime.utcnow()
+    log.debug('GPlayer Monitor: %s %s  %s', cur_date, str(players), str(activity))
+    for pid, player in players.items():
+        try:
+            if not player.target_channel or not player.is_connected():
+                raise AttributeError
+        except (AttributeError, IndexError):
+            continue
 
-            if player.is_playing():
-                activity[pid] = cur_date
+        if player.is_playing():
+            activity[pid] = cur_date
 
-            real_users = [x for x in player.target_channel.members if not x.bot]
-            has_timed_out = (cur_date - activity[pid]).seconds > PLAYER_TIMEOUT
-            if not real_users or has_timed_out:
-                await player.disconnect()
-
-        await asyncio.sleep(gap)
+        real_users = [x for x in player.target_channel.members if not x.bot]
+        has_timed_out = (cur_date - activity[pid]).seconds > PLAYER_TIMEOUT
+        if not real_users or has_timed_out:
+            log.debug('GPlayer Monitor: disconnect %s', player)
+            await player.disconnect()
 
 
 async def prefetch_vids(vids):
