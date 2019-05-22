@@ -272,7 +272,11 @@ class GuildPlayer(object):
             current = ''
 
         pad = "\n    "
-        str_vids = pad + pad.join([str(x) for x in self.itr.items])
+        try:
+            vids = self.itr.items
+        except AttributeError:
+            vids = self.vids
+        str_vids = pad + pad.join([str(x) for x in vids])
 
         return """__**Player Status**__ :
 

@@ -182,8 +182,7 @@ class Play(Action):
 
     async def stop(self, mplayer):
         """ Stop the player. """
-        mplayer.itr.finish()
-        mplayer.stop()
+        await mplayer.disconnect()
         return "Player has been stopped.\n\nRestart it or play other vids to continue."
 
     async def pause(self, mplayer):
