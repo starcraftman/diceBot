@@ -296,8 +296,7 @@ __Video List__:{vids}
 
         return "GuildPlayer({})".format(', '.join(kwargs))
 
-    @property
-    def finished(self):
+    def is_done(self):
         """ True only if reached end of playlist and not set to repeat. """
         return self.itr.is_finished() and not self.repeat_all
 
@@ -368,11 +367,11 @@ __Video List__:{vids}
         if error:
             logging.getLogger('dice.music').error(str(error))
 
-        if self.is_playing() or (self.finished and not self.repeat_all):
+        if self.is_playing() or self.is_done():
             return
 
-        if self.finished and self.repeat_all:
-            self.reset_iterator()
+        if self.itr.is_finished() and self.repeat_all:
+            self.reset_iterator(to_last=(self.itr.index == -1))
         elif not self.cur_vid.repeat:
             self.next()
         self.play()
@@ -390,13 +389,27 @@ __Video List__:{vids}
         self.shuffle = not self.shuffle
         self.reset_iterator()
 
-    def reset_iterator(self):
-        """ Reset the iterator and shuffle if required. """
+    def reset_iterator(self, *, to_last=False):
+        """
+        Reset the iterator and shuffle if required.
+
+        Args:
+            to_last: When False, iterator points to first item.
+                     When True, iterator points to last item.
+        """
         items = self.vids.copy()
         if self.shuffle:
             rand.shuffle(items)
         self.itr = dice.util.BIterator(items)
         self.cur_vid = next(self.itr)
+
+        if to_last:  # Reset iterator to the last item
+            try:
+                while True:
+                    next(self.itr)
+            except StopIteration:
+                pass
+            self.cur_vid = self.itr.prev()
 
     def next(self):
         """
@@ -412,8 +425,8 @@ __Video List__:{vids}
             if self.repeat_all:
                 self.reset_iterator()
                 return self.cur_vid
-            else:
-                self.stop()
+
+            self.stop()
 
     def prev(self):
         """
@@ -427,12 +440,10 @@ __Video List__:{vids}
             return self.cur_vid
         except StopIteration:
             if self.repeat_all:
-                self.reset_iterator()
-                self.itr.index = len(self.itr.items) - 1
-                self.cur_vid = self.itr.current
+                self.reset_iterator(to_last=True)
                 return self.cur_vid
-            else:
-                self.stop()
+
+            self.stop()
 
     async def replace_and_play(self, new_vids):
         """

@@ -435,7 +435,7 @@ class BIterator(object):
             StopIteration: Iterator is exhausted.
         """
         self.index = max(self.index - 1, -1)
-        if self.index >= 0:
+        if self.index > -1:
             return self.items[self.index]
 
         raise StopIteration

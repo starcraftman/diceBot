@@ -156,6 +156,21 @@ def test_guild_player_state(f_songs, f_vclient):
     assert player.state == 'paused'
 
 
+def test_guild_player_set_vids(f_songs):
+    player = dice.music.GuildPlayer(vids=f_songs[:1])
+
+    player.set_vids(f_songs[1:])
+    assert player.vids == list(f_songs[1:])
+
+
+def test_guild_player_append_vids(f_songs):
+    player = dice.music.GuildPlayer(vids=f_songs[:1])
+
+    player.append_vids(f_songs[1:])
+    assert player.itr.items == list(f_songs)
+    assert player.vids == list(f_songs)
+
+
 def test_guild_player_set_volume(f_songs, f_vclient):
     player = dice.music.GuildPlayer(vids=f_songs, client=f_vclient)
     with pytest.raises(dice.exc.InvalidCommandArgs):
@@ -167,6 +182,24 @@ def test_guild_player_set_volume(f_songs, f_vclient):
     player.set_volume(100)
     assert player.cur_vid.volume_int == 100
     assert f_vclient.source.volume == 1.0
+
+
+def test_guild_player_reset_iterator(f_songs):
+    player = dice.music.GuildPlayer(vids=f_songs)
+    player.next()
+    player.next()
+    assert player.cur_vid == f_songs[-1]
+
+    player.reset_iterator()
+    assert player.cur_vid == f_songs[0]
+
+
+def test_guild_player_reset_iterator_last(f_songs):
+    player = dice.music.GuildPlayer(vids=f_songs)
+    assert player.cur_vid == f_songs[0]
+
+    player.reset_iterator(to_last=True)
+    assert player.cur_vid == f_songs[-1]
 
 
 def test_guild_player_toggle_pause(f_songs, f_vclient):
@@ -207,7 +240,7 @@ def test_guild_player_play(f_songs, f_vclient):
     player.play()
 
     assert player.vid_index == 0
-    assert not player.finished
+    assert not player.is_done()
     assert f_vclient.stop.called
     assert f_vclient.play.called
 
@@ -237,17 +270,17 @@ def test_guild_player_next(f_songs, f_vclient):
     player = dice.music.GuildPlayer(vids=f_songs, client=f_vclient)
 
     assert player.cur_vid == f_songs[0]
-    assert not player.finished
+    assert not player.is_done()
     assert not f_vclient.stop.called
     assert player.next() == f_songs[1]
     assert player.next() == f_songs[2]
     assert player.cur_vid == f_songs[2]
-    assert not player.finished
+    assert not player.is_done()
     assert not f_vclient.stop.called
 
-    assert player.next() == None
+    assert player.next() is None
     assert player.cur_vid == f_songs[2]
-    assert player.finished
+    assert player.is_done()
     assert f_vclient.stop.called
 
 
@@ -257,17 +290,17 @@ def test_guild_player_prev(f_songs, f_vclient):
     player.next()
 
     assert player.cur_vid == f_songs[2]
-    assert not player.finished
+    assert not player.is_done()
     assert not f_vclient.stop.called
     assert player.prev() == f_songs[1]
     assert player.prev() == f_songs[0]
     assert player.cur_vid == f_songs[0]
-    assert not player.finished
+    assert not player.is_done()
     assert not f_vclient.stop.called
 
-    assert player.prev() == None
+    assert player.prev() is None
     assert player.cur_vid == f_songs[0]
-    assert player.finished
+    assert player.is_done()
     assert f_vclient.stop.called
 
 
@@ -280,6 +313,6 @@ async def test_guild_player_replace_and_play(f_songs, f_vclient):
     await player.replace_and_play(list(f_songs))
     assert player.vids == list(f_songs)
     assert player.itr.index == 0
-    assert not player.finished
+    assert not player.is_done()
     assert not f_vclient.stop.called
     assert os.path.exists(f_songs[0].fname)
