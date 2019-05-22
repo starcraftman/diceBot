@@ -6,8 +6,6 @@ import datetime
 import sys
 import tempfile
 import os
-from os.path import join as pjoin
-from os.path import dirname as pdirname
 
 import aiomock
 import discord
@@ -437,18 +435,22 @@ def f_songs(session):
     """
     Fixture to insert some test Songs and SongTags.
     """
-    root = os.path.abspath(os.path.dirname(__file__))
-    if os.path.dirname(__file__) == '':
-        root = os.getcwd()
-    late_file = pjoin(pdirname(pdirname(root)), 'extras', 'music', 'late.opus')
     tdir = tempfile.TemporaryDirectory()
+
+    try:
+        os.mkdir('/tmp/tmp')
+    except OSError:
+        pass
+
+    with open('/tmp/tmp/late.opus', 'wb') as fout:
+        fout.write(b'1')
 
     songs = (
         Song(id=1, name="crit", folder=tdir.name,
              url="https://youtu.be/IrbCrwtDIUA", repeat=False, volume_int=50),
         Song(id=2, name="pop", folder=tdir.name,
              url="https://youtu.be/7jgnv0xCv-k", repeat=False, volume_int=50),
-        Song(id=3, name="late", folder=os.path.dirname(late_file),
+        Song(id=3, name="late", folder='/tmp/tmp',
              url=None, repeat=False, volume_int=50),
     )
     tags = (

@@ -232,29 +232,30 @@ class GuildPlayer(object):
     encompass a standard player with a builtin music queue and standard features.
 
     Attributes:
+        cur_vid: The current Song playing, None if no vids have been set.
         vids: A list of Songs, they store per video settings and provide a path to the file to stream.
-        vid_index: The index of the current Song being played.
+        itr: A bidirectional iterator to move through Songs.
         shuffle: When True next video is randomly selected until all videos fairly visited.
         repeat_all: When True, restart the queue at the beginning when finished.
-        finished: When true, the player has exhausted the queue and stopped playing until started manually.
-        now_playing: Required due to shuffle implementation, see cur_vid.
         target_channel: The voice channel to connect to.
         __client: The reference to discord.VoiceClient, needed to manipulate underlying client.
                   Do no use directly, just use as if was self.
     """
-    def __init__(self, *, vids=None, vid_index=0, repeat_all=False, shuffle=None, finished=False,
-                 now_playing=None, target_channel=None, client=None):
+    def __init__(self, *, cur_vid=None, vids=None, itr=None, repeat_all=False, shuffle=False,
+                 target_channel=None, client=None):
         if not vids:
             vids = []
-        self.vids = vids
-        self.vid_index = vid_index
-        self.shuffle = shuffle  # When enable, put copy of vids list here and select from.
+        self.vids = list(vids)
+        self.itr = itr
+        self.cur_vid = cur_vid  # The current Song, or None if nothing in list.
         self.repeat_all = repeat_all  # Repeat vids list when last song finished
-        self.finished = finished  # Set only when player should be stopped
-        self.now_playing = now_playing  # Unfortunately necessitated by shuffle, see cur_vid
+        self.shuffle = shuffle
         self.target_channel = target_channel
 
         self.__client = client
+
+        if self.vids and not self.itr and not self.cur_vid:
+            self.reset_iterator()
 
     def __getattr__(self, attr):
         """ Transparently pass calls to the client we are extending. """
@@ -271,7 +272,7 @@ class GuildPlayer(object):
             current = ''
 
         pad = "\n    "
-        str_vids = pad + pad.join([str(x) for x in self.vids])
+        str_vids = pad + pad.join([str(x) for x in self.itr.items])
 
         return """__**Player Status**__ :
 
@@ -286,25 +287,15 @@ __Video List__:{vids}
            shuffle='{}abled'.format('En' if self.shuffle else 'Dis'))
 
     def __repr__(self):
-        keys = ['vid_index', 'vids', 'repeat_all', 'shuffle', 'finished',
-                'now_playing', 'target_channel']
+        keys = ['cur_vid', 'vids', 'itr', 'repeat_all', 'shuffle', 'target_channel']
         kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
 
         return "GuildPlayer({})".format(', '.join(kwargs))
 
     @property
-    def cur_vid(self):
-        """
-        The current video selected. If finished, will point to last video played.
-
-        Returns:
-            None: No videos are set/available.
-            Song: The currently playing video or the last video played before finished.
-        """
-        try:
-            return self.now_playing if self.now_playing else self.vids[self.vid_index]
-        except (IndexError, TypeError):
-            return None
+    def finished(self):
+        """ True only if reached end of playlist and not set to repeat. """
+        return self.itr.is_finished() and not self.repeat_all
 
     @property
     def state(self):
@@ -324,23 +315,31 @@ __Video List__:{vids}
 
     def set_volume(self, new_volume):
         """ Set the volume for the current song playing and persist choice.  """
-        self.cur_vid.volume = new_volume
         try:
+            self.cur_vid.volume = new_volume
             self.source.volume = self.cur_vid.volume
         except AttributeError:
             pass
 
     def set_vids(self, new_vids):
-        """ Replace the current videos and reset index. """
+        """ Replace the current videos and reset iterator. """
         for vid in new_vids:
             if not isinstance(vid, Song):
                 raise ValueError("Must add Songs to the GuildPlayer.")
 
-        self.vids = new_vids
-        self.vid_index = 0
+        self.vids = list(new_vids)
+        self.reset_iterator()
 
+    def append_vids(self, new_vids):
+        """ Append videos into the player and update iterator. """
+        for vid in new_vids:
+            if not isinstance(vid, Song):
+                raise ValueError("Must add Songs to the GuildPlayer.")
+
+        self.vids += new_vids
         if self.shuffle:
-            self.restart_shuffle()
+            rand.shuffle(new_vids)
+        self.itr.items += new_vids
 
     def play(self, next_vid=None):
         """
@@ -355,7 +354,6 @@ __Video List__:{vids}
         if self.is_playing():
             self.stop()
 
-        self.finished = False
         vid = next_vid if next_vid else self.cur_vid
         self.__client.play(make_stream(vid), after=self.after_call)
 
@@ -366,12 +364,14 @@ __Video List__:{vids}
         if error:
             logging.getLogger('dice.music').error(str(error))
 
-        if self.is_playing() or self.finished:
-            pass
-        elif self.cur_vid.repeat:
-            self.play()
-        else:
+        if self.is_playing() or (self.finished and not self.repeat_all):
+            return
+
+        if self.finished and self.repeat_all:
+            self.reset_iterator()
+        elif not self.cur_vid.repeat:
             self.next()
+        self.play()
 
     def toggle_pause(self):
         """ Toggle pausing the player. """
@@ -382,53 +382,53 @@ __Video List__:{vids}
                 self.resume()
 
     def toggle_shuffle(self):
-        """ Toggle shuffling the playlist. """
-        if self.shuffle:
-            self.shuffle = None
-            self.now_playing = None
-        else:
-            self.restart_shuffle()
+        """ Toggle shuffling the playlist. Updates the iterator for consistency. """
+        self.shuffle = not self.shuffle
+        self.reset_iterator()
 
-    def restart_shuffle(self):
-        """
-        Repopulate the shuffled list with a copy of vids.
-        Ensure on return that a new valid selection has been made.
-        """
-        self.shuffle = self.vids.copy()
-        self.now_playing = rand.choice(self.shuffle)
-        self.shuffle.remove(self.now_playing)
+    def reset_iterator(self):
+        """ Reset the iterator and shuffle if required. """
+        items = self.vids.copy()
+        if self.shuffle:
+            rand.shuffle(items)
+        self.itr = dice.util.BIterator(items)
+        self.cur_vid = next(self.itr)
 
     def next(self):
-        """ Go to the next song. """
-        self.__select_next_song(lambda self: (self.vid_index + 1) < len(self.vids),
-                                lambda self: (self.vid_index + 1) % len(self.vids))
+        """
+        Go to the next song.
+
+        Returns:
+            The newly selected Song. None if the iterator is exhausted.
+        """
+        try:
+            self.cur_vid = self.itr.next()
+            return self.cur_vid
+        except StopIteration:
+            if self.repeat_all:
+                self.reset_iterator()
+                return self.cur_vid
+            else:
+                self.stop()
 
     def prev(self):
-        """ Go to the previous song. """
-        self.__select_next_song(lambda self: (self.vid_index - 1) >= 0,
-                                lambda self: (self.vid_index - 1) % len(self.vids))
-
-    def __select_next_song(self, check_func, inc_func):
         """
-        Select the next song to play, depends upon passed functions.
+        Go to the previous song.
 
-        Args:
-            check_func: Predicate takes GuildPlayer object and determines
-                        if it can go next or back.
-            inc_func: Function takes GuildPlayer object, changes cur_vid accordingly.
+        Returns:
+            The newly selected Song. None if the iterator is exhausted.
         """
-        if self.shuffle:
-            self.now_playing = rand.choice(self.shuffle)
-            self.shuffle.remove(self.now_playing)
-            if self.repeat_all and not self.shuffle:
-                self.shuffle = self.vids.copy()
-            self.play(self.now_playing)
-        elif self.repeat_all or check_func(self):
-            self.vid_index = inc_func(self)
-            self.play()
-        else:
-            self.stop()
-            self.finished = True
+        try:
+            self.cur_vid = self.itr.prev()
+            return self.cur_vid
+        except StopIteration:
+            if self.repeat_all:
+                self.reset_iterator()
+                self.itr.index = len(self.itr.items) - 1
+                self.cur_vid = self.itr.current
+                return self.cur_vid
+            else:
+                self.stop()
 
     async def replace_and_play(self, new_vids):
         """
@@ -443,10 +443,7 @@ __Video List__:{vids}
         await self.join_voice_channel()
 
         self.set_vids(new_vids)
-        if self.shuffle:
-            self.restart_shuffle()
-
-        self.play(self.cur_vid)
+        self.play()
 
     async def disconnect(self):
         """

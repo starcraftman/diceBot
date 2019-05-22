@@ -166,3 +166,78 @@ def test_init_chrome():
         assert isinstance(browser, selenium.webdriver.Chrome)
     finally:
         browser.quit()
+
+
+def test_biterator__init__():
+    itr = dice.util.BIterator([0, 1, 2, 3, 4])
+    assert itr.items == [0, 1, 2, 3, 4]
+
+
+# Also covers __next__
+def test_biterator_next():
+    itr = dice.util.BIterator([0, 1, 2])
+    assert itr.next() == 0
+    assert itr.next() == 1
+    assert itr.next() == 2
+
+    with pytest.raises(StopIteration):
+        itr.next()
+    with pytest.raises(StopIteration):
+        itr.next()
+    assert itr.index == len(itr.items)
+
+
+def test_biterator_prev_():
+    itr = dice.util.BIterator([0, 1, 2])
+    itr.index = 3
+    assert itr.prev() == 2
+    assert itr.prev() == 1
+    assert itr.prev() == 0
+
+    with pytest.raises(StopIteration):
+        itr.prev()
+    with pytest.raises(StopIteration):
+        itr.prev()
+    assert itr.index == -1
+
+
+def test_biterator_is_finished():
+    itr = dice.util.BIterator([0, 1, 2])
+    assert itr.is_finished()
+
+    itr.next()
+    assert not itr.is_finished()
+    itr.next()
+    assert not itr.is_finished()
+    itr.next()
+    assert not itr.is_finished()
+
+    with pytest.raises(StopIteration):
+        itr.next()
+    assert itr.is_finished()
+
+
+def test_biterator_finish():
+    itr = dice.util.BIterator([0, 1, 2])
+    assert itr.is_finished()
+
+    itr.next()
+    assert not itr.is_finished()
+    itr.finish()
+    assert itr.is_finished()
+    assert itr.index == len(itr.items)
+
+
+def test_biterator_current():
+    itr = dice.util.BIterator([0, 1, 2])
+    assert itr.current is None
+
+    itr.next()
+    assert itr.current == 0
+    itr.next()
+    itr.next()
+    assert itr.current == 2
+
+    with pytest.raises(StopIteration):
+        itr.next()
+    assert itr.current is None

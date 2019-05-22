@@ -100,7 +100,7 @@ def test_make_stream_not_exists(f_songs):
 def test_guild_player__init__(f_songs):
     player = dice.music.GuildPlayer(vids=f_songs)
     assert isinstance(player, dice.music.GuildPlayer)
-    assert player.vids == f_songs
+    assert player.vids == list(f_songs)
 
 
 def test_guild_player__getattr__(f_songs, f_vclient):
@@ -131,11 +131,7 @@ __Video List__:
 
 def test_guild_player__repr__(f_songs):
     player = dice.music.GuildPlayer(vids=f_songs)
-    expect = "GuildPlayer(vid_index=0, vids=(Song(id=1, name='crit', folder='/tmp/tmp', \
-url='https://youtu.be/IrbCrwtDIUA', repeat=False, volume_int=50), Song(id=2, name='pop', \
-folder='/tmp/tmp', url='https://youtu.be/7jgnv0xCv-k', repeat=False, volume_int=50), \
-Song(id=3, name='late', folder='/home/starcraftman/prog/extras/music', url=None, repeat=False, \
-volume_int=50)), repeat_all=False, shuffle=None, finished=False, now_playing=None, target_channel=None)"
+    expect = "GuildPlayer(cur_vid=Song(id=1, name='crit', folder='/tmp/tmp', url='https://youtu.be/IrbCrwtDIUA', repeat=False, volume_int=50), vids=[Song(id=1, name='crit', folder='/tmp/tmp', url='https://youtu.be/IrbCrwtDIUA', repeat=False, volume_int=50), Song(id=2, name='pop', folder='/tmp/tmp', url='https://youtu.be/7jgnv0xCv-k', repeat=False, volume_int=50), Song(id=3, name='late', folder='/tmp/tmp', url=None, repeat=False, volume_int=50)], itr=BIterator(index=0, items=[Song(id=1, name='crit', folder='/tmp/tmp', url='https://youtu.be/IrbCrwtDIUA', repeat=False, volume_int=50), Song(id=2, name='pop', folder='/tmp/tmp', url='https://youtu.be/7jgnv0xCv-k', repeat=False, volume_int=50), Song(id=3, name='late', folder='/tmp/tmp', url=None, repeat=False, volume_int=50)]), repeat_all=False, shuffle=False, target_channel=None)"
 
     assert re.sub(r'/tmp/\w+', '/tmp/tmp', repr(player)) == expect
 
@@ -143,7 +139,7 @@ volume_int=50)), repeat_all=False, shuffle=None, finished=False, now_playing=Non
 def test_guild_player_cur_vid(f_songs):
     player = dice.music.GuildPlayer(vids=f_songs)
     assert player.cur_vid == f_songs[0]
-    player.vid_index = 1
+    player.next()
     assert player.cur_vid == f_songs[1]
 
 
@@ -239,37 +235,38 @@ def test_guild_player_after_call(f_songs, f_vclient):
 
 def test_guild_player_next(f_songs, f_vclient):
     player = dice.music.GuildPlayer(vids=f_songs, client=f_vclient)
-    player.play = aiomock.Mock()
 
-    assert player.vid_index == 0
+    assert player.cur_vid == f_songs[0]
     assert not player.finished
     assert not f_vclient.stop.called
-    player.next()
-    player.next()
-    assert player.vid_index == 2
+    assert player.next() == f_songs[1]
+    assert player.next() == f_songs[2]
+    assert player.cur_vid == f_songs[2]
     assert not player.finished
     assert not f_vclient.stop.called
-    player.next()
-    assert player.vid_index == 2
+
+    assert player.next() == None
+    assert player.cur_vid == f_songs[2]
     assert player.finished
     assert f_vclient.stop.called
 
 
 def test_guild_player_prev(f_songs, f_vclient):
     player = dice.music.GuildPlayer(vids=f_songs, client=f_vclient)
-    player.vid_index = 2
-    player.play = aiomock.Mock()
+    player.next()
+    player.next()
 
-    assert player.vid_index == 2
+    assert player.cur_vid == f_songs[2]
     assert not player.finished
     assert not f_vclient.stop.called
-    player.prev()
-    player.prev()
-    assert player.vid_index == 0
+    assert player.prev() == f_songs[1]
+    assert player.prev() == f_songs[0]
+    assert player.cur_vid == f_songs[0]
     assert not player.finished
     assert not f_vclient.stop.called
-    player.prev()
-    assert player.vid_index == 0
+
+    assert player.prev() == None
+    assert player.cur_vid == f_songs[0]
     assert player.finished
     assert f_vclient.stop.called
 
@@ -277,13 +274,12 @@ def test_guild_player_prev(f_songs, f_vclient):
 @pytest.mark.asyncio
 async def test_guild_player_replace_and_play(f_songs, f_vclient):
     player = dice.music.GuildPlayer(vids=[], client=f_vclient)
-    player.vid_index = 2
     player.play = aiomock.Mock()
     f_vclient.is_connected.return_value = True
 
     await player.replace_and_play(list(f_songs))
     assert player.vids == list(f_songs)
-    assert player.vid_index == 0
+    assert player.itr.index == 0
     assert not player.finished
     assert not f_vclient.stop.called
     assert os.path.exists(f_songs[0].fname)

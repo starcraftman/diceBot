@@ -378,5 +378,68 @@ def init_chrome():
     return selenium.webdriver.Chrome(options=opts)
 
 
+class BIterator(object):
+    """
+    Bidirectional iterator that can move up and down list.
+    If you want a shuffle, just feed in random.shuffle(items).
+
+    Attributes:
+        items: The list of items to iterate through.
+        index: The position in the list. Iterator always starts off the list at -1 unless specified.
+               Index will end iterating the liast at len(items).
+    """
+    def __init__(self, items, index=-1):
+        self.items = items
+        self.index = index
+
+    def __repr__(self):
+        return "BIterator(index={}, items={})".format(self.index, self.items)
+
+    def __next__(self):
+        """ Allow using it like an actual iterator. """
+        self.index = min(self.index + 1, len(self.items))
+        if self.index < len(self.items):
+            return self.items[self.index]
+
+        raise StopIteration
+
+    @property
+    def current(self):
+        if self.is_finished():
+            return None
+
+        return self.items[self.index]
+
+    def is_finished(self):
+        """ The iterator is not currently pointing at anything. """
+        return self.index in (-1, len(self.items))
+
+    def finish(self):
+        """ Exhaust the iterator. """
+        self.index = len(self.items)
+
+    def next(self):
+        """
+        Move the iterator to the next position.
+
+        Raises:
+            StopIteration: Iterator is exhausted.
+        """
+        return self.__next__()
+
+    def prev(self):
+        """
+        Move the iterator to the prev position.
+
+        Raises:
+            StopIteration: Iterator is exhausted.
+        """
+        self.index = max(self.index - 1, -1)
+        if self.index >= 0:
+            return self.items[self.index]
+
+        raise StopIteration
+
+
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 YAML_FILE = rel_to_abs('data', 'config.yml')

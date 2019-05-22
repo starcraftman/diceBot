@@ -203,6 +203,7 @@ class TurnUser(object):
         return [effect.text for effect in finished]
 
 
+# TODO: Reuse BIterator
 class TurnOrder(object):
     """
     Model the turn order for combat in Pathfinder.

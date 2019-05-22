@@ -176,15 +176,13 @@ class Play(Action):
     """
     async def restart(self, mplayer):
         """ Restart the player at the beginning. """
-        mplayer.vid_index = 0
-        if mplayer.shuffle:
-            mplayer.restart_shuffle()
+        mplayer.reset_iterator()
         mplayer.play()
         return "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
 
     async def stop(self, mplayer):
         """ Stop the player. """
-        mplayer.finished = True
+        mplayer.itr.finish()
         mplayer.stop()
         return "Player has been stopped.\n\nRestart it or play other vids to continue."
 
@@ -194,13 +192,15 @@ class Play(Action):
         return"Player is now: " + mplayer.state
 
     async def next(self, mplayer):
-        """ Move player to next video. """
-        mplayer.next()
+        """ Play the next video. """
+        if mplayer.next():
+            mplayer.play()
         return "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
 
     async def prev(self, mplayer):
-        """ Move player to previous video. """
-        mplayer.prev()
+        """ Play the previous video. """
+        if mplayer.prev():
+            mplayer.play()
         return "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
 
     async def repeat_all(self, mplayer):
@@ -224,6 +224,7 @@ class Play(Action):
     async def shuffle(self, mplayer):
         """ Set player to repeat video when it finishes normally. """
         mplayer.toggle_shuffle()
+        mplayer.play()
         return "Player shuffle is now: **{}abled**".format('En' if mplayer.shuffle else 'Dis')
 
     async def status(self, mplayer):
@@ -248,13 +249,9 @@ class Play(Action):
         await dice.music.prefetch_vids(new_vids)
 
         if self.args.append:
-            mplayer.vids += new_vids
-            if mplayer.shuffle:
-                mplayer.shuffle += new_vids
+            mplayer.append_vids(new_vids)
         else:
             mplayer.set_vids(new_vids)
-            if mplayer.shuffle:
-                mplayer.restart_shuffle()
             mplayer.play()
 
         await asyncio.gather(msg.delete(), self.bot.send_message(self.msg.channel, str(mplayer)))
