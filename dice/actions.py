@@ -175,7 +175,10 @@ class Play(Action):
     Transparent mapper from user input onto the music player.
     """
     async def restart(self, mplayer):
-        """ Restart the player at current video. """
+        """ Restart the player at the beginning. """
+        mplayer.vid_index = 0
+        if mplayer.shuffle:
+            mplayer.restart_shuffle()
         mplayer.play()
         return "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
 
@@ -241,18 +244,20 @@ class Play(Action):
         else:
             new_vids = dicedb.query.validate_videos(parts)
 
+        msg = await self.bot.send_message(self.msg.channel, 'Please wait, downloading as needed before playing.')
+        await dice.music.prefetch_vids(new_vids)
+
         if self.args.append:
             mplayer.vids += new_vids
+            if mplayer.shuffle:
+                mplayer.shuffle += new_vids
         else:
             mplayer.set_vids(new_vids)
-            await dice.music.prefetch_vids([mplayer.cur_vid])
+            if mplayer.shuffle:
+                mplayer.restart_shuffle()
+            mplayer.play()
 
-        if mplayer.shuffle:
-            mplayer.restart_shuffle()
-
-        await self.bot.send_message(self.msg.channel, str(mplayer))
-        mplayer.play()
-        await dice.music.prefetch_vids([x for x in mplayer.vids if x != mplayer.cur_vid])
+        await asyncio.gather(msg.delete(), self.bot.send_message(self.msg.channel, str(mplayer)))
 
     async def execute(self):
         mplayer = get_guild_player(self.guild_id, self.msg)
@@ -335,9 +340,10 @@ class Songs(Action):
                         raise ValueError
                     selected = entries[choice]
 
+                    msg = await self.bot.send_message(self.msg.channel, 'Please wait, downloading as needed before playing.')
                     await get_guild_player(self.guild_id, self.msg).replace_and_play([selected])
-
-                    await self.bot.send_message(self.msg.channel, '**Song Started**\n\n' + format_a_song(1, selected))
+                    await asyncio.gather(msg.delete(),
+                                         self.bot.send_message(self.msg.channel, '**Song Started**\n\n' + format_a_song(1, selected)))
                     break
             except ValueError:
                 await self.bot.send_message(
@@ -428,9 +434,10 @@ class Songs(Action):
                         raise ValueError
                     selected = page_songs[choice]
 
+                    msg = await self.bot.send_message(self.msg.channel, 'Please wait, downloading as needed before playing.')
                     await get_guild_player(self.guild_id, self.msg).replace_and_play([selected])
-
-                    await self.bot.send_message(self.msg.channel, '**Song Started**\n\n' + format_a_song(1, selected))
+                    await asyncio.gather(msg.delete(),
+                                         self.bot.send_message(self.msg.channel, '**Song Started**\n\n' + format_a_song(1, selected)))
                     break
             except ValueError:
                 await self.bot.send_message(
@@ -479,7 +486,10 @@ class Songs(Action):
 
                     songs = dicedb.query.get_songs_with_tag(self.session, page_tags[choice])
                     if 'all' in user_select.content:
-                        await get_guild_player(self.guild_id, self.msg).replace_and_play(songs)
+                        mplayer = get_guild_player(self.guild_id, self.msg)
+                        msg = await self.bot.send_message(self.msg.channel, 'Please wait, downloading as needed before playing.')
+                        await mplayer.replace_and_play(songs)
+                        await asyncio.gather(msg.delete(), self.bot.send_message(self.msg.channel, str(mplayer)))
                     else:
                         await self.select_song(songs)
                     break

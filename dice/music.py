@@ -220,7 +220,7 @@ async def prefetch_vids(vids):
         vids: A list of Songs to download.
     """
     streams = [asyncio.get_event_loop().run_in_executor(None, get_yt_video, vid.url, vid.name, vid.folder)
-               for vid in vids if vid.url]
+               for vid in vids if vid.url and not os.path.exists(vid.fname)]
 
     await asyncio.gather(*streams)
 
@@ -355,10 +355,8 @@ __Video List__:{vids}
         if self.is_playing():
             self.stop()
 
-        vid = self.cur_vid
-        if next_vid:
-            vid = next_vid
         self.finished = False
+        vid = next_vid if next_vid else self.cur_vid
         self.__client.play(make_stream(vid), after=self.after_call)
 
     def after_call(self, error):
@@ -422,7 +420,7 @@ __Video List__:{vids}
         if self.shuffle:
             self.now_playing = rand.choice(self.shuffle)
             self.shuffle.remove(self.now_playing)
-            if not self.shuffle:
+            if self.repeat_all and not self.shuffle:
                 self.shuffle = self.vids.copy()
             self.play(self.now_playing)
         elif self.repeat_all or check_func(self):
@@ -441,15 +439,14 @@ __Video List__:{vids}
         Args:
             new_vids: New Songs to play, will replace the current queue.
         """
+        await dice.music.prefetch_vids(new_vids)
         await self.join_voice_channel()
 
         self.set_vids(new_vids)
-        await dice.music.prefetch_vids([self.cur_vid])
-        self.play(self.cur_vid)
+        if self.shuffle:
+            self.restart_shuffle()
 
-        rest = self.vids.copy()
-        rest.remove(self.cur_vid)
-        await dice.music.prefetch_vids(rest)
+        self.play(self.cur_vid)
 
     async def disconnect(self):
         """
