@@ -29,6 +29,35 @@ def test_break_init_tie_offset_same():
     assert winner.init > loser.init
 
 
+def test_loose_match_users():
+    users = [TurnUser("Chris", 7), TurnUser("Chris' Pet", 2),
+             TurnUser("Orc", 7), TurnUser("Orc2", 2)]
+    dice.turn.loose_match_users(users, "Orc2")
+
+
+def test_loose_match_users_raises():
+    users = [TurnUser("Chris", 7), TurnUser("Chris' Pet", 2),
+             TurnUser("Orc", 7), TurnUser("Orc2", 2)]
+
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        dice.turn.loose_match_users(users, "Chris")
+
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        dice.turn.loose_match_users(users, "Dwarf")
+
+
+def test_duplicate_users():
+    user = TurnUser('Chris', 7)
+    user.init = 27
+    user2 = TurnUser('Orc', 2)
+    user2.init = 10
+    users = [user, user2]
+
+    assert not dice.turn.duplicate_users(users)
+    user2.init = 27
+    assert dice.turn.duplicate_users(users)
+
+
 def test_parse_turn_users():
     tokens = ['Chris/7', 'Noggles/3/20']
     users = dice.turn.parse_turn_users(tokens)
@@ -189,20 +218,6 @@ def test_torder__repr__():
              "TurnUser(name='Orc', offset=2, init=10, effects=[])], "\
              "user_index=0)"
     assert repr(order) == expect
-
-
-def test_torder_duplicate_inits():
-    order = TurnOrder()
-    user = TurnUser('Chris', 7)
-    user.init = 27
-    user2 = TurnUser('Orc', 2)
-    user2.init = 10
-    order.users = reversed(sorted([user, user2]))
-
-    assert not order.duplicate_inits()
-    user2.init = 27
-    order.users = reversed(sorted([user, user2]))
-    assert order.duplicate_inits()
 
 
 def test_torder_does_name_exist():

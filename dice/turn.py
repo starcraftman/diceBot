@@ -37,6 +37,51 @@ def break_init_tie(user1, user2):
     return (winner, loser)
 
 
+def loose_match_users(users, name_part):
+    """
+    Loosely match against all users names name_part.
+    Return the one user that matches exactly.
+
+    Raises:
+        InvalidCommandArgs: No user matched, or too many matched due to looseness.
+
+    Returns:
+        [ind, user]
+
+        ind: The position in the users list.
+        user: The TurnUser that matched.
+    """
+    possible = []
+    for ind, user in enumerate(users):
+        if name_part in user.name:
+            possible += [(ind, user)]
+
+    if len(possible) != 1:
+        if not possible:
+            msg = "No user matches: " + name_part
+        else:
+            msg = "Unable to match exactly 1 user. Be more specific."
+
+        raise dice.exc.InvalidCommandArgs(msg)
+
+    return possible[0]
+
+
+def duplicate_users(users):
+    """
+    Return a list of users that have inits that are the same.
+
+    Returns:
+        Returns a list of different TurnUsers with the same init.
+    """
+    inits = [x.init for x in users]
+    for init in set(inits):
+        inits.remove(init)
+    inits = list(set(inits))
+
+    return [x for x in users if x.init in inits]
+
+
 def parse_turn_users(parts):
     """
     Parse users based on possible specification.
@@ -203,11 +248,14 @@ class TurnUser(object):
         return [effect.text for effect in finished]
 
 
-# TODO: Reuse BIterator
 class TurnOrder(object):
     """
     Model the turn order for combat in Pathfinder.
     A turn order is composed of TurnUser objects.
+
+    Attributes:
+        user: The list of TurnUsers that are egaged in the encounter.
+        user_index: The index that points to the current user.
     """
     def __init__(self, users=None, user_index=0):
         """
@@ -239,104 +287,101 @@ class TurnOrder(object):
 
     @property
     def cur_user(self):
+        """ The current user who should take their turn. """
         if not self.users:
             return None
 
         return self.users[self.user_index]
 
-    def does_name_exist(self, new_name):
-        """
-        Sanity check for name collision.
-        """
-        return new_name in [x.name for x in self.users]
-
-    def duplicate_inits(self, other=None):
-        """
-        Return which init values are duplicated, an empty list means all unique.
-
-        Args:
-            other - A user to consider that isn't yet in self.users
-
-        Returns:
-            [] - No duplicates.
-            [dupe_init, ...] - There exists a duplicate for every number present in the list.
-        """
-        inits = [x.init for x in self.users]
-        if other:
-            inits += [other.init]
-
-        for init in set(inits):
-            inits.remove(init)
-
-        return inits
-
-    def resolve_collision(self, user, dupe_init):
-        """
-        Find existing user with same init, roll both until we can differentiate.
-
-        Returns:
-            user - With new init if needed changing.
-        """
-        conflict = [x for x in self.users if x.init == dupe_init and x != user][0]
-
-        winner, loser = break_init_tie(user, conflict)
-        winner.init = dupe_init
-        loser.init = dupe_init - COLLIDE_INCREMENT
-
-        new_dupes = self.duplicate_inits()
-        while new_dupes:
-            self.resolve_collision(loser, new_dupes[0])
-            new_dupes = self.duplicate_inits()
-
-        return user
-
     def add(self, user):
         """
         Add a user to the turn order, resolve if collision.
+
+        Args:
+            user: TurnUser to add to the list of users.
+
+        Raises:
+            InvalidCommandArgs: The new user would have same name as an existing one.
         """
-        if self.does_name_exist(user.name):
+        if user.name in [x.name for x in self.users]:
             raise dice.exc.InvalidCommandArgs("Cannot have two users with same name.")
 
-        dupes = self.duplicate_inits(user)
-        while dupes:
-            self.resolve_collision(user, dupes[0])
-            dupes = self.duplicate_inits(user)
-
         self.users.append(user)
+
+        conflicts = duplicate_users(self.users)
+        while conflicts:
+            self.__resolve_collision(conflicts)
+            conflicts = duplicate_users(self.users)
+
         self.users = list(reversed(sorted(self.users)))
 
     def add_all(self, users):
         """
         Convenience bulk addition of users.
+
+        Args:
+            users: A list of TurnUsers to add to the users list.
+
+        See TurnUser.add()
         """
         for user in users:
             self.add(user)
 
-    def remove(self, name):
+    def remove(self, name_part):
         """
         Remove a user from the turn order and adjust index.
+
+        Args:
+            name_part: A substring of a user name to look for.
+
+        Raises:
+            InvalidCommandArgs: name_part was not found in the users or too many names matched.
 
         Returns:
             The removed user.
         """
-        if self.cur_user and self.cur_user.name == name:
-            self.next()
+        ind, user = loose_match_users(self.users, name_part)
 
-        for ind, user in enumerate(self.users[:]):
-            if user.name == name:
-                if user == self.users[-1]:
-                    self.user_index = 0
-                elif ind < self.user_index:
-                    self.user_index -= 1
+        if user == self.users[-1]:
+            self.user_index = 0
+        elif ind < self.user_index:
+            self.user_index -= 1
+        self.users.remove(user)
 
-                self.users.remove(user)
-                return user
+        return user
 
-        raise dice.exc.InvalidCommandArgs("User not found: " + name)
+    def update_user(self, name_part, new_init):
+        """
+        Update a user's final init, will retain the same modifier.
+
+        Args:
+            name_part: A substring of a user name to look for.
+            new_init: The new init to give the selected user.
+
+        Raises:
+            InvalidCommandArgs: name_part was not found in the users or too many names matched.
+
+        Returns:
+            The user that was updated.
+        """
+        _, matched = loose_match_users(self.users, name_part)
+
+        try:
+            matched.init = int(new_init)
+            self.users = list(reversed(sorted(self.users)))
+            return matched
+        except ValueError:
+            raise dice.exc.InvalidCommandArgs("Unable to update init, provide valid integer.")
 
     def next(self):
         """
         Set the next user to take a turn.
+
+        Raises:
+            InvalidCommandArgs: No users in the turn order.
+
+        Returns:
+            The user who should take their turn.
         """
         if not self.users:
             raise dice.exc.InvalidCommandArgs("Add some users first!")
@@ -345,20 +390,17 @@ class TurnOrder(object):
 
         return self.cur_user
 
-    def update_user(self, name_part, new_init):
+    def __resolve_collision(self, conflicts):
         """
-        Update a user's init if modified post roll.
+        Resolve a collision of inits amongst conflicts.
+
+        Args:
+            conflicts: A list of TurnUsers with the same inits.
         """
-        possible = []
-        for user in self.users:
-            if name_part in user.name:
-                possible += [user]
+        _, loser = break_init_tie(*conflicts)
+        loser.init -= COLLIDE_INCREMENT
 
-        if len(possible) != 1:
-            raise dice.exc.InvalidCommandArgs("Unable to match exactly 1 user.")
-
-        try:
-            possible[0].init = int(new_init)
-            self.users = list(reversed(sorted(self.users)))
-        except ValueError:
-            raise dice.exc.InvalidCommandArgs("Unable to update init, provide valid integer.")
+        conflicts = duplicate_users(self.users)
+        while conflicts:
+            self.__resolve_collision(conflicts)
+            conflicts = duplicate_users(self.users)
