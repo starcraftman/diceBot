@@ -15,16 +15,16 @@ COLLIDE_INCREMENT = 0.01
 def break_init_tie(user1, user2):
     """
     Resolve a tie of two player inits according to Pathfinder rules.
-    - Highest offset if they differ goes first.
-    - If same offset, keep rolling until different.
+    - Highest modifier if they differ goes first.
+    - If same modifier, keep rolling until different.
 
     Returns:
         (winner, loser) - Ordered tuple, winner takes old init. Loser moves back.
     """
-    if user1.offset > user2.offset:
+    if user1.modifier > user2.modifier:
         winner, loser = user1, user2
 
-    elif user1.offset < user2.offset:
+    elif user1.modifier < user2.modifier:
         winner, loser = user2, user1
 
     else:
@@ -85,7 +85,7 @@ def duplicate_users(users):
 def parse_turn_users(parts):
     """
     Parse users based on possible specification.
-    Expected parts: [username/offset, username/offset/premade_roll, ...]
+    Expected parts: [username/modifier, username/modifier/premade_roll, ...]
 
     Raises:
         InvalidCommandArgs - Improper parts input.
@@ -100,13 +100,13 @@ def parse_turn_users(parts):
             subparts = parts[0].split('/')
 
             if len(subparts) == 3:
-                name, offset, roll = subparts[0].strip(), int(subparts[1]), int(subparts[2])
+                name, modifier, roll = subparts[0].strip(), int(subparts[1]), int(subparts[2])
             elif len(subparts) == 2:
-                name, offset = subparts[0].strip(), int(subparts[1])
+                name, modifier = subparts[0].strip(), int(subparts[1])
             else:
                 raise dice.exc.InvalidCommandArgs("Improperly formatted turn, missing information.")
 
-            users += [dice.turn.TurnUser(name, offset, roll)]
+            users += [dice.turn.TurnUser(name, modifier, roll)]
             parts = parts[1:]
     except ValueError:
         raise dice.exc.InvalidCommandArgs("Improperply formatted turn, possible value error.")
@@ -165,9 +165,9 @@ class TurnUser(object):
     A user in a TurnOrder.
     Has a unique name and an initiative roll.
     """
-    def __init__(self, name, offset, init=None, effects=None):
+    def __init__(self, name, modifier, init=None, effects=None):
         self.name = name
-        self.offset = offset
+        self.modifier = modifier
         self.init = init
         self.effects = []
 
@@ -181,26 +181,26 @@ class TurnUser(object):
         if self.effects:
             pad = '\n' + ' ' * 8
             effects = pad + pad.join(str(x) for x in self.effects)
-        return '{} ({}): {:.2f}{}'.format(self.name, self.offset, self.init, effects)
+        return '{} ({}): {:.2f}{}'.format(self.name, self.modifier, self.init, effects)
 
     def __repr__(self):
-        return 'TurnUser(name={!r}, offset={!r}, init={!r}, effects={!r})'.format(
-            self.name, self.offset, self.init, self.effects)
+        return 'TurnUser(name={!r}, modifier={!r}, init={!r}, effects={!r})'.format(
+            self.name, self.modifier, self.init, self.effects)
 
     def __eq__(self, other):
-        return (self.name, self.offset, self.init) == (other.name, other.offset, other.init)
+        return (self.name, self.modifier, self.init) == (other.name, other.modifier, other.init)
 
     def __ne__(self, other):
-        return (self.name, self.offset, self.init) != (other.name, other.offset, other.init)
+        return (self.name, self.modifier, self.init) != (other.name, other.modifier, other.init)
 
     def __lt__(self, other):
         return self.init < other.init
 
     def roll_init(self):
         """
-        A person rolls d20 + init offset.
+        A person rolls d20 + init modifier.
         """
-        self.init = rand.randint(1, 21) + self.offset
+        self.init = rand.randint(1, 21) + self.modifier
 
         return self.init
 
@@ -274,9 +274,9 @@ class TurnOrder(object):
             name = user.name
             if self.cur_user and user == self.cur_user:
                 name = '> {} <'.format(user.name)
-            offset = '{}{}'.format('+' if user.offset >= 0 else '', user.offset)
+            modifier = '{}{}'.format('+' if user.modifier >= 0 else '', user.modifier)
             init = '{:0.2f}'.format(user.init)
-            rows += [[name, offset, init]]
+            rows += [[name, modifier, init]]
 
         msg += dice.tbl.wrap_markdown(dice.tbl.format_table(rows, header=True))
 

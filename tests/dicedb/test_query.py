@@ -143,9 +143,9 @@ def test_update_turn_char(session, f_turnchars):
     turn_char = f_turnchars[0]
 
     dicedb.query.update_turn_char(session, turn_char.user_key, 'turn',
-                                  name='NotWizard', init=-1)
+                                  name='NotWizard', modifier=-1)
     up_char = dicedb.query.get_turn_char(session, turn_char.user_key, 'turn')
-    assert up_char.init == -1
+    assert up_char.modifier == -1
     assert up_char.name == 'NotWizard'
 
 

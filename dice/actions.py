@@ -876,13 +876,13 @@ class Turn(Action):
         dicedb.query.remove_turn_order(session, self.chan_id)
         return 'Turn order cleared.'
 
-    def init(self, session, _):
+    def mod(self, session, _):
         """
-        Update a user's permanent starting init.
+        Update a user's initiative modifier.
         """
         dicedb.query.update_turn_char(session, str(self.msg.author.id),
-                                      self.chan_id, init=self.args.init)
-        return 'Updated **init** for {} to: {}'.format(self.msg.author.name, self.args.init)
+                                      self.chan_id, modifier=self.args.mod)
+        return 'Updated **modifier** for {} to: {}'.format(self.msg.author.name, self.args.mod)
 
     def name(self, session, _):
         """
@@ -930,13 +930,14 @@ class Turn(Action):
         Remove one or more users from turn order.
         """
         users = ' '.join(self.args.remove).split(',')
+        removed = []
         for user in users:
-            order.remove(user)
+            removed += [order.remove(user)]
 
         dicedb.query.update_turn_order(session, self.chan_id, order)
 
         msg = 'Removed the following users:\n'
-        return msg + '\n  - ' + '\n  - '.join(users)
+        return msg + '\n  - ' + '\n  - '.join([x.name for x in removed])
 
     def unset(self, session, _):
         """
@@ -956,8 +957,8 @@ class Turn(Action):
         for spec in ' '.join(self.args.update).split(','):
             try:
                 part_name, new_init = spec.split('/')
-                order.update_user(part_name.strip(), new_init.strip())
-                msg += '    Set __{}__ to {}\n'.format(part_name, new_init)
+                changed = order.update_user(part_name.strip(), new_init.strip())
+                msg += '    Set __{}__ to {}\n'.format(changed.name, changed.init)
             except ValueError:
                 raise dice.exc.InvalidCommandArgs("See usage, incorrect arguments.")
 

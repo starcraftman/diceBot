@@ -130,16 +130,16 @@ class TurnChar(Base):
                            primary_key=True)
     turn_key = sqla.Column(sqla.String(LEN_TURN_KEY), primary_key=True)
     name = sqla.Column(sqla.String(100))
-    init = sqla.Column(sqla.Integer)
+    modifier = sqla.Column(sqla.Integer)
 
     def __repr__(self):
-        keys = ['user_key', 'turn_key', 'name', 'init']
+        keys = ['user_key', 'turn_key', 'name', 'modifier']
         kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
 
         return "TurnChar({})".format(', '.join(kwargs))
 
     def __str__(self):
-        return '{}/{}'.format(self.name, self.init)
+        return '{}/{}'.format(self.name, self.modifier)
 
     def __eq__(self, other):
         return isinstance(other, TurnChar) and (self.user_key, self.turn_key) == (other.user_key, other.turn_key)

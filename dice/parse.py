@@ -269,8 +269,8 @@ def subs_turn(subs, prefix):
 
 {prefix}turn
         Show the complete current turn order.
-{prefix}turn --add a_name, init_offset/optional_roll, second_name, init_offset, ...
-{prefix}turn -a a_name, init_offset/optional_roll, second_name, init_offset, ...
+{prefix}turn --add a_name/init_modifier/optional_roll, second_name/init_modifier, ...
+{prefix}turn -a a_name/init_modifier/optional_roll, second_name/init_modifier, ...
         Add a user to the existing turn order.
 {prefix}turn --clear
 {prefix}turn -c
@@ -283,8 +283,8 @@ def subs_turn(subs, prefix):
         Remove a user from the turn order.
 {prefix}turn --name A name
         Set your character name for turn order.
-{prefix}turn --init -5
-        Set your character init for turn order.
+{prefix}turn --mod -5
+        Set your character init modifier for turn order.
 {prefix}turn --unset
         Remove your character from the default turn order for this channel.
 {prefix}turn --update Chris/1, Noggles/22, ...
@@ -294,7 +294,7 @@ def subs_turn(subs, prefix):
     sub.set_defaults(cmd='Turn')
     sub.add_argument('-a', '--add', nargs='+', help='Add a user to the turn order.')
     sub.add_argument('-c', '--clear', action='store_true', help='Clear the turn order.')
-    sub.add_argument('--init', type=int, help='Set turn order init.')
+    sub.add_argument('--mod', type=int, help='Set turn order init.')
     sub.add_argument('--name', nargs='+', help='Set turn order name.')
     sub.add_argument('-n', '--next', nargs='?', default='zero', help='Advance n chars in order.')
     sub.add_argument('--unset', action='store_true', help='Remove yourself from default turn order.')

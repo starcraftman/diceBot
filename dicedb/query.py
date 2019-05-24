@@ -209,9 +209,9 @@ def generate_inital_turn_users(session, turn_key):
     Find all potential turn order users for that turn_key.
     """
     chars = session.query(TurnChar).filter(TurnChar.turn_key == turn_key,
-                                           TurnChar.init is not None,
+                                           TurnChar.modifier is not None,
                                            TurnChar.name is not None).all()
-    return ['{}/{}'.format(char.name, char.init) for char in chars]
+    return ['{}/{}'.format(char.name, char.modifier) for char in chars]
 
 
 def get_turn_char(session, user_key, turn_key):
@@ -225,7 +225,7 @@ def get_turn_char(session, user_key, turn_key):
         return None
 
 
-def update_turn_char(session, user_key, turn_key, *, name=None, init=None):
+def update_turn_char(session, user_key, turn_key, *, name=None, modifier=None):
     """
     Given user and turn ids, set a character and/or init value.
     """
@@ -234,11 +234,11 @@ def update_turn_char(session, user_key, turn_key, *, name=None, init=None):
                                               TurnChar.turn_key == turn_key).one()
         if name:
             char.name = name
-        if init:
-            char.init = init
+        if modifier:
+            char.modifier = modifier
 
     except sqla_oexc.NoResultFound:
-        char = TurnChar(user_key=user_key, turn_key=turn_key, name=name, init=init)
+        char = TurnChar(user_key=user_key, turn_key=turn_key, name=name, modifier=modifier)
 
     session.add(char)
     session.commit()

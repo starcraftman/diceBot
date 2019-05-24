@@ -567,13 +567,13 @@ async def test_cmd_turn_remove_not_exists(f_bot, db_cleanup):
 
 
 @pytest.mark.asyncio
-async def test_cmd_turn_set_init(session, f_bot, f_dusers, f_turnchars):
+async def test_cmd_turn_set_mod(session, f_bot, f_dusers, f_turnchars):
     try:
-        msg = fixed_id_fake_msg("!turn --init 8")
+        msg = fixed_id_fake_msg("!turn --mod 8")
 
         await action_map(msg, f_bot).execute()
         turn_key = '{}_{}'.format(msg.guild.id, msg.channel.id)
-        assert dicedb.query.get_turn_char(session, msg.author.id, turn_key).init == 8
+        assert dicedb.query.get_turn_char(session, msg.author.id, turn_key).modifier == 8
     finally:
         await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 

@@ -8,7 +8,7 @@ import dice.turn
 from dice.turn import TurnUser, TurnOrder
 
 
-def test_break_init_tie_offset_differ():
+def test_break_init_tie_modifier_differ():
     user = TurnUser('Chris', 7)
     user.init = 27
     user2 = TurnUser('Orc', 2)
@@ -18,14 +18,14 @@ def test_break_init_tie_offset_differ():
     assert dice.turn.break_init_tie(user2, user) == (user, user2)
 
 
-def test_break_init_tie_offset_same():
+def test_break_init_tie_modifier_same():
     user = TurnUser('Chris', 2)
     user.init = 27
     user2 = TurnUser('Orc', 2)
     user2.init = 27
 
     winner, loser = dice.turn.break_init_tie(user, user2)
-    assert winner.offset == loser.offset
+    assert winner.modifier == loser.modifier
     assert winner.init > loser.init
 
 
@@ -63,7 +63,7 @@ def test_parse_turn_users():
     users = dice.turn.parse_turn_users(tokens)
 
     assert users[0].name == 'Chris'
-    assert users[0].offset == 7
+    assert users[0].modifier == 7
     assert dice.turn.TurnUser('Noggles', 3, 20) == users[1]
 
 
@@ -94,10 +94,10 @@ def test_tuser_roll_init():
 def test_tuser__repr__():
     user = TurnUser('Chris', 7)
     user.init = 27
-    assert repr(user) == "TurnUser(name='Chris', offset=7, init=27, effects=[])"
+    assert repr(user) == "TurnUser(name='Chris', modifier=7, init=27, effects=[])"
 
     user.add_effect('Poison', 3)
-    assert repr(user) == "TurnUser(name='Chris', offset=7, init=27, effects=[TurnEffect(text='Poison', turns=3)])"
+    assert repr(user) == "TurnUser(name='Chris', modifier=7, init=27, effects=[TurnEffect(text='Poison', turns=3)])"
 
 
 def test_tuser__str__():
@@ -214,8 +214,8 @@ def test_torder__repr__():
     user2.init = 10
     order.users = list(reversed(sorted([user, user2])))
 
-    expect = "TurnOrder(users=[TurnUser(name='Chris', offset=7, init=27, effects=[]), "\
-             "TurnUser(name='Orc', offset=2, init=10, effects=[])], "\
+    expect = "TurnOrder(users=[TurnUser(name='Chris', modifier=7, init=27, effects=[]), "\
+             "TurnUser(name='Orc', modifier=2, init=10, effects=[])], "\
              "user_index=0)"
     assert repr(order) == expect
 

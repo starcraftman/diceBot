@@ -416,9 +416,9 @@ def f_turnchars(session, f_dusers):
     Fixture to insert some test Puns.
     """
     chars = (
-        TurnChar(user_key='1', turn_key='turn', name='Wizard', init=7),
-        TurnChar(user_key='2', turn_key='turn', name='Fighter', init=2),
-        TurnChar(user_key='3', turn_key='turn', name='Rogue', init=3),
+        TurnChar(user_key='1', turn_key='turn', name='Wizard', modifier=7),
+        TurnChar(user_key='2', turn_key='turn', name='Fighter', modifier=2),
+        TurnChar(user_key='3', turn_key='turn', name='Rogue', modifier=3),
     )
     session.add_all(chars)
     session.commit()

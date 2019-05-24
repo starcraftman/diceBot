@@ -74,14 +74,14 @@ def test_pun__lt__(f_puns):
 
 
 def test_turnchar__init__(f_turnchars):
-    char = TurnChar(user_key='1', turn_key='turn', name='Wizard', init=7)
+    char = TurnChar(user_key='1', turn_key='turn', name='Wizard', modifier=7)
     assert isinstance(char, TurnChar)
     assert char.name == 'Wizard'
 
 
 def test_turnchar__repr__(f_turnchars):
     char = f_turnchars[0]
-    assert repr(char) == "TurnChar(user_key='1', turn_key='turn', name='Wizard', init=7)"
+    assert repr(char) == "TurnChar(user_key='1', turn_key='turn', name='Wizard', modifier=7)"
 
 
 def test_turnchar__str__(f_turnchars):
@@ -90,9 +90,9 @@ def test_turnchar__str__(f_turnchars):
 
 
 def test_turnchar__eq__(f_turnchars):
-    char = TurnChar(user_key='1', turn_key='turn', name='Wizard', init=7)
-    assert not char == TurnChar(user_key='2', turn_key='turn', name='Wizard', init=7)
-    assert char == TurnChar(user_key='1', turn_key='turn', name='Guy', init=1)
+    char = TurnChar(user_key='1', turn_key='turn', name='Wizard', modifier=7)
+    assert not char == TurnChar(user_key='2', turn_key='turn', name='Wizard', modifier=7)
+    assert char == TurnChar(user_key='1', turn_key='turn', name='Guy', modifier=1)
 
 
 def test_turnorder__init__(f_turnorders):
