@@ -5,7 +5,7 @@ import pytest
 
 import dice.exc
 import dice.turn
-from dice.turn import TurnUser, TurnOrder
+from dice.turn import TurnUser, TurnOrder, TurnEffect
 
 
 def test_break_init_tie_modifier_differ():
@@ -29,21 +29,21 @@ def test_break_init_tie_modifier_same():
     assert winner.init > loser.init
 
 
-def test_loose_match_users():
+def test_find_user_by_name():
     users = [TurnUser("Chris", 7), TurnUser("Chris' Pet", 2),
              TurnUser("Orc", 7), TurnUser("Orc2", 2)]
-    dice.turn.loose_match_users(users, "Orc2")
+    dice.turn.find_user_by_name(users, "Orc2")
 
 
-def test_loose_match_users_raises():
+def test_find_user_by_name_raises():
     users = [TurnUser("Chris", 7), TurnUser("Chris' Pet", 2),
              TurnUser("Orc", 7), TurnUser("Orc2", 2)]
 
     with pytest.raises(dice.exc.InvalidCommandArgs):
-        dice.turn.loose_match_users(users, "Chris")
+        dice.turn.find_user_by_name(users, "Chris")
 
     with pytest.raises(dice.exc.InvalidCommandArgs):
-        dice.turn.loose_match_users(users, "Dwarf")
+        dice.turn.find_user_by_name(users, "Dwarf")
 
 
 def test_duplicate_users():
@@ -53,9 +53,9 @@ def test_duplicate_users():
     user2.init = 10
     users = [user, user2]
 
-    assert not dice.turn.duplicate_users(users)
+    assert not dice.turn.users_same_init(users)
     user2.init = 27
-    assert dice.turn.duplicate_users(users)
+    assert dice.turn.users_same_init(users)
 
 
 def test_parse_turn_users():
@@ -177,10 +177,12 @@ def test_tuser_decrement_effects():
     user = TurnUser('Chris', 7, 27)
     user.add_effect('Poison', 1)
     user.add_effect('Rufus', 2)
-    assert str(user.effects) == "[TurnEffect(text='Poison', turns=1), TurnEffect(text='Rufus', turns=2)]"
 
-    assert user.decrement_effects() == ['Poison']
-    assert str(user.effects) == "[TurnEffect(text='Rufus', turns=1)]"
+    expect = [TurnEffect(text='Poison', turns=1), TurnEffect(text='Rufus', turns=2)]
+    assert user.effects == expect
+
+    assert user.decrement_effects() == expect[:1]
+    assert user.effects == [TurnEffect(text='Rufus', turns=1)]
 
 
 def test_torder_create():
@@ -437,16 +439,47 @@ def test_turn_effect__hash__():
     assert hash(effect) == hash(effect.text)
 
 
-def test_turn_effect_decrement():
+def test_turn_effect__add__():
     effect = dice.turn.TurnEffect('poison', 3)
-    effect.decrement()
+    n_effect = effect + 1
+
+    assert effect.turns == n_effect.turns - 1
+    assert n_effect.turns == 4
+
+
+def test_turn_effect__sub__():
+    effect = dice.turn.TurnEffect('poison', 3)
+    n_effect = effect - 1
+
+    assert effect.turns == n_effect.turns + 1
+    assert n_effect.turns == 2
+
+
+def test_turn_effect__radd__():
+    effect = dice.turn.TurnEffect('poison', 3)
+    n_effect = 1 + effect
+
+    assert effect.turns == n_effect.turns - 1
+    assert n_effect.turns == 4
+
+
+def test_turn_effect__iadd__():
+    effect = dice.turn.TurnEffect('poison', 3)
+    effect += 1
+
+    assert effect.turns == 4
+
+
+def test_turn_effect__isub__():
+    effect = dice.turn.TurnEffect('poison', 3)
+    effect -= 1
 
     assert effect.turns == 2
 
 
 def test_turn_effect_is_expired():
     effect = dice.turn.TurnEffect('poison', 1)
-    assert not effect.is_expired
+    assert not effect.is_expired()
 
-    effect.decrement()
-    assert effect.is_expired
+    effect -= 1
+    assert effect.is_expired()

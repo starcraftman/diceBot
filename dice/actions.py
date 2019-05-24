@@ -903,7 +903,7 @@ class Turn(Action):
             if effects:
                 msg += 'The following effects expired for **{}**:\n'.format(order.cur_user.name)
                 pad = '\n' + ' ' * 8
-                msg += pad + pad.join(effects) + '\n\n'
+                msg += pad + pad.join([x.text for x in effects]) + '\n\n'
 
         msg += '**Next User**\n' + str(order.next())
 
