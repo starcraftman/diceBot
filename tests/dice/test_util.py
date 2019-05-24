@@ -52,30 +52,6 @@ def test_rel_to_abs():
     assert dice.util.rel_to_abs('data', 'log.yml') == expect
 
 
-def test_substr_ind():
-    assert dice.util.substr_ind('ale', 'alex') == [0, 3]
-    assert dice.util.substr_ind('ALEX', 'Alexander') == [0, 4]
-    assert dice.util.substr_ind('nde', 'Alexander') == [5, 8]
-
-    assert not dice.util.substr_ind('ALe', 'Alexander', ignore_case=False)
-    assert not dice.util.substr_ind('not', 'alex')
-    assert not dice.util.substr_ind('longneedle', 'alex')
-
-    assert dice.util.substr_ind('16 cyg', '16 c y  gni') == [0, 9]
-
-
-def test_substr_match():
-    assert dice.util.substr_match('ale', 'alex')
-    assert dice.util.substr_match('ALEX', 'Alexander')
-    assert dice.util.substr_match('nde', 'Alexander')
-
-    assert not dice.util.substr_match('ALe', 'Alexander', ignore_case=False)
-    assert not dice.util.substr_match('not', 'alex')
-    assert not dice.util.substr_match('longneedle', 'alex')
-
-    assert dice.util.substr_ind('16 cyg', '16 c y  gni') == [0, 9]
-
-
 def test_complete_block():
     test1 = ["```Test```"]
     assert dice.util.complete_blocks(test1) == test1
@@ -102,21 +78,6 @@ Sitting in bed is fun."""
         "This talks about how the podcasts are cool and fun.\nSitting in bed is fun.",
     ]
     assert dice.util.msg_splitter(text, 100) == expect
-
-
-def test_emphasize_match():
-    result = dice.util.emphasize_match('match', 'A line that should match somewhere')
-
-    assert result == 'A line that should __match__ somewhere'
-
-
-def test_emphasize_match_one():
-    result = dice.util.emphasize_match_one('7', '7, 5, 2, 7')
-    assert result == '__7__, 5, 2, 7'
-    result = dice.util.emphasize_match_one('7', result)
-    assert result == '__7__, 5, 2, __7__'
-    result = dice.util.emphasize_match_one('2', result)
-    assert result == '__7__, 5, __2__, __7__'
 
 
 def test_generate_seed():

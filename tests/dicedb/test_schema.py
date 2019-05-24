@@ -91,7 +91,7 @@ def test_turnchar__str__(f_turnchars):
 
 def test_turnchar__eq__(f_turnchars):
     char = TurnChar(user_key='1', turn_key='turn', name='Wizard', modifier=7)
-    assert not char == TurnChar(user_key='2', turn_key='turn', name='Wizard', modifier=7)
+    assert char != TurnChar(user_key='2', turn_key='turn', name='Wizard', modifier=7)
     assert char == TurnChar(user_key='1', turn_key='turn', name='Guy', modifier=1)
 
 

@@ -21,6 +21,7 @@ import os
 import pprint
 import re
 import signal
+import sys
 
 import discord
 import websockets.exceptions
@@ -42,7 +43,7 @@ import dice.music
 LIVE_TASKS = []
 
 
-class EmojiResolver(object):
+class EmojiResolver():
     """
     Map emoji embeds onto the text required to make them appear.
     """
@@ -151,9 +152,9 @@ class DiceBot(discord.Client):
         self.emoji.update(self.guilds)
 
         # This block is effectively a one time setup.
-        global LIVE_TASKS
-        if not LIVE_TASKS:
-            LIVE_TASKS = [
+        mod = sys.modules[__name__]
+        if not mod.LIVE_TASKS:
+            mod.LIVE_TASKS += [
                 asyncio.ensure_future(presence_task(self)),
                 asyncio.ensure_future(dice.music.gplayer_monitor(dice.actions.PLAYERS, {})),
             ]

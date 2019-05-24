@@ -58,7 +58,7 @@ LIMIT_TAGS = 20
 PLAYERS = {}
 
 
-class Action(object):
+class Action():
     """
     Top level action, contains shared logic.
     """
@@ -397,6 +397,12 @@ class Songs(Action):
             await self.bot.send_message(self.msg.channel, "Management terminated.")
 
     async def select_song(self, tagged_songs):
+        """
+        Select a Song from a list of tagged_songs.
+
+        Args:
+            tagged_songs: A list of Songs to choose from.
+        """
         while tagged_songs:
             try:
                 page_songs = tagged_songs[:LIMIT_SONGS]
@@ -783,6 +789,12 @@ class Timers(Action):
     Show a users own timers.
     """
     def timer_summary(self):
+        """
+        Provide a summary of a users personal timers that are active.
+
+        Returns:
+            A formatted string summarizing active timers.
+        """
         msg = "The timers for {}:\n".format(self.msg.author.name)
         cnt = 1
 
@@ -1003,7 +1015,8 @@ class Effect(Action):
     """
     Manage effects for users in the turn order.
     """
-    def add(self, chars, new_effects):
+    @staticmethod
+    def add(chars, new_effects):
         """
         Add recurring effects to characters in the turn order.
 
@@ -1022,7 +1035,8 @@ class Effect(Action):
 
         return msg
 
-    def remove(self, chars, new_effects):
+    @staticmethod
+    def remove(chars, new_effects):
         """
         Remove recurring effects from characters in turn order.
 
@@ -1038,7 +1052,8 @@ class Effect(Action):
 
         return msg
 
-    def update(self, chars, new_effects):
+    @staticmethod
+    def update(chars, new_effects):
         """
         Update recurring effects on characters in turn order.
 
@@ -1077,7 +1092,7 @@ class Effect(Action):
             effects_args = getattr(self.args, name)
             if effects_args:
                 new_effects = [x.strip().split('/') for x in (' '.join(effects_args)).split(',')]
-                msg = getattr(self, name)(chars, new_effects)
+                msg = getattr(self.__class__, name)(chars, new_effects)
                 break
 
         if targets and not effects_args:

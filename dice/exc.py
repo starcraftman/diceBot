@@ -1,9 +1,10 @@
 """
 Common exceptions.
 """
+# TODO: Has become messy, cleanup hierarchy and flow.
 from __future__ import absolute_import, print_function
 
-import dice.util
+import dice.matcher
 
 
 class DiceException(Exception):
@@ -77,7 +78,7 @@ class MoreThanOneMatch(UserException):
         header = "Resubmit query with more specific criteria."
         header += "\nToo many matches for '{}' in {}s:".format(
             self.sequence, cls)
-        matched_strings = [dice.util.emphasize_match(self.sequence, getattr(obj, self.obj_attr, obj))
+        matched_strings = [dice.matcher.emphasize_match(self.sequence, getattr(obj, self.obj_attr, obj))
                            for obj in self.matches]
         matched = "\n    - " + "\n    - ".join(matched_strings)
         return header + matched
@@ -110,6 +111,7 @@ class InternalException(DiceException):
         super().__init__(msg, lvl)
 
 
+# TODO: Should just use FileNotFoundError
 class MissingConfigFile(InternalException):
     """ Thrown if a config isn't set properly.  """
 

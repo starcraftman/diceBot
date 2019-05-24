@@ -44,7 +44,7 @@ def test_fixed_add():
 def test_fixed_add_raise():
     die = dice.roll.FixedRoll('4')
     with pytest.raises(TypeError):
-        die + 4
+        assert die + 4
 
 
 def test_fixed_sub():
@@ -56,7 +56,7 @@ def test_fixed_sub():
 def test_fixed_sub_raise():
     die = dice.roll.FixedRoll('4')
     with pytest.raises(TypeError):
-        die - 4
+        assert die - 4
 
 
 def test_dice__init__():

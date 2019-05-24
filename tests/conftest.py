@@ -65,7 +65,7 @@ def event_loop():
 
 
 # Fake objects look like discord data classes
-class FakeObject(object):
+class FakeObject():
     """
     A fake class to impersonate Data Classes from discord.py
     """
@@ -309,11 +309,11 @@ def f_mplayer_db():
 
 @pytest.fixture
 def session():
-    session = dicedb.Session()
+    sess = dicedb.Session()
 
-    yield dicedb.Session()
+    yield sess
 
-    session.close()
+    sess.close()
 
 
 @pytest.fixture
@@ -464,7 +464,7 @@ def f_songs(session):
     session.add_all(songs + tags)
     session.commit()
 
-    yield (songs)
+    yield songs
 
     for matched in session.query(Song):
         session.delete(matched)

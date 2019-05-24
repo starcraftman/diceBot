@@ -245,7 +245,7 @@ class DiceRollKeepLow(DiceRollKeepHigh):
         return functools.reduce(lambda x, y: x + y, vals)
 
 
-class Throw(object):
+class Throw():
     """
     A container to throw a collection of dice and format the response to users.
 

@@ -36,4 +36,4 @@ def test_make_parser():
     """
     parser = dice.parse.make_parser('!')
     args = parser.parse_args('!m 1 + 1'.split())
-    args.cmd == 'Math'
+    assert args.cmd == 'Math'

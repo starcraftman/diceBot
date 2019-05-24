@@ -226,7 +226,7 @@ async def prefetch_vids(vids):
 
 
 # Implemented in self.__client, stop, pause, resume, disconnect(async), move_to(async)
-class GuildPlayer(object):
+class GuildPlayer():
     """
     A player that wraps a discord.VoiceClient, extending the functionality to
     encompass a standard player with a builtin music queue and standard features.

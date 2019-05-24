@@ -143,7 +143,7 @@ def parse_order(order_str):
 
 
 @total_ordering
-class TurnEffect(object):
+class TurnEffect():
     """
     An effect that expires after a number of turns or combat.
 
@@ -195,7 +195,7 @@ class TurnEffect(object):
 
 
 @total_ordering
-class TurnUser(object):
+class TurnUser():
     """
     A user in a TurnOrder.
     Has a unique name and an initiative roll.
@@ -307,7 +307,7 @@ class TurnUser(object):
         return finished
 
 
-class TurnOrder(object):
+class TurnOrder():
     """
     Model the turn order for combat in Pathfinder.
     A turn order is composed of TurnUser objects.
