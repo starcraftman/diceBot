@@ -4,6 +4,7 @@ hierarchy of actions that can be recombined in any order.
 All actions have async execute methods.
 """
 from __future__ import absolute_import, print_function
+import abc
 import asyncio
 import concurrent.futures
 import datetime
@@ -284,7 +285,215 @@ class Play(Action):
             self.session.commit()
 
 
-# TODO: Deduplicate code in 'management interface', make reusable.
+class PagingMenu(abc.ABC):
+    """
+    Implement a reusable menuing interface.
+
+    Attributes:
+        act: The action that was invoked for the user.
+        msgs: Collection of any messages sent to user, will be deleted as needed.
+        entries: The list of things to choose from.
+        limit: The limit of choices to give to user.
+        page: The page we are on.
+    """
+    def __init__(self, act, entries):
+        self.act = act
+        self.msgs = []
+        self.entries = entries
+        self.limit = LIMIT_SONGS
+        self.page = 1
+
+    @property
+    def msg(self):
+        """ The original discord.Message received from user. """
+        return self.act.msg
+
+    @property
+    def num_entries(self):
+        """ Num entries remaining between [0, limit] """
+        return len(self.entries[:self.limit])
+
+    async def send(self, msg):
+        """
+        Send a message to the user who requested the paging menu.
+
+        Args:
+            msg: The message to send the user.
+
+        Returns:
+            The discord.Message that was sent.
+        """
+        return await self.act.msg.channel.send(msg)
+
+    @abc.abstractmethod
+    async def send_menu(self):
+        """
+        Send the management menu to user providing choices.
+        Response will be awaited and passed to handle_msg automatically.
+        """
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def handle_msg(self, user_select):
+        """
+        Handle a user's response.
+
+        Args:
+            user_select: The response discord.Message from the user.
+
+        Raises:
+            ValueError: Bad user response, try again.
+
+        Returns:
+            True, if and only if you want to stop processing and all went well.
+        """
+        raise NotImplementedError
+
+    async def run_interface(self):
+        """
+        Create a reusable paging interface that allows users to select a choice
+        from a menu and then take an action in response.
+        Subclasses can override parts of the flow to customize beyond default behaviour.
+        """
+        while self.entries:
+            try:
+                await self.send_menu()
+
+                user_select = await self.act.bot.wait_for(
+                    'message', check=functools.partial(check_messages, self.msg), timeout=30)
+
+                if user_select:
+                    self.msgs += [user_select]
+                    user_select.content = user_select.content.lower().strip()
+
+                if not user_select or user_select.content in PAGING_STOP_WORDS:
+                    await self.send('Paging interface terminated. Goodbye human!.')
+                    break
+
+                elif user_select.content == 'next':
+                    self.entries = self.entries[self.limit:]
+                    self.page += 1
+
+                elif await self.handle_msg(user_select):
+                    break
+            except ValueError:
+                await self.send(
+                    'Selection not understood. Make choice in [1, {}]'.format(self.limit)
+                )
+            except dice.exc.InvalidCommandArgs as exc:
+                await self.msg.channel.send(str(exc))
+            finally:
+                user_select = None
+                try:
+                    self.msgs[0].channel.delete_messages(self.msgs)
+                except discord.Forbidden:
+                    self.act.log.error("No permission for message deletion.")
+
+
+class SongList(PagingMenu):
+    """
+    Generate the management interface for listing songs to user.
+    """
+    async def send_menu(self):
+        reply = format_song_list('**__Songs DB__** Page {}\n\n'.format(self.page),
+                                 self.entries[:self.limit], SONG_FOOTER)
+        self.msgs += [await self.send(reply)]
+
+    async def handle_msg(self, user_select):
+        choice = int(user_select.content.replace('play', '')) - 1
+        if choice < 0 or choice >= self.limit:
+            raise ValueError
+        selected = self.entries[choice]
+
+        self.msgs += await self.send('Please wait, downloading as needed before playing.')
+        await get_guild_player(self.act.guild_id, self.msg).replace_and_play([selected])
+        await self.send('**Song Started**\n\n' + format_a_song(1, selected))
+
+        return True
+
+
+class SongRemoval(PagingMenu):
+    """
+    Generate the management interface for listing songs to user.
+    """
+    async def send_menu(self):
+        reply = format_song_list("Remove one of these songs? [1..{}]:\n\n".format(self.num_entries),
+                                 self.entries[:self.limit], SONG_FOOTER)
+        self.msgs += [await self.send(reply)]
+
+    async def handle_msg(self, user_select):
+        choice = int(user_select.content) - 1
+        if choice < 0 or choice >= self.limit:
+            raise ValueError
+
+        dicedb.query.remove_song_with_tags(self.act.session, self.entries[choice].name)
+        del self.entries[choice]
+
+        return False
+
+
+class SelectTag(PagingMenu):
+    """
+    Select a tag to play or fursther select a song from.
+    """
+    def __init__(self, act, entries):
+        super().__init__(act, entries)
+        self.limit = LIMIT_TAGS
+
+    async def send_menu(self):
+        reply = 'Select one of the following tags by number to explore:\n\n'
+        for ind, tag in enumerate(self.entries[:self.limit], start=1):
+            tagged_songs = dicedb.query.get_songs_with_tag(self.act.session, tag)
+            reply += '        **{}**) {} ({} songs)\n'.format(ind, tag, len(tagged_songs))
+        reply = reply.rstrip()
+        reply += SONG_FOOTER.replace('__play ', '__') + "Type __all 1__ to play all songs with tag 1."
+        self.msgs += [await self.send(reply)]
+
+    async def handle_msg(self, user_select):
+        choice = int(user_select.content.replace('play', '').replace('all', '')) - 1
+        if choice < 0 or choice >= self.num_entries:
+            raise ValueError
+
+        songs = dicedb.query.get_songs_with_tag(self.act.session, self.entries[:self.limit][choice])
+        if 'all' in user_select.content:
+            mplayer = get_guild_player(self.act.guild_id, self.msg)
+            self.msgs += await self.msg.channel.send('Please wait, downloading as needed before playing.')
+            await mplayer.replace_and_play(songs)
+            await self.msg.channel(str(mplayer))
+        else:
+            await SelectSong(self.act, songs).run_interface()
+
+        return True
+
+
+class SelectSong(PagingMenu):
+    """
+    Select a song from a list of tags provided.
+    """
+    async def send_menu(self):
+        song_msg = format_song_list('Choose from the following songs...\n\n',
+                                    self.entries[:self.limit], SONG_FOOTER)
+        song_msg += 'Type __back__ to return to tags.'
+        self.msgs = [await self.msg.channel.send(song_msg)]
+
+    async def handle_msg(self, user_select):
+        if user_select.content == 'back':
+            entries = dicedb.query.get_tag_choices(self.act.session)
+            await SelectTag(self, entries).run_interface()
+            return True
+
+        choice = int(user_select.content.replace('play ', '')) - 1
+        if choice < 0 or choice >= self.num_entries:
+            raise ValueError
+        selected = self.entries[choice]
+
+        self.msgs += [await self.msg.channel.send('Please wait, downloading as needed before playing.')]
+        await get_guild_player(self.act.guild_id, self.msg).replace_and_play([selected])
+        await self.msg.channel.send('**Song Started**\n\n' + format_a_song(1, selected))
+
+        return True
+
+
 # TODO: Need tests here
 class Songs(Action):
     """
@@ -306,205 +515,22 @@ class Songs(Action):
         """
         List all entries in the song db. Implements a paging like interface.
         """
-        page = 1
         entries = dicedb.query.get_song_choices(self.session)
-
-        while entries:
-            try:
-                reply = format_song_list('**__Songs DB__** Page {}\n\n'.format(page),
-                                         entries[:LIMIT_SONGS], SONG_FOOTER)
-                messages = [await self.bot.send_message(self.msg.channel, reply)]
-
-                user_select = await self.bot.wait_for(
-                    'message', check=functools.partial(check_messages, self.msg), timeout=30)
-
-                if user_select:
-                    messages += [user_select]
-                    user_select.content = user_select.content.lower().strip()
-
-                if not user_select or user_select.content in PAGING_STOP_WORDS:
-                    await self.bot.send_message(self.msg.channel, 'List terminated.')
-                    break
-
-                elif user_select.content == 'next':
-                    entries = entries[LIMIT_SONGS:]
-                    page += 1
-
-                else:
-                    choice = int(user_select.content.replace('play', '')) - 1
-                    if choice < 0 or choice >= LIMIT_SONGS:
-                        raise ValueError
-                    selected = entries[choice]
-
-                    msg = await self.bot.send_message(self.msg.channel, 'Please wait, downloading as needed before playing.')
-                    await get_guild_player(self.guild_id, self.msg).replace_and_play([selected])
-                    await asyncio.gather(msg.delete(),
-                                         self.bot.send_message(self.msg.channel, '**Song Started**\n\n' + format_a_song(1, selected)))
-                    break
-            except ValueError:
-                await self.bot.send_message(
-                    self.msg.channel,
-                    'Selection not understood. Make choice in [1, {}]'.format(LIMIT_SONGS)
-                )
-            finally:
-                user_select = None
-                asyncio.ensure_future(messages[0].channel.delete_messages(messages))
+        await SongList(self, entries).run_interface()
 
     async def manage(self):
         """
         Using paging interface similar to list, allow management of song db.
         """
         entries = dicedb.query.get_song_choices(self.session)
-        num_entries = len(entries[:LIMIT_SONGS])
-
-        while entries:
-            try:
-                reply = format_song_list("Remove one of these songs? [1..{}]:\n\n".format(num_entries),
-                                         entries[:LIMIT_SONGS], SONG_FOOTER)
-                messages = [await self.bot.send_message(self.msg.channel, reply)]
-                user_select = await self.bot.wait_for(
-                    'message', check=functools.partial(check_messages, self.msg), timeout=30)
-
-                if user_select:
-                    messages += [user_select]
-                    user_select.content = user_select.content.lower().strip()
-
-                if not user_select or user_select.content in PAGING_STOP_WORDS:
-                    await self.bot.send_message(self.msg.channel, "Management terminated.")
-                    break
-
-                elif user_select.content == 'next':
-                    entries = entries[LIMIT_SONGS:]
-                    num_entries = len(entries[:LIMIT_SONGS])
-
-                else:
-                    choice = int(user_select.content) - 1
-                    if choice < 0 or choice >= LIMIT_SONGS:
-                        raise ValueError
-
-                    dicedb.query.remove_song_with_tags(self.session, entries[choice].name)
-                    del entries[choice]
-            except (KeyError, ValueError):
-                await self.bot.send_message(
-                    self.msg.channel,
-                    'Selection not understood. Make choice in [1, {}]'.format(num_entries)
-                )
-            finally:
-                user_select = None
-                asyncio.ensure_future(messages[0].channel.delete_messages(messages))
-
-        if not entries:
-            await self.bot.send_message(self.msg.channel, "Management terminated.")
-
-    async def select_song(self, tagged_songs):
-        """
-        Select a Song from a list of tagged_songs.
-
-        Args:
-            tagged_songs: A list of Songs to choose from.
-        """
-        while tagged_songs:
-            try:
-                page_songs = tagged_songs[:LIMIT_SONGS]
-                num_entries = len(page_songs)
-                song_msg = format_song_list('Choose from the following songs...\n\n',
-                                            page_songs, SONG_FOOTER)
-                song_msg += 'Type __back__ to return to tags.'
-
-                messages = [await self.bot.send_message(self.msg.channel, song_msg)]
-                user_select = await self.bot.wait_for(
-                    'message', check=functools.partial(check_messages, self.msg), timeout=30)
-
-                if user_select:
-                    messages += [user_select]
-                    user_select.content = user_select.content.lower().strip()
-
-                if not user_select or user_select.content in PAGING_STOP_WORDS:
-                    await self.bot.send_message(self.msg.channel, 'Play db terminated.')
-                    break
-
-                elif user_select.content == 'back':
-                    asyncio.ensure_future(self.select_tag())
-                    break
-
-                elif user_select.content == 'next':
-                    tagged_songs = tagged_songs[LIMIT_SONGS:]
-
-                else:
-                    choice = int(user_select.content.replace('play ', '')) - 1
-                    if choice < 0 or choice >= num_entries:
-                        raise ValueError
-                    selected = page_songs[choice]
-
-                    msg = await self.bot.send_message(self.msg.channel, 'Please wait, downloading as needed before playing.')
-                    await get_guild_player(self.guild_id, self.msg).replace_and_play([selected])
-                    await asyncio.gather(msg.delete(),
-                                         self.bot.send_message(self.msg.channel, '**Song Started**\n\n' + format_a_song(1, selected)))
-                    break
-            except ValueError:
-                await self.bot.send_message(
-                    self.msg.channel,
-                    'Selection not understood. Make choice in [1, {}]'.format(num_entries)
-                )
-            finally:
-                user_select = None
-                asyncio.ensure_future(messages[0].channel.delete_messages(messages))
+        await SongRemoval(self, entries).run_interface()
 
     async def select_tag(self):
         """
         Use the Songs db to lookup dynamically based on tags.
         """
-        all_tags = dicedb.query.get_tag_choices(self.session)
-
-        while all_tags:
-            try:
-                page_tags = all_tags[:LIMIT_TAGS]
-                num_entries = len(page_tags)
-                tag_msg = 'Select one of the following tags by number to explore:\n\n'
-                for ind, tag in enumerate(page_tags, start=1):
-                    tagged_songs = dicedb.query.get_songs_with_tag(self.session, tag)
-                    tag_msg += '        **{}**) {} ({} songs)\n'.format(ind, tag, len(tagged_songs))
-                tag_msg = tag_msg.rstrip()
-                tag_msg += SONG_FOOTER.replace('__play ', '__') + "Type __all 1__ to play all songs with tag 1."
-                messages = [await self.bot.send_message(self.msg.channel, tag_msg)]
-                user_select = await self.bot.wait_for(
-                    'message', check=functools.partial(check_messages, self.msg), timeout=30)
-
-                if user_select:
-                    messages += [user_select]
-                    user_select.content = user_select.content.lower().strip()
-
-                if not user_select or user_select.content in PAGING_STOP_WORDS:
-                    await self.bot.send_message(self.msg.channel, 'Play db terminated.')
-                    break
-
-                elif user_select.content == 'next':
-                    all_tags = all_tags[LIMIT_TAGS:]
-
-                else:
-                    choice = int(user_select.content.replace('play', '').replace('all', '')) - 1
-                    if choice < 0 or choice >= num_entries:
-                        raise ValueError
-
-                    songs = dicedb.query.get_songs_with_tag(self.session, page_tags[choice])
-                    if 'all' in user_select.content:
-                        mplayer = get_guild_player(self.guild_id, self.msg)
-                        msg = await self.bot.send_message(self.msg.channel, 'Please wait, downloading as needed before playing.')
-                        await mplayer.replace_and_play(songs)
-                        await asyncio.gather(msg.delete(), self.bot.send_message(self.msg.channel, str(mplayer)))
-                    else:
-                        await self.select_song(songs)
-                    break
-            except ValueError:
-                await self.bot.send_message(
-                    self.msg.channel,
-                    'Selection not understood. Make choice in [1, {}]'.format(num_entries)
-                )
-            except dice.exc.InvalidCommandArgs as exc:
-                await self.bot.send_message(self.msg.channel, str(exc))
-            finally:
-                user_select = None
-                asyncio.ensure_future(messages[0].channel.delete_messages(messages))
+        entries = dicedb.query.get_tag_choices(self.session)
+        await SelectTag(self, entries).run_interface()
 
     async def search_names(self, term):
         """
@@ -816,6 +842,7 @@ class Timers(Action):
 
         return msg
 
+    # TODO: Using PagingMenu
     async def manage_timers(self):
         """
         Create a simple interactive menu to manage timers.
@@ -1107,6 +1134,7 @@ class Pun(Action):
     """
     Manage puns for users.
     """
+    # TODO: Using PagingMenu
     async def manage(self, session):
         """
         Using paging interface similar to list, allow management of puns in db.
