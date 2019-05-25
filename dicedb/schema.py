@@ -207,6 +207,19 @@ class Song(Base):
     def fname(self):
         return os.path.join(self.folder, self.name + '.opus')
 
+    def format_menu(self, cnt):
+        """ Format a song for presentation in a menu with a number to select. """
+        tags = ', '.join([x.name for x in self.tags])
+        url = ''
+        if self.url:
+            url = "     __<" + self.url + ">__"
+
+        return """     **{cnt}**)  __{name}__
+            URL:{url}
+            Tags: {tags}
+
+""".format(cnt=cnt, name=self.name, url=url, tags=tags)
+
     @property
     def volume(self):
         return float(self.volume_int) / 100
@@ -234,6 +247,7 @@ class Song(Base):
         self.volume_int = other.volume_int
 
 
+@total_ordering
 class SongTag(Base):
     """
     A tag for a song. Each song can have n tags.
@@ -255,6 +269,9 @@ class SongTag(Base):
 
     def __eq__(self, other):
         return isinstance(other, SongTag) and self.id == other.id
+
+    def __lt__(self, other):
+        return self.name < other.name
 
 
 def parse_int(word):
@@ -299,7 +316,7 @@ DUser.rolls = sqla_orm.relationship('SavedRoll',
 SavedRoll.user = sqla_orm.relationship('DUser', uselist=False, back_populates='rolls',
                                        lazy='select')
 
-Song.tags = sqla_orm.relationship('SongTag', back_populates='song', lazy='select')
+Song.tags = sqla_orm.relationship('SongTag', back_populates='song', lazy='select', order_by=SongTag.name)
 SongTag.song = sqla_orm.relationship('Song', back_populates='tags', lazy='select')
 
 

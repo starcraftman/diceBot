@@ -122,6 +122,15 @@ def test_song__init__(f_songs):
     assert isinstance(yt_song, Song)
 
 
+def test_song_format_menu(f_songs):
+    expect = """     **1**)  __crit__
+            URL:     __<https://youtu.be/IrbCrwtDIUA>__
+            Tags: action, exciting
+
+"""
+    assert f_songs[0].format_menu(1) == expect
+
+
 def test_parse_int():
     assert dicedb.schema.parse_int('') == 0
     assert dicedb.schema.parse_int('2') == 2

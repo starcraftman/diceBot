@@ -290,6 +290,14 @@ class DiceBot(discord.Client):
         Extra Kwargs:
             ttl: The time message lives before deletion (default 30s)
         """
+        async def internal_wait(ttl, msg):
+            """ Internally schedule the deletion for later. """
+            try:
+                await asyncio.sleep(ttl)
+                await msg.delete()
+            except (discord.NotFound, discord.Forbidden):
+                logging.getLogger("dice.bot").error("Bot missing manage messages permission. On: " + str(channel.guild))
+
         try:
             ttl = kwargs.pop('ttl')
         except KeyError:
@@ -297,12 +305,7 @@ class DiceBot(discord.Client):
 
         content += '\n\n__This message will be deleted in {} seconds__'.format(ttl)
         message = await channel.send(content, **kwargs)
-
-        await asyncio.sleep(ttl)
-        try:
-            await message.delete()
-        except (discord.NotFound, discord.Forbidden):
-            logging.getLogger("dice.bot").error("Bot missing manage messages permission. On: " + str(channel.guild))
+        asyncio.ensure_future(internal_wait(ttl, message))
 
     async def broadcast(self, content, ttl=False, channels=None, **kwargs):
         """

@@ -733,44 +733,24 @@ def test_parse_time_spec():
     assert dice.actions.parse_time_spec(time_spec) == 3600 + 900 + 30
 
 
-def test_remove_user_timers():
-    parser = dice.parse.make_parser("!")
-    msg = fake_msg_gears("!timer 1:00")
-    args = parser.parse_args(msg.content.split())
-    timer = dice.actions.Timer(args=args, bot=None, msg=msg)
-    timers = {timer.key: timer}
-    dice.actions.remove_user_timers(timers, msg.author.name)
-    assert timers[timer.key].cancel
-
-
-def test_format_a_song(f_songs):
-    expect = """        __Song 1__: crit
-        __URL__: <https://youtu.be/IrbCrwtDIUA>
-        __Tags__: ['exciting', 'action']
-
-"""
-    assert dice.actions.format_a_song(1, f_songs[0]) == expect
-
-
 def test_format_song_list(f_songs):
     header = 'A header\n\n'
     footer = '\n\nA footer'
     expect = """A header
 
-        __Song 1__: crit
-        __URL__: <https://youtu.be/IrbCrwtDIUA>
-        __Tags__: ['exciting', 'action']
+     **1**)  __crit__
+            URL:     __<https://youtu.be/IrbCrwtDIUA>__
+            Tags: action, exciting
 
-        __Song 2__: pop
-        __URL__: <https://youtu.be/7jgnv0xCv-k>
-        __Tags__: ['pop', 'public']
+     **2**)  __pop__
+            URL:     __<https://youtu.be/7jgnv0xCv-k>__
+            Tags: pop, public
 
-        __Song 3__: late
-        __URL__: <None>
-        __Tags__: ['late', 'lotr']
+     **3**)  __late__
+            URL:
+            Tags: late, lotr
 
 A footer"""
-
     assert dice.actions.format_song_list(header, f_songs, footer) == expect
 
 

@@ -37,25 +37,19 @@ TIMERS_MSG = """
 Timer #{} with description: **{}**
     __Started at__: {} UTC
     __Ends at__: {} UTC
-    __Time remaining__: {}
-"""
+    __Time remaining__: {}"""
 PF_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3A6zo0hx_wle8&q={}'
 D5_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3A1xq0zf2wtvq&q={}'
 STAR_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3Awyjvzq2cjz8&q={}'
 PONI_URL = "https://derpibooru.org/search.json?q="
-SONG_FMT = """        __Song {cnt}__: {name}
-        __URL__: <{url}>
-        __Tags__: {tags}
+PAGING_FOOTER = """
 
-"""
-SONG_FOOTER = """
-
-Type __done__ or __exit__ or __stop__ to cancel.
+Type __done__ or __exit__ or __stop__ to cancel menu.
 Type __next__ to display the next page of entries.
-Type __play 1__ to play entry 1 (if applicable).
+Type just **1** to select entry 1).
 """
-LIMIT_SONGS = 10
-LIMIT_TAGS = 20
+LIMIT_SONGS = 8
+LIMIT_TAGS = 16
 PLAYERS = {}
 
 
@@ -298,12 +292,13 @@ class PagingMenu(abc.ABC):
         limit: The limit of choices to give to user per page.
         page: The page we are on.
     """
-    def __init__(self, act, entries):
+    def __init__(self, act, entries, limit=LIMIT_SONGS):
         self.act = act
         self.msgs = []
         self.entries = entries
-        self.limit = LIMIT_SONGS
+        self.limit = limit
         self.page = 1
+        self.total_pages = math.ceil(len(entries) / self.limit)
 
     @property
     def msg(self):
@@ -359,10 +354,13 @@ class PagingMenu(abc.ABC):
                 self.entries = None
             except (KeyError, ValueError):
                 await self.act.bot.send_ttl_message(
-                    'Selection not understood. Make choice in [1, {}]'.format(len(self.cur_entries))
+                    self.msg.channel,
+                    'Selection not understood. Make choice from numbers [1, {}]'.format(len(self.cur_entries))
                 )
+                await asyncio.sleep(3)
             except dice.exc.InvalidCommandArgs as exc:
-                await self.act.bot.send_ttl_message(str(exc))
+                await self.act.bot.send_ttl_message(self.msg.channel, str(exc))
+                await asyncio.sleep(3)
             finally:
                 user_select = None
                 try:
@@ -402,18 +400,22 @@ class SongList(PagingMenu):
     Generate the management interface for listing songs to user.
     """
     def menu(self):
-        return format_song_list('**__Songs DB__** Page {}\n\n'.format(self.page),
-                                self.cur_entries, SONG_FOOTER)
+        header = """**Play Songs**
+Page {}/{}
+Select a song to play by number [1..{}]:
+
+""".format(self.page, self.total_pages, len(self.cur_entries))
+        return format_song_list(header, self.cur_entries, PAGING_FOOTER)
 
     async def handle_msg(self, user_select):
-        choice = int(user_select.content.replace('play', '')) - 1
+        choice = int(user_select.content) - 1
         if choice < 0 or choice >= len(self.cur_entries):
             raise ValueError
         selected = self.entries[choice]
 
         self.msgs += [await self.send('Please wait, downloading as needed before playing.')]
         await get_guild_player(self.act.guild_id, self.msg).replace_and_play([selected])
-        await self.send('**Song Started**\n\n' + format_a_song(1, selected))
+        await self.send('**Song Started**\n\n' + str(selected))
 
         return True
 
@@ -423,8 +425,12 @@ class SongRemoval(PagingMenu):
     Generate the management interface for listing songs to user.
     """
     def menu(self):
-        return format_song_list("Remove one of these songs? [1..{}]:\n\n".format(len(self.cur_entries)),
-                                self.cur_entries, SONG_FOOTER)
+        header = """**Remove Songs**
+Page {}/{}
+Select a song to remove by number [1..{}]:
+
+""".format(self.page, self.total_pages, len(self.cur_entries))
+        return format_song_list(header, self.cur_entries, PAGING_FOOTER)
 
     async def handle_msg(self, user_select):
         choice = int(user_select.content) - 1
@@ -433,6 +439,7 @@ class SongRemoval(PagingMenu):
 
         dicedb.query.remove_song_with_tags(self.act.session, self.entries[choice].name)
         del self.entries[choice]
+        await self.send("**Song Deleted**\n\n    {}".format(self.entries[choice].name))
 
         return False
 
@@ -441,31 +448,31 @@ class SelectTag(PagingMenu):
     """
     Select a tag to play or fursther select a song from.
     """
-    def __init__(self, act, entries):
-        super().__init__(act, entries)
-        self.limit = LIMIT_TAGS
-
     def menu(self):
-        menu = 'Select one of the following tags by number to explore:\n\n'
+        menu = """**Select A Tag**
+Page {}/{}
+Select a tag from blow to play or explore further:
+
+""".format(self.page, self.total_pages, len(self.cur_entries))
         for ind, tag in enumerate(self.cur_entries, start=1):
             tagged_songs = dicedb.query.get_songs_with_tag(self.act.session, tag)
             menu += '        **{}**) {} ({} songs)\n'.format(ind, tag, len(tagged_songs))
-        menu = menu.rstrip()
-        menu += SONG_FOOTER.replace('__play ', '__') + "Type __all 1__ to play all songs with tag 1."
+        menu = menu.rstrip() + PAGING_FOOTER
+        menu += "Type __all 1__ to play all songs with tag 1."
 
         return menu
 
     async def handle_msg(self, user_select):
-        choice = int(user_select.content.replace('play', '').replace('all', '')) - 1
+        choice = int(user_select.content.replace('all', '')) - 1
         if choice < 0 or choice >= len(self.cur_entries):
             raise ValueError
 
         songs = dicedb.query.get_songs_with_tag(self.act.session, self.cur_entries[choice])
         if 'all' in user_select.content:
             mplayer = get_guild_player(self.act.guild_id, self.msg)
-            self.msgs += await self.msg.channel.send('Please wait, downloading as needed before playing.')
+            self.msgs += [await self.send('Please wait, downloading as needed before playing.')]
             await mplayer.replace_and_play(songs)
-            await self.msg.channel(str(mplayer))
+            await self.send(str(mplayer))
         else:
             await SelectSong(self.act, songs).run()
 
@@ -477,8 +484,12 @@ class SelectSong(PagingMenu):
     Select a song from a list of tags provided.
     """
     def menu(self):
-        menu = format_song_list('Choose from the following songs...\n\n',
-                                self.cur_entries, SONG_FOOTER)
+        header = """**Select A Song From Tag**
+Page {}/{}
+Select a song to play by number [1..{}]:
+
+""".format(self.page, self.total_pages, len(self.cur_entries))
+        menu = format_song_list(header, self.cur_entries, PAGING_FOOTER)
         menu += 'Type __back__ to return to tags.'
 
         return menu
@@ -486,17 +497,17 @@ class SelectSong(PagingMenu):
     async def handle_msg(self, user_select):
         if user_select.content == 'back':
             entries = dicedb.query.get_tag_choices(self.act.session)
-            await SelectTag(self, entries).run()
+            await SelectTag(self.act, entries, LIMIT_TAGS).run()
             return True
 
-        choice = int(user_select.content.replace('play ', '')) - 1
+        choice = int(user_select.content) - 1
         if choice < 0 or choice >= len(self.cur_entries):
             raise ValueError
         selected = self.entries[choice]
 
-        self.msgs += [await self.msg.channel.send('Please wait, downloading as needed before playing.')]
+        self.msgs += [await self.send('Please wait, downloading as needed before playing.')]
         await get_guild_player(self.act.guild_id, self.msg).replace_and_play([selected])
-        await self.msg.channel.send('**Song Started**\n\n' + format_a_song(1, selected))
+        await self.send('**Song Started**\n\n' + str(selected))
 
         return True
 
@@ -537,7 +548,7 @@ class Songs(Action):
         Use the Songs db to lookup dynamically based on tags.
         """
         entries = dicedb.query.get_tag_choices(self.session)
-        await SelectTag(self, entries).run()
+        await SelectTag(self, entries, LIMIT_TAGS).run()
 
     async def search_names(self, term):
         """
@@ -548,7 +559,7 @@ class Songs(Action):
 
         l_term = ' '.join(term).lower().strip()
         for song in dicedb.query.search_songs_by_name(dicedb.Session(), l_term):
-            reply += format_a_song(cnt, song)
+            reply += song.format_menu(cnt)
             cnt += 1
 
         await self.bot.send_long_message(self.msg.channel, reply)
@@ -565,7 +576,7 @@ class Songs(Action):
         for tag in dicedb.query.get_tag_choices(session, l_term):
             reply += '__**{}**__\n'.format(tag)
             for song in dicedb.query.get_songs_with_tag(session, tag):
-                reply += format_a_song(cnt, song)
+                reply += song.format_menu(cnt)
                 cnt += 1
             reply += "\n"
 
@@ -580,7 +591,7 @@ class Songs(Action):
             name, url, tags = parts[0].lower(), parts[1], [x.lower() for x in parts[2:]]
             song = self.add(name, url, tags)
 
-            reply = '__Song Added__\n\n' + format_a_song(1, song)
+            reply = '__Song Added__\n\n' + song.format_menu(1)
             await self.bot.send_message(self.msg.channel, reply)
         if self.args.list:
             await self.list()
@@ -822,9 +833,12 @@ class TimersMenu(PagingMenu):
     Manage the timers the user has active.
     """
     def menu(self):
-        menu = "Please select a timer to delete from below [1..{}]:\n".format(len(self.cur_entries))
-        menu += self.act.timer_summary() + "\n\n" + SONG_FOOTER
-        return menu
+        header = """**Timers Management**
+Page {}/{}
+Select a timer to cancel from [1..{}]:
+
+""".format(self.page, self.total_pages, len(self.cur_entries))
+        return header + self.act.timer_summary() + PAGING_FOOTER
 
     async def handle_msg(self, user_select):
         choice = int(user_select.content) - 1
@@ -881,7 +895,9 @@ class Timers(Action):
 
     async def execute(self):
         if self.args.clear:
-            remove_user_timers(TIMERS, self.msg.author.name)
+            for key_to_remove in [x for x in TIMERS if self.msg.author.name in x]:
+                TIMERS[key_to_remove].cancel = True
+            await self.bot.send_message(self.msg.channel, "Your timers have been cancelled.")
         elif self.args.manage:
             await self.manage_timers()
         else:
@@ -1135,8 +1151,13 @@ class PunMenu(PagingMenu):
     Manage the puns in the database.
     """
     def menu(self):
-        return format_pun_list("Remove one of these puns? [1..{}]:\n\n".format(len(self.cur_entries)),
-                               self.entries[:LIMIT_SONGS], SONG_FOOTER, cnt=1)
+        header = """**Pun Management**
+Page {}/{}
+Select a pun to remove by number [1..{}]:
+
+
+""".format(self.page, self.total_pages, len(self.cur_entries))
+        return format_pun_list(header, self.entries[:LIMIT_SONGS], PAGING_FOOTER, cnt=1)
 
     async def handle_msg(self, user_select):
         choice = int(user_select.content) - 1
@@ -1197,15 +1218,6 @@ def parse_time_spec(time_spec):
     return secs
 
 
-def remove_user_timers(timers, msg_author):
-    """
-    Purge all timers associated with msg_author.
-    Youcan only purge your own timers.
-    """
-    for key_to_remove in [x for x in timers if msg_author in x]:
-        timers[key_to_remove].cancel = True
-
-
 def format_pun_list(header, entries, footer, *, cnt=1):
     """
     Generate the management list of entries.
@@ -1220,30 +1232,18 @@ def format_pun_list(header, entries, footer, *, cnt=1):
     return msg
 
 
-def format_song_list(header, entries, footer, *, cnt=1):
+def format_song_list(header, songs, footer, *, cnt=1):
     """
-    Generate the management list of entries.
+    Generate the management list of songs.
     """
     msg = header
-    for ent in entries:
-        msg += format_a_song(cnt, ent)
+    for song in songs:
+        msg += song.format_menu(cnt)
         cnt += 1
     msg = msg.rstrip()
     msg += footer
 
     return msg
-
-
-def format_a_song(cnt, song):
-    """
-    Helper for format_song_list.
-    """
-    return SONG_FMT.format(**{
-        'cnt': cnt,
-        'name': song.name,
-        'tags': [x.name for x in song.tags],
-        'url': song.url,
-    })
 
 
 def get_results_in_background(full_url, num):
