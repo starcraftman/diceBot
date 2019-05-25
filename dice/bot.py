@@ -244,7 +244,7 @@ class DiceBot(discord.Client):
 
         await cls(**kwargs).execute()
 
-    async def send_long_message(self, destination, content=None, *, tts=False, embed=None):
+    async def send_long_message(self, channel, content=None, *, tts=False, embed=None):
         """
         Behaves excactly like Client.send_message except it:
 
@@ -253,11 +253,11 @@ class DiceBot(discord.Client):
         """
         sent_msgs = []
         for part in dice.util.complete_blocks(dice.util.msg_splitter(content)):
-            sent_msgs += [await destination.send(part, tts=tts, embed=embed)]
+            sent_msgs += [await channel.send(part, tts=tts, embed=embed)]
 
         return sent_msgs
 
-    async def send_message(self, destination, content=None, *, tts=False, embed=None):
+    async def send_message(self, channel, content=None, *, tts=False, embed=None):
         """
         Behaves excactly like Client.send_message except it:
 
@@ -273,7 +273,7 @@ class DiceBot(discord.Client):
         attempts = 4
         while attempts:
             try:
-                return await destination.send(content, tts=tts, embed=embed)
+                return await channel.send(content, tts=tts, embed=embed)
             except discord.HTTPException:
                 # Catching these due to infrequent issues with discord remote.
                 await asyncio.sleep(1.5)
@@ -282,7 +282,7 @@ class DiceBot(discord.Client):
                     log.exception('SND_MSG Failed to send message to user.')
                     raise
 
-    async def send_ttl_message(self, destination, content, **kwargs):
+    async def send_ttl_message(self, channel, content, **kwargs):
         """
         Behaves excactly like Client.send_message except:
             After sending message wait 'ttl' seconds then delete message.
@@ -296,13 +296,13 @@ class DiceBot(discord.Client):
             ttl = dice.util.get_config('ttl')
 
         content += '\n\n__This message will be deleted in {} seconds__'.format(ttl)
-        message = await destination.send(content, **kwargs)
+        message = await channel.send(content, **kwargs)
 
         await asyncio.sleep(ttl)
         try:
             await message.delete()
-        except discord.NotFound:
-            pass
+        except (discord.NotFound, discord.Forbidden):
+            logging.getLogger("dice.bot").error("Bot missing manage messages permission. On: " + str(channel.guild))
 
     async def broadcast(self, content, ttl=False, channels=None, **kwargs):
         """

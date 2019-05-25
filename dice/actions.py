@@ -288,12 +288,14 @@ class Play(Action):
 class PagingMenu(abc.ABC):
     """
     Implement a reusable menuing interface.
+    Simply present user a menu based on entries and
+    at a later time handle_msg when he responds.
 
     Attributes:
         act: The action that was invoked for the user.
         msgs: Collection of any messages sent to user, will be deleted as needed.
         entries: The list of things to choose from.
-        limit: The limit of choices to give to user.
+        limit: The limit of choices to give to user per page.
         page: The page we are on.
     """
     def __init__(self, act, entries):
@@ -309,9 +311,9 @@ class PagingMenu(abc.ABC):
         return self.act.msg
 
     @property
-    def num_entries(self):
-        """ Num entries remaining between [0, limit] """
-        return len(self.entries[:self.limit])
+    def cur_entries(self):
+        """ The entries to display on current page. """
+        return self.entries[:self.limit]
 
     async def send(self, msg):
         """
@@ -325,11 +327,56 @@ class PagingMenu(abc.ABC):
         """
         return await self.act.msg.channel.send(msg)
 
-    @abc.abstractmethod
-    async def send_menu(self):
+    async def run(self):
         """
-        Send the management menu to user providing choices.
-        Response will be awaited and passed to handle_msg automatically.
+        Run a simple paging menu over a list of entries.
+        On each iteration of the loop generate the menu and wait for user response.
+        Then handle response within handle_msg.
+        Keep prompting user until handle_msg returns True.
+        """
+        while self.entries:
+            try:
+                self.msgs += [await self.send(self.menu())]
+
+                user_select = await self.act.bot.wait_for(
+                    'message', check=functools.partial(check_messages, self.msg), timeout=30)
+
+                if user_select:
+                    self.msgs += [user_select]
+                    user_select.content = user_select.content.lower().strip()
+
+                if not user_select or user_select.content in PAGING_STOP_WORDS:
+                    await self.send('Paging menu terminated. Goodbye human!.')
+                    break
+
+                elif user_select.content == 'next':
+                    self.entries = self.entries[self.limit:]
+                    self.page += 1
+
+                elif await self.handle_msg(user_select):
+                    self.entries = None
+            except concurrent.futures.TimeoutError:
+                self.entries = None
+            except (KeyError, ValueError):
+                await self.act.bot.send_ttl_message(
+                    'Selection not understood. Make choice in [1, {}]'.format(len(self.cur_entries))
+                )
+            except dice.exc.InvalidCommandArgs as exc:
+                await self.act.bot.send_ttl_message(str(exc))
+            finally:
+                user_select = None
+                try:
+                    await self.msg.channel.delete_messages(self.msgs)
+                except discord.Forbidden:
+                    self.act.log.error("Missing manage messages bot permission. On: " + str(self.msg.guild))
+
+    @abc.abstractmethod
+    def menu(self):
+        """
+        Generate the menu to send to the user.
+
+        Returns:
+            A string that will be sent to the user.
         """
         raise NotImplementedError
 
@@ -349,63 +396,22 @@ class PagingMenu(abc.ABC):
         """
         raise NotImplementedError
 
-    async def run_interface(self):
-        """
-        Create a reusable paging interface that allows users to select a choice
-        from a menu and then take an action in response.
-        Subclasses can override parts of the flow to customize beyond default behaviour.
-        """
-        while self.entries:
-            try:
-                await self.send_menu()
-
-                user_select = await self.act.bot.wait_for(
-                    'message', check=functools.partial(check_messages, self.msg), timeout=30)
-
-                if user_select:
-                    self.msgs += [user_select]
-                    user_select.content = user_select.content.lower().strip()
-
-                if not user_select or user_select.content in PAGING_STOP_WORDS:
-                    await self.send('Paging interface terminated. Goodbye human!.')
-                    break
-
-                elif user_select.content == 'next':
-                    self.entries = self.entries[self.limit:]
-                    self.page += 1
-
-                elif await self.handle_msg(user_select):
-                    break
-            except ValueError:
-                await self.send(
-                    'Selection not understood. Make choice in [1, {}]'.format(self.limit)
-                )
-            except dice.exc.InvalidCommandArgs as exc:
-                await self.msg.channel.send(str(exc))
-            finally:
-                user_select = None
-                try:
-                    self.msgs[0].channel.delete_messages(self.msgs)
-                except discord.Forbidden:
-                    self.act.log.error("No permission for message deletion.")
-
 
 class SongList(PagingMenu):
     """
     Generate the management interface for listing songs to user.
     """
-    async def send_menu(self):
-        reply = format_song_list('**__Songs DB__** Page {}\n\n'.format(self.page),
-                                 self.entries[:self.limit], SONG_FOOTER)
-        self.msgs += [await self.send(reply)]
+    def menu(self):
+        return format_song_list('**__Songs DB__** Page {}\n\n'.format(self.page),
+                                self.cur_entries, SONG_FOOTER)
 
     async def handle_msg(self, user_select):
         choice = int(user_select.content.replace('play', '')) - 1
-        if choice < 0 or choice >= self.limit:
+        if choice < 0 or choice >= len(self.cur_entries):
             raise ValueError
         selected = self.entries[choice]
 
-        self.msgs += await self.send('Please wait, downloading as needed before playing.')
+        self.msgs += [await self.send('Please wait, downloading as needed before playing.')]
         await get_guild_player(self.act.guild_id, self.msg).replace_and_play([selected])
         await self.send('**Song Started**\n\n' + format_a_song(1, selected))
 
@@ -416,14 +422,13 @@ class SongRemoval(PagingMenu):
     """
     Generate the management interface for listing songs to user.
     """
-    async def send_menu(self):
-        reply = format_song_list("Remove one of these songs? [1..{}]:\n\n".format(self.num_entries),
-                                 self.entries[:self.limit], SONG_FOOTER)
-        self.msgs += [await self.send(reply)]
+    def menu(self):
+        return format_song_list("Remove one of these songs? [1..{}]:\n\n".format(len(self.cur_entries)),
+                                self.cur_entries, SONG_FOOTER)
 
     async def handle_msg(self, user_select):
         choice = int(user_select.content) - 1
-        if choice < 0 or choice >= self.limit:
+        if choice < 0 or choice >= len(self.cur_entries):
             raise ValueError
 
         dicedb.query.remove_song_with_tags(self.act.session, self.entries[choice].name)
@@ -440,28 +445,29 @@ class SelectTag(PagingMenu):
         super().__init__(act, entries)
         self.limit = LIMIT_TAGS
 
-    async def send_menu(self):
-        reply = 'Select one of the following tags by number to explore:\n\n'
-        for ind, tag in enumerate(self.entries[:self.limit], start=1):
+    def menu(self):
+        menu = 'Select one of the following tags by number to explore:\n\n'
+        for ind, tag in enumerate(self.cur_entries, start=1):
             tagged_songs = dicedb.query.get_songs_with_tag(self.act.session, tag)
-            reply += '        **{}**) {} ({} songs)\n'.format(ind, tag, len(tagged_songs))
-        reply = reply.rstrip()
-        reply += SONG_FOOTER.replace('__play ', '__') + "Type __all 1__ to play all songs with tag 1."
-        self.msgs += [await self.send(reply)]
+            menu += '        **{}**) {} ({} songs)\n'.format(ind, tag, len(tagged_songs))
+        menu = menu.rstrip()
+        menu += SONG_FOOTER.replace('__play ', '__') + "Type __all 1__ to play all songs with tag 1."
+
+        return menu
 
     async def handle_msg(self, user_select):
         choice = int(user_select.content.replace('play', '').replace('all', '')) - 1
-        if choice < 0 or choice >= self.num_entries:
+        if choice < 0 or choice >= len(self.cur_entries):
             raise ValueError
 
-        songs = dicedb.query.get_songs_with_tag(self.act.session, self.entries[:self.limit][choice])
+        songs = dicedb.query.get_songs_with_tag(self.act.session, self.cur_entries[choice])
         if 'all' in user_select.content:
             mplayer = get_guild_player(self.act.guild_id, self.msg)
             self.msgs += await self.msg.channel.send('Please wait, downloading as needed before playing.')
             await mplayer.replace_and_play(songs)
             await self.msg.channel(str(mplayer))
         else:
-            await SelectSong(self.act, songs).run_interface()
+            await SelectSong(self.act, songs).run()
 
         return True
 
@@ -470,20 +476,21 @@ class SelectSong(PagingMenu):
     """
     Select a song from a list of tags provided.
     """
-    async def send_menu(self):
-        song_msg = format_song_list('Choose from the following songs...\n\n',
-                                    self.entries[:self.limit], SONG_FOOTER)
-        song_msg += 'Type __back__ to return to tags.'
-        self.msgs = [await self.msg.channel.send(song_msg)]
+    def menu(self):
+        menu = format_song_list('Choose from the following songs...\n\n',
+                                self.cur_entries, SONG_FOOTER)
+        menu += 'Type __back__ to return to tags.'
+
+        return menu
 
     async def handle_msg(self, user_select):
         if user_select.content == 'back':
             entries = dicedb.query.get_tag_choices(self.act.session)
-            await SelectTag(self, entries).run_interface()
+            await SelectTag(self, entries).run()
             return True
 
         choice = int(user_select.content.replace('play ', '')) - 1
-        if choice < 0 or choice >= self.num_entries:
+        if choice < 0 or choice >= len(self.cur_entries):
             raise ValueError
         selected = self.entries[choice]
 
@@ -516,21 +523,21 @@ class Songs(Action):
         List all entries in the song db. Implements a paging like interface.
         """
         entries = dicedb.query.get_song_choices(self.session)
-        await SongList(self, entries).run_interface()
+        await SongList(self, entries).run()
 
     async def manage(self):
         """
         Using paging interface similar to list, allow management of song db.
         """
         entries = dicedb.query.get_song_choices(self.session)
-        await SongRemoval(self, entries).run_interface()
+        await SongRemoval(self, entries).run()
 
     async def select_tag(self):
         """
         Use the Songs db to lookup dynamically based on tags.
         """
         entries = dicedb.query.get_tag_choices(self.session)
-        await SelectTag(self, entries).run_interface()
+        await SelectTag(self, entries).run()
 
     async def search_names(self, term):
         """
@@ -810,6 +817,29 @@ class Timer(Action):
         await self.check_timer(CHECK_TIMER_GAP)
 
 
+class TimersMenu(PagingMenu):
+    """
+    Manage the timers the user has active.
+    """
+    def menu(self):
+        menu = "Please select a timer to delete from below [1..{}]:\n".format(len(self.cur_entries))
+        menu += self.act.timer_summary() + "\n\n" + SONG_FOOTER
+        return menu
+
+    async def handle_msg(self, user_select):
+        choice = int(user_select.content) - 1
+        if choice < 0 or choice >= len(self.cur_entries):
+            raise ValueError
+
+        try:
+            TIMERS[self.entries[choice]].cancel = True
+            del self.entries[choice]
+        except (KeyError, ValueError):
+            pass
+
+        return True
+
+
 class Timers(Action):
     """
     Show a users own timers.
@@ -842,42 +872,12 @@ class Timers(Action):
 
         return msg
 
-    # TODO: Using PagingMenu
     async def manage_timers(self):
         """
         Create a simple interactive menu to manage timers.
         """
-        user_select = None
-        user_timers = [x for x in TIMERS if self.msg.author.name in x]
-        while True:
-            try:
-                reply = "Please select a timer to delete from below [1..{}]:\n".format(len(user_timers)) + self.timer_summary()
-                reply += "\n\nWrite 'done' or 'stop' to finish."
-                messages = [await self.bot.send_message(self.msg.channel, reply)]
-                user_select = await self.bot.wait_for(
-                    'message', check=functools.partial(check_messages, self.msg), timeout=30)
-
-                if user_select:
-                    messages += [user_select]
-                    user_select.content = user_select.content.lower().strip()
-
-                if not user_select or user_select.content in PAGING_STOP_WORDS:
-                    return
-
-                choice = int(user_select.content) - 1
-                if choice < 0 or choice >= len(user_timers):
-                    raise ValueError
-
-                for timer in TIMERS.values():
-                    if timer.key == user_timers[choice]:
-                        timer.cancel = True
-                        del user_timers[choice]
-                        break
-            except (KeyError, ValueError):
-                pass
-            finally:
-                user_select = None
-                asyncio.ensure_future(messages[0].channel.delete_messages(messages))
+        entries = [x for x in TIMERS if self.msg.author.name in x]
+        await TimersMenu(self, entries).run()
 
     async def execute(self):
         if self.args.clear:
@@ -1130,53 +1130,29 @@ class Effect(Action):
         await self.bot.send_message(self.msg.channel, msg)
 
 
+class PunMenu(PagingMenu):
+    """
+    Manage the puns in the database.
+    """
+    def menu(self):
+        return format_pun_list("Remove one of these puns? [1..{}]:\n\n".format(len(self.cur_entries)),
+                               self.entries[:LIMIT_SONGS], SONG_FOOTER, cnt=1)
+
+    async def handle_msg(self, user_select):
+        choice = int(user_select.content) - 1
+        if choice < 0 or choice >= len(self.cur_entries):
+            raise ValueError
+
+        dicedb.query.remove_pun(self.act.session, self.entries[choice])
+        del self.entries[choice]
+
+        return True
+
+
 class Pun(Action):
     """
     Manage puns for users.
     """
-    # TODO: Using PagingMenu
-    async def manage(self, session):
-        """
-        Using paging interface similar to list, allow management of puns in db.
-        """
-        entries = dicedb.query.all_puns(session)
-        num_entries = len(entries[:LIMIT_SONGS])
-
-        while entries:
-            try:
-                reply = format_pun_list("Remove one of these puns? [1..{}]:\n\n".format(num_entries),
-                                        entries[:LIMIT_SONGS], SONG_FOOTER, cnt=1)
-                messages = [await self.bot.send_message(self.msg.channel, reply)]
-                user_select = await self.bot.wait_for(
-                    'message', check=functools.partial(check_messages, self.msg), timeout=30)
-
-                if user_select:
-                    messages += [user_select]
-                    user_select.content = user_select.content.lower().strip()
-
-                if not user_select or user_select.content in PAGING_STOP_WORDS:
-                    break
-
-                elif user_select.content == 'next':
-                    entries = entries[LIMIT_SONGS:]
-                    num_entries = len(entries[:LIMIT_SONGS])
-
-                else:
-                    choice = int(user_select.content) - 1
-                    if choice < 0 or choice >= LIMIT_SONGS:
-                        raise ValueError
-
-                    dicedb.query.remove_pun(session, entries[choice])
-                    del entries[choice]
-            except (KeyError, ValueError):
-                await self.bot.send_message(
-                    self.msg.channel,
-                    'Selection not understood. Make choice in [1, {}]'.format(num_entries)
-                )
-            finally:
-                user_select = None
-                asyncio.ensure_future(messages[0].channel.delete_messages(messages))
-
     async def execute(self):
         if self.args.add:
             text = ' '.join(self.args.add)
@@ -1187,7 +1163,8 @@ class Pun(Action):
             msg = 'Pun added to the abuse database.'
 
         elif self.args.manage:
-            await self.manage(self.session)
+            entries = dicedb.query.all_puns(self.session)
+            await PunMenu(self, entries).run()
             self.session.commit()
 
             msg = 'Pun abuse management terminated.'
