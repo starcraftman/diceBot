@@ -205,7 +205,13 @@ class Song(Base):
 
     @property
     def fname(self):
+        """ The filename of the Song. """
         return os.path.join(self.folder, self.name + '.opus')
+
+    @property
+    def ready(self):
+        """ The filename exists and is ready to play. """
+        return os.path.exists(self.fname)
 
     def format_menu(self, cnt):
         """ Format a song for presentation in a menu with a number to select. """

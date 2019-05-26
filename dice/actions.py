@@ -234,16 +234,19 @@ class Play(Action):
         else:
             new_vids = dicedb.query.validate_videos(parts)
 
-        msg = await self.bot.send_message(self.msg.channel, 'Please wait, downloading as needed before playing.')
-        await dice.music.prefetch_vids(new_vids)
-
         if self.args.append:
             mplayer.append_vids(new_vids)
+            fetch_rest = new_vids
         else:
+            msg = await self.bot.send_message(self.msg.channel, "Please wait, ensuring first song downloaded. Rest will download in background.")
+            await dice.music.prefetch_all(new_vids[:1])
             mplayer.set_vids(new_vids)
             mplayer.play()
+            fetch_rest = new_vids[1:]
+            await msg.delete()
 
-        await asyncio.gather(msg.delete(), self.bot.send_message(self.msg.channel, str(mplayer)))
+        await self.bot.send_message(self.msg.channel, str(mplayer))
+        await dice.music.prefetch_in_order(fetch_rest)
 
     async def execute(self):
         mplayer = get_guild_player(self.guild_id, self.msg)

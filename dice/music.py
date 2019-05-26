@@ -29,7 +29,7 @@ from dicedb.schema import Song  # noqa F401 pylint: disable=unused-import
 
 
 CMD_TIMEOUT = 15
-CACHE_LIMIT = dice.util.get_config('music', 'cache_limit', default=100) * 1024 ** 2
+CACHE_LIMIT = dice.util.get_config('music', 'cache_limit', default=250) * 1024 ** 2
 PLAYER_TIMEOUT = dice.util.get_config('music', 'player_timeout', default=120)  # seconds
 VOICE_JOIN_TIMEOUT = dice.util.get_config('music', 'voice_join_timeout', default=5)  # seconds
 TIMEOUT_MSG = """ Bot joining voice took more than {} seconds.
@@ -160,19 +160,42 @@ def make_stream(vid):
         vid: The Song to play over the stream.
 
     Raises:
-        dice.exc.InternalException: Attempted to play a song that did not exist locally.
+        FileNotFoundError: Attempted to play a song that did not exist locally.
 
     Returns:
         An AudioStream ready to be served by the discord voice client.
     """
-    if not os.path.exists(vid.fname):
-        raise dice.exc.InternalException("The vid is not available to stream at this time.")
-    # TODO: Perhaps this and other exceptions should be reviewed, this could be FileNotFoundError.
+    if not vid.ready:
+        raise FileNotFoundError("Missing Song: " + vid.fname)
 
     now = time.time()
     os.utime(vid.fname, (now, now))
 
     return discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(vid.fname), vid.volume)
+
+
+async def start_when_ready(vid, play_func, timeout=20):
+    """
+    Wait for the Song to be locally available.
+    When it is, call play_func with vid.
+    On return, the Song must be available and playing.
+
+    Args:
+        vid: A Song to download then play.
+        play_func: A function to call to play the Song, takes the Song as argument.
+        timeout: Maximum time to wait for download.
+
+    Raises:
+        TimeoutError: Timed out waiting for the Song to be ready.
+    """
+    start = datetime.datetime.now()
+    while not vid.ready:
+        if (datetime.datetime.now() - start).seconds > timeout:
+            raise TimeoutError
+
+        await asyncio.sleep(0.5)
+
+    play_func(vid)
 
 
 async def gplayer_monitor(players, activity, gap=3):
@@ -211,10 +234,10 @@ async def gplayer_monitor(players, activity, gap=3):
             await player.disconnect()
 
 
-async def prefetch_vids(vids):
+async def prefetch_all(vids, *, sequential=False):
     """
     Aynchronously wait until all songs are downloaded by processes in the background.
-    Upon return, all videos must be available.
+    On return, all videos must be available.
 
     Args:
         vids: A list of Songs to download.
@@ -222,7 +245,30 @@ async def prefetch_vids(vids):
     streams = [asyncio.get_event_loop().run_in_executor(None, get_yt_video, vid.url, vid.name, vid.folder)
                for vid in vids if vid.url and not os.path.exists(vid.fname)]
 
-    await asyncio.gather(*streams)
+    return await asyncio.gather(*streams)
+
+
+async def prefetch_in_order(vids):
+    """
+    Songs will be downloaded in pairs from front and back of vids list.
+    On return, all videos must be available.
+
+    Args:
+        vids: A list of Songs to download.
+    """
+    to_download = [vid for vid in vids if not vid.ready]
+
+    loop = asyncio.get_event_loop()
+    while to_download:
+        jobs = []
+        for index in [0, -1]:
+            try:
+                vid = to_download.pop(index)
+                jobs += [loop.run_in_executor(None, get_yt_video, vid.url, vid.name, vid.folder)]
+            except IndexError:
+                pass
+
+        await asyncio.gather(*jobs)
 
 
 # Implemented in self.__client, stop, pause, resume, disconnect(async), move_to(async)
@@ -358,7 +404,9 @@ __Video List__:{vids}
             self.stop()
 
         vid = next_vid if next_vid else self.cur_vid
-        self.__client.play(make_stream(vid), after=self.after_call)
+        asyncio.ensure_future(
+            start_when_ready(vid, lambda vid: self.__client.play(make_stream(vid), after=self.after_call))
+        )
 
     def after_call(self, error):
         """
@@ -454,11 +502,12 @@ __Video List__:{vids}
         Args:
             new_vids: New Songs to play, will replace the current queue.
         """
-        await dice.music.prefetch_vids(new_vids)
+        await dice.music.prefetch_all(new_vids[:1])
         await self.join_voice_channel()
 
         self.set_vids(new_vids)
         self.play()
+        await dice.music.prefetch_in_order(new_vids[1:])
 
     async def disconnect(self):
         """
