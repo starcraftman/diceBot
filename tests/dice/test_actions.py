@@ -396,7 +396,7 @@ async def test_cmd_timer_with_warnings(f_bot):
 @pytest.mark.asyncio
 async def test_cmd_timers(f_bot):
     with mock.patch('dice.actions.CHECK_TIMER_GAP', 1):
-        msg = fake_msg_gears("!timer 4 -w 2")
+        msg = fake_msg_gears("!timer 4:00 -w 2")
         msg2 = fake_msg_gears("!timers")
 
         await action_map(msg, f_bot).execute()
@@ -404,8 +404,7 @@ async def test_cmd_timers(f_bot):
         await action_map(msg2, f_bot).execute()
 
         capture = str(f_bot.send_message.call_args).replace("\\n", "\n")
-        assert "Timer #1 with description: **GearsandCogs 4**" in capture
-        assert "Timer #2 with description: **GearsandCogs 4**" in capture
+        assert "Starting timer for: 4:00" in capture
         await asyncio.sleep(2)
 
 
@@ -420,8 +419,7 @@ async def test_cmd_timers_clear(f_bot):
     await action_map(msg2, f_bot).execute()
     await action_map(msg3, f_bot).execute()
 
-    capture = str(f_bot.send_message.call_args).replace("\\n", "\n")
-    assert "None" in capture
+    f_bot.send_message.assert_called_with(msg2.channel, "Your timers have been cancelled.")
     await asyncio.sleep(2)
 
 
@@ -789,3 +787,17 @@ Conjuration – d20PFSRD
 Earth Domain – d20PFSRD
       <https://www.d20pfsrd.com/classes/core-classes/cleric/domains/paizo-domains/earth-domain/>"""
     assert result == expect
+
+
+def test_timers_summary():
+    try:
+        margs = mock.Mock()
+        margs.time = '4:00'
+        margs.author.name = 'gears'
+        margs.offsets = []
+        timer = dice.actions.Timer(args=margs, bot=None, msg=margs)
+        capture = dice.actions.timer_summary({'gears 4:00': timer}, 'gears')
+        assert "gears 4:00" in capture
+        assert "Ends at" in capture
+    finally:
+        dice.actions.TIMERS.clear()

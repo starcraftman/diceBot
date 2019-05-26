@@ -296,7 +296,7 @@ class DiceBot(discord.Client):
                 await asyncio.sleep(ttl)
                 await msg.delete()
             except (discord.NotFound, discord.Forbidden):
-                logging.getLogger("dice.bot").error("Bot missing manage messages permission. On: " + str(channel.guild))
+                logging.getLogger("dice.bot").error("Bot missing manage messages permission. On: %s", str(channel.guild))
 
         try:
             ttl = kwargs.pop('ttl')

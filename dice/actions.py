@@ -33,11 +33,6 @@ PAGING_STOP_WORDS = ['done', 'exit', 'stop']
 TIMERS = {}
 TIMER_OFFSETS = ["60:00", "15:00", "5:00", "1:00"]
 TIMER_MSG_TEMPLATE = "{}: Timer '{}'"
-TIMERS_MSG = """
-Timer #{} with description: **{}**
-    __Started at__: {} UTC
-    __Ends at__: {} UTC
-    __Time remaining__: {}"""
 PF_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3A6zo0hx_wle8&q={}'
 D5_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3A1xq0zf2wtvq&q={}'
 STAR_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3Awyjvzq2cjz8&q={}'
@@ -352,6 +347,7 @@ class PagingMenu(abc.ABC):
                     self.entries = None
             except concurrent.futures.TimeoutError:
                 self.entries = None
+                await self.send('Paging menu timed out. Goodbye human!.')
             except (KeyError, ValueError):
                 await self.act.bot.send_ttl_message(
                     self.msg.channel,
@@ -724,6 +720,29 @@ class Roll(Action):
         await self.bot.send_long_message(self.msg.channel, msg)
 
 
+def timer_summary(timers, name):
+    """
+    Generate a summary of the timers that name has started.
+
+    Args:
+        timers: A dictionary whose values are Timer objects.
+        name: The name of the author, will be used to select timers they own.
+
+    Returns:
+        A string that summarizes name's timers.
+    """
+    msg = "Active timers for __{}__:\n\n".format(name)
+
+    user_timers = [x for x in timers.values() if name in x.key and not x.cancel]
+    if user_timers:
+        for ind, timer in enumerate(user_timers, start=1):
+            msg += "  **{}**) ".format(ind) + str(timer)
+    else:
+        msg += "**None**"
+
+    return msg
+
+
 class Timer(Action):
     """
     Allow users to set timers to remind them of things.
@@ -741,9 +760,21 @@ class Timer(Action):
         self.triggers = self.calc_triggers(end_offset)
         self.cancel = False
 
-        TIMERS[self.key] = self
-
     def __str__(self):
+        """ Provide a friendly summary for users. """
+        diff = self.end - datetime.datetime.utcnow()
+        diff = diff - datetime.timedelta(microseconds=diff.microseconds)
+
+        return """{desc}
+        __Started__ {start}
+        __Ends at__  {end}
+        __Remaining__ {remain}
+        """.format(desc=self.description,
+                   start=self.start.replace(microsecond=0),
+                   end=self.end.replace(microsecond=0),
+                   remain=diff)
+
+    def __repr__(self):
         msg = "Timer(start={}, end={}, cancel={}, sent_msg={}, triggers={})".format(
             self.start, self.end, self.cancel, self.sent_msg, str(self.triggers)
         )
@@ -821,9 +852,13 @@ class Timer(Action):
             await asyncio.sleep(sleep_time)
             asyncio.ensure_future(self.check_timer(sleep_time))
         else:
-            del TIMERS[self.key]
+            try:
+                del TIMERS[self.key]
+            except KeyError:
+                pass
 
     async def execute(self):
+        TIMERS[self.key] = self
         self.sent_msg = await self.bot.send_message(self.msg.channel, "Starting timer for: " + self.args.time)
         await self.check_timer(CHECK_TIMER_GAP)
 
@@ -838,7 +873,7 @@ Page {}/{}
 Select a timer to cancel from [1..{}]:
 
 """.format(self.page, self.total_pages, len(self.cur_entries))
-        return header + self.act.timer_summary() + PAGING_FOOTER
+        return header + timer_summary(TIMERS, self.msg.author.name) + PAGING_FOOTER
 
     async def handle_msg(self, user_select):
         choice = int(user_select.content) - 1
@@ -858,34 +893,6 @@ class Timers(Action):
     """
     Show a users own timers.
     """
-    def timer_summary(self):
-        """
-        Provide a summary of a users personal timers that are active.
-
-        Returns:
-            A formatted string summarizing active timers.
-        """
-        msg = "The timers for {}:\n".format(self.msg.author.name)
-        cnt = 1
-
-        for key in TIMERS:
-            if self.msg.author.name not in key or TIMERS[key].cancel:
-                continue
-
-            timer = TIMERS[key]
-            trunc_start = timer.start.replace(microsecond=0)
-            trunc_end = timer.end.replace(microsecond=0)
-            diff = timer.end - datetime.datetime.utcnow()
-            diff = diff - datetime.timedelta(microseconds=diff.microseconds)
-
-            msg += TIMERS_MSG.format(cnt, timer.description, trunc_start, trunc_end, diff)
-            cnt += 1
-
-        if cnt == 1:
-            msg += "**None**"
-
-        return msg
-
     async def manage_timers(self):
         """
         Create a simple interactive menu to manage timers.
@@ -901,7 +908,8 @@ class Timers(Action):
         elif self.args.manage:
             await self.manage_timers()
         else:
-            await self.bot.send_message(self.msg.channel, self.timer_summary())
+            await self.bot.send_long_message(self.msg.channel,
+                                             timer_summary(TIMERS, self.msg.author.name))
 
 
 class Turn(Action):
