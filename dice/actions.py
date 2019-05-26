@@ -39,9 +39,9 @@ STAR_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3Awyjvzq2cjz8&q=
 PONI_URL = "https://derpibooru.org/search.json?q="
 PAGING_FOOTER = """
 
-Type __done__ or __exit__ or __stop__ to cancel menu.
-Type __next__ to display the next page of entries.
-Type just **1** to select entry 1).
+Type __done__ or __exit__ or __stop__ to cancel menu
+Type __next__ to display the next page of entries
+Type **1** to select entry (1)
 """
 LIMIT_SONGS = 8
 LIMIT_TAGS = 16
@@ -391,34 +391,9 @@ class PagingMenu(abc.ABC):
         raise NotImplementedError
 
 
-class SongList(PagingMenu):
-    """
-    Generate the management interface for listing songs to user.
-    """
-    def menu(self):
-        header = """**Play Songs**
-Page {}/{}
-Select a song to play by number [1..{}]:
-
-""".format(self.page, self.total_pages, len(self.cur_entries))
-        return format_song_list(header, self.cur_entries, PAGING_FOOTER)
-
-    async def handle_msg(self, user_select):
-        choice = int(user_select.content) - 1
-        if choice < 0 or choice >= len(self.cur_entries):
-            raise ValueError
-        selected = self.entries[choice]
-
-        self.msgs += [await self.send('Please wait, downloading as needed before playing.')]
-        await get_guild_player(self.act.guild_id, self.msg).replace_and_play([selected])
-        await self.send('**Song Started**\n\n' + str(selected))
-
-        return True
-
-
 class SongRemoval(PagingMenu):
     """
-    Generate the management interface for listing songs to user.
+    Generate the management interface for removing songs from db.
     """
     def menu(self):
         header = """**Remove Songs**
@@ -442,7 +417,7 @@ Select a song to remove by number [1..{}]:
 
 class SelectTag(PagingMenu):
     """
-    Select a tag to play or fursther select a song from.
+    Select a tag to play all songs with tag or fursther select a single song from.
     """
     def menu(self):
         menu = """**Select A Tag**
@@ -454,11 +429,17 @@ Select a tag from blow to play or explore further:
             tagged_songs = dicedb.query.get_songs_with_tag(self.act.session, tag)
             menu += '        **{}**) {} ({} songs)\n'.format(ind, tag, len(tagged_songs))
         menu = menu.rstrip() + PAGING_FOOTER
-        menu += "Type __all 1__ to play all songs with tag 1."
+        menu += """Type __all 1__ to play all songs with tag 1
+Type __list__ to go select by song list"""
 
         return menu
 
     async def handle_msg(self, user_select):
+        if user_select.content == 'list':
+            entries = dicedb.query.get_song_choices(self.act.session)
+            asyncio.ensure_future(SelectSong(self.act, entries).run())
+            return True
+
         choice = int(user_select.content.replace('all', '')) - 1
         if choice < 0 or choice >= len(self.cur_entries):
             raise ValueError
@@ -480,20 +461,20 @@ class SelectSong(PagingMenu):
     Select a song from a list of tags provided.
     """
     def menu(self):
-        header = """**Select A Song From Tag**
+        header = """**Select A Song**
 Page {}/{}
 Select a song to play by number [1..{}]:
 
 """.format(self.page, self.total_pages, len(self.cur_entries))
         menu = format_song_list(header, self.cur_entries, PAGING_FOOTER)
-        menu += 'Type __back__ to return to tags.'
+        menu += 'Type __tags__ to go select by tags'
 
         return menu
 
     async def handle_msg(self, user_select):
-        if user_select.content == 'back':
+        if user_select.content == 'tags':
             entries = dicedb.query.get_tag_choices(self.act.session)
-            await SelectTag(self.act, entries, LIMIT_TAGS).run()
+            asyncio.ensure_future(SelectTag(self.act, entries, LIMIT_TAGS).run())
             return True
 
         choice = int(user_select.content) - 1
@@ -530,7 +511,7 @@ class Songs(Action):
         List all entries in the song db. Implements a paging like interface.
         """
         entries = dicedb.query.get_song_choices(self.session)
-        await SongList(self, entries).run()
+        await SelectSong(self, entries).run()
 
     async def manage(self):
         """
@@ -720,29 +701,6 @@ class Roll(Action):
         await self.bot.send_long_message(self.msg.channel, msg)
 
 
-def timer_summary(timers, name):
-    """
-    Generate a summary of the timers that name has started.
-
-    Args:
-        timers: A dictionary whose values are Timer objects.
-        name: The name of the author, will be used to select timers they own.
-
-    Returns:
-        A string that summarizes name's timers.
-    """
-    msg = "Active timers for __{}__:\n\n".format(name)
-
-    user_timers = [x for x in timers.values() if name in x.key and not x.cancel]
-    if user_timers:
-        for ind, timer in enumerate(user_timers, start=1):
-            msg += "  **{}**) ".format(ind) + str(timer)
-    else:
-        msg += "**None**"
-
-    return msg
-
-
 class Timer(Action):
     """
     Allow users to set timers to remind them of things.
@@ -893,20 +851,14 @@ class Timers(Action):
     """
     Show a users own timers.
     """
-    async def manage_timers(self):
-        """
-        Create a simple interactive menu to manage timers.
-        """
-        entries = [x for x in TIMERS if self.msg.author.name in x]
-        await TimersMenu(self, entries).run()
-
     async def execute(self):
         if self.args.clear:
             for key_to_remove in [x for x in TIMERS if self.msg.author.name in x]:
                 TIMERS[key_to_remove].cancel = True
             await self.bot.send_message(self.msg.channel, "Your timers have been cancelled.")
         elif self.args.manage:
-            await self.manage_timers()
+            entries = [x for x in TIMERS if self.msg.author.name in x]
+            await TimersMenu(self, entries).run()
         else:
             await self.bot.send_long_message(self.msg.channel,
                                              timer_summary(TIMERS, self.msg.author.name))
@@ -1203,6 +1155,29 @@ class Pun(Action):
             msg += dicedb.query.randomly_select_pun(self.session)
 
         await self.bot.send_message(self.msg.channel, msg)
+
+
+def timer_summary(timers, name):
+    """
+    Generate a summary of the timers that name has started.
+
+    Args:
+        timers: A dictionary whose values are Timer objects.
+        name: The name of the author, will be used to select timers they own.
+
+    Returns:
+        A string that summarizes name's timers.
+    """
+    msg = "Active timers for __{}__:\n\n".format(name)
+
+    user_timers = [x for x in timers.values() if name in x.key and not x.cancel]
+    if user_timers:
+        for ind, timer in enumerate(user_timers, start=1):
+            msg += "  **{}**) ".format(ind) + str(timer)
+    else:
+        msg += "**None**"
+
+    return msg
 
 
 def parse_time_spec(time_spec):
