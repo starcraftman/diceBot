@@ -157,6 +157,7 @@ class DiceBot(discord.Client):
             mod.LIVE_TASKS += [
                 asyncio.ensure_future(presence_task(self)),
                 asyncio.ensure_future(dice.music.gplayer_monitor(dice.actions.PLAYERS, {})),
+                asyncio.ensure_future(dice.actions.timer_monitor(dice.actions.TIMERS)),
             ]
 
         print('DiceBot Ready!')

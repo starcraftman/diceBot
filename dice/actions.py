@@ -707,6 +707,13 @@ class Roll(Action):
 class Timer(Action):
     """
     Allow users to set timers to remind them of things.
+    Users can override the warning times and set a descritpion for the timer.
+
+    Attributes:
+        last_msg: The last message sent to user, None if no message has been sent.
+        start: The datetime when the Timer started.
+        end: The datetime when the Timer will be finished.
+        triggers: A series of tuples like (datetime, msg_for_user).
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -714,12 +721,11 @@ class Timer(Action):
         if not re.match(r'[0-9:]+', self.args.time) or self.args.time.count(':') > 2:
             raise dice.exc.InvalidCommandArgs("I can't understand time spec! Use format: **HH:MM:SS**")
 
+        self.last_msg = None
         end_offset = parse_time_spec(self.args.time)
         self.start = datetime.datetime.utcnow()
         self.end = self.start + datetime.timedelta(seconds=end_offset)
-        self.sent_msg = None
         self.triggers = self.calc_triggers(end_offset)
-        self.cancel = False
 
     def __str__(self):
         """ Provide a friendly summary for users. """
@@ -736,15 +742,21 @@ class Timer(Action):
                    remain=diff)
 
     def __repr__(self):
-        msg = "Timer(start={}, end={}, cancel={}, sent_msg={}, triggers={})".format(
-            self.start, self.end, self.cancel, self.sent_msg, str(self.triggers)
-        )
-        return msg
+        keys = ['description', 'start', 'end', 'last_msg', 'triggers']
+        kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
+
+        return "Timer({})".format(', '.join(kwargs))
+
+    def __eq__(self, other):
+        return self.key == other.key
+
+    def __hash__(self):
+        return hash(self.msg.author.name, str(self.start))
 
     @property
     def key(self):
         """
-        Unique key to store timer.
+        Unique key to identify the timer.
         """
         return self.msg.author.name + '_' + str(self.start)
 
@@ -762,9 +774,22 @@ class Timer(Action):
 
         return description
 
+    def is_expired(self):
+        """ The timer has expired. """
+        return datetime.datetime.utcnow() > self.end
+
     def calc_triggers(self, end_offset):
         """
-        Set the required trigger times and the associated messages to send.
+        Calculate the absolute times when the offset warnings from start will be passed.
+        Each calculated trigger either warns about time remaining or informs user
+        the timer has finished.
+
+        Args:
+            end_offset: The offset from start that the timer will end at.
+
+        Returns:
+            A list of the form:
+                [[trigger_date, msg_to_user], [trigger_date, msg_to_user], ...]
         """
         msg = TIMER_MSG_TEMPLATE.format(self.msg.author.mention, self.description)
 
@@ -782,46 +807,46 @@ class Timer(Action):
 
         return triggers
 
-    async def check_timer(self, sleep_time):
+    def check_triggers(self):
         """
-        Perform a check on the triggers of this timer.
+        Check the timer for having passed any triggers for warnings
+        or even expired entirely.
 
-        If a trigger has been reached, send the appropriate message back to channel.
-        If no triggers left, stop scheduling a new check_timer invocation.
-
-        Args:
-            sleep_time: The gap between checks on the timer.
+        Returns:
+            The last relevant message about timer. None if nothing to report.
         """
-        del_cnt = 0
+        reply = None
         now = datetime.datetime.utcnow()
+
+        del_cnt = 0
         for trigger, msg in self.triggers:
             if now > trigger:
-                if self.sent_msg:
-                    try:
-                        await self.sent_msg.delete()
-                    except discord.Forbidden as exc:
-                        self.log.error("Failed to delete msg on: %s/%s\n%s",
-                                       self.msg.channel.server, self.msg.channel, str(exc))
-                self.sent_msg = await self.bot.send_message(self.msg.channel, msg)
+                reply = msg
                 del_cnt += 1
 
-        while del_cnt:
-            del self.triggers[0]
-            del_cnt -= 1
+        self.triggers = self.triggers[del_cnt:]
 
-        if not self.cancel and self.triggers:
-            await asyncio.sleep(sleep_time)
-            asyncio.ensure_future(self.check_timer(sleep_time))
-        else:
+        return reply
+
+    async def update_notice(self, new_msg):
+        """
+        Send the latest warning notice to the user.
+        If a previous message exists, attempt deletion first.
+
+        Args:
+            new_msg: The new message to send.
+        """
+        if self.last_msg:
             try:
-                del TIMERS[self.key]
-            except KeyError:
-                pass
+                await self.last_msg.delete()
+            except discord.Forbidden:
+                logging.getLogger("dice.actions").error("Bot missing manage messages permission. On: %s", str(self.msg.guild))
+
+        self.last_msg = await self.bot.send_message(self.msg.channel, new_msg)
 
     async def execute(self):
         TIMERS[self.key] = self
-        self.sent_msg = await self.bot.send_message(self.msg.channel, "Starting timer for: " + self.args.time)
-        await self.check_timer(CHECK_TIMER_GAP)
+        self.last_msg = await self.bot.send_message(self.msg.channel, "Starting timer for: " + self.args.time)
 
 
 class TimersMenu(PagingMenu):
@@ -842,7 +867,7 @@ Select a timer to cancel from [1..{}]:
             raise ValueError
 
         try:
-            TIMERS[self.entries[choice]].cancel = True
+            del TIMERS[self.entries[choice]]
             del self.entries[choice]
         except (KeyError, ValueError):
             pass
@@ -857,7 +882,7 @@ class Timers(Action):
     async def execute(self):
         if self.args.clear:
             for key_to_remove in [x for x in TIMERS if self.msg.author.name in x]:
-                TIMERS[key_to_remove].cancel = True
+                del TIMERS[key_to_remove]
             await self.bot.send_message(self.msg.channel, "Your timers have been cancelled.")
         elif self.args.manage:
             entries = [x for x in TIMERS if self.msg.author.name in x]
@@ -1160,6 +1185,32 @@ class Pun(Action):
         await self.bot.send_message(self.msg.channel, msg)
 
 
+async def timer_monitor(timers, sleep_time=CHECK_TIMER_GAP):
+    """
+    Perform a check on all active timers every sleep_time seconds.
+
+    If a trigger has been reached, send the appropriate message back to channel.
+    If timer is_expired, delete it from the timers structure.
+
+    Args:
+        timers: A dictionary containing all Timer objects by Timer.key.
+        sleep_time: The gap between checks on the timer.
+    """
+    await asyncio.sleep(sleep_time)
+    asyncio.ensure_future(timer_monitor(timers, sleep_time))
+
+    for timer in timers.values():
+        msg = timer.check_triggers()
+        if msg:
+            await timer.update_notice(msg)
+
+        if timer.is_expired():
+            try:
+                del timers[timer.key]
+            except KeyError:
+                pass
+
+
 def timer_summary(timers, name):
     """
     Generate a summary of the timers that name has started.
@@ -1173,7 +1224,7 @@ def timer_summary(timers, name):
     """
     msg = "Active timers for __{}__:\n\n".format(name)
 
-    user_timers = [x for x in timers.values() if name in x.key and not x.cancel]
+    user_timers = [x for x in timers.values() if name in x.key]
     if user_timers:
         for ind, timer in enumerate(user_timers, start=1):
             msg += "  **{}**) ".format(ind) + str(timer)

@@ -359,38 +359,53 @@ async def test_cmd_status(f_bot):
 
 @pytest.mark.asyncio
 async def test_cmd_timer_seconds(f_bot):
-    with mock.patch('dice.actions.CHECK_TIMER_GAP', 1):
+    try:
         msg = fake_msg_gears("!timer 1")
 
         await action_map(msg, f_bot).execute()
+        asyncio.ensure_future(dice.actions.timer_monitor(dice.actions.TIMERS, 0.5))
         await asyncio.sleep(2)
 
         expect = "GearsandCogs: Timer 'GearsandCogs 1' has expired. Do something meatbag!"
         f_bot.send_message.assert_called_with(msg.channel, expect)
+    finally:
+        for task in asyncio.all_tasks():
+            if 'timer_monitor' in str(task):
+                task.cancel()
 
 
 @pytest.mark.asyncio
 async def test_cmd_timer_with_description(f_bot):
-    with mock.patch('dice.actions.CHECK_TIMER_GAP', 1):
+    try:
         msg = fake_msg_gears("!timer 1 -d A simple description")
 
         await action_map(msg, f_bot).execute()
+        asyncio.ensure_future(dice.actions.timer_monitor(dice.actions.TIMERS, 0.5))
         await asyncio.sleep(2)
 
         expect = "GearsandCogs: Timer 'A simple description' has expired. Do something meatbag!"
         f_bot.send_message.assert_called_with(msg.channel, expect)
+    finally:
+        for task in asyncio.all_tasks():
+            if 'timer_monitor' in str(task):
+                task.cancel()
 
 
 @pytest.mark.asyncio
 async def test_cmd_timer_with_warnings(f_bot):
-    with mock.patch('dice.actions.CHECK_TIMER_GAP', 1):
+    try:
         msg = fake_msg_gears("!timer 3 -w 2")
 
         await action_map(msg, f_bot).execute()
+        asyncio.ensure_future(dice.actions.timer_monitor(dice.actions.TIMERS, 0.5))
         await asyncio.sleep(2)
         expect = "GearsandCogs: Timer 'GearsandCogs 3' has 0:00:02 time remaining!"
         f_bot.send_message.assert_called_with(msg.channel, expect)
         await asyncio.sleep(2)
+    finally:
+        for task in asyncio.all_tasks():
+            if 'timer_monitor' in str(task):
+                task.cancel()
 
 
 @pytest.mark.asyncio
