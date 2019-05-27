@@ -174,30 +174,6 @@ def make_stream(vid):
     return discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(vid.fname), vid.volume)
 
 
-async def start_when_ready(vid, play_func, timeout=20):
-    """
-    Wait for the Song to be locally available.
-    When it is, call play_func with vid.
-    On return, the Song must be available and playing.
-
-    Args:
-        vid: A Song to download then play.
-        play_func: A function to call to play the Song, takes the Song as argument.
-        timeout: Maximum time to wait for download.
-
-    Raises:
-        TimeoutError: Timed out waiting for the Song to be ready.
-    """
-    start = datetime.datetime.now()
-    while not vid.ready:
-        if (datetime.datetime.now() - start).seconds > timeout:
-            raise TimeoutError
-
-        await asyncio.sleep(0.5)
-
-    play_func(vid)
-
-
 async def gplayer_monitor(players, activity, gap=3):
     """
     An asynchronous task to monitor to ...
@@ -404,11 +380,34 @@ __Video List__:{vids}
             self.stop()
 
         vid = next_vid if next_vid else self.cur_vid
-        asyncio.ensure_future(
-            start_when_ready(vid, lambda vid: self.__client.play(make_stream(vid), after=self.after_call))
-        )
+        self.__client.play(make_stream(vid), after=self.after_play)
 
-    def after_call(self, error):
+    async def play_when_ready(self, vid=None, timeout=20):
+        """
+        Wait for the Song to be locally available.
+        When it is, call play_func with vid.
+        On return, the Song must be available and playing.
+
+        Args:
+            vid: A Song to download then play.
+            timeout: Maximum time to wait for download.
+
+        Raises:
+            TimeoutError: Timed out waiting for the Song to be ready.
+        """
+        if not vid:
+            vid = self.cur_vid
+
+        start = datetime.datetime.now()
+        while not vid.ready:
+            if (datetime.datetime.now() - start).seconds > timeout:
+                raise TimeoutError
+
+            await asyncio.sleep(0.5)
+
+        self.play(vid)
+
+    def after_play(self, error):
         """
         To be executed on error or after stream finishes.
         """

@@ -356,7 +356,7 @@ async def presence_task(bot, delay=180):
 
 def sig_handle(sig, frame):
     """ Force cleanup on systemd SIGTERM by pretending Ctrl + c """
-    raise KeyboardInterrupt('cleanup')
+    raise KeyboardInterrupt('Shut it all down!')
 
 
 def main():  # pragma: no cover
@@ -368,10 +368,15 @@ def main():  # pragma: no cover
         print('Seeding numpy/random with: {:,}'.format(seeded))
         bot = DiceBot("!")
 
-        signal.signal(signal.SIGTERM, sig_handle)
+        loop = asyncio.get_event_loop()
+        loop.add_signal_handler(signal.SIGTERM, sig_handle)
+        loop.add_signal_handler(signal.SIGHUP, sig_handle)
 
+        token = dice.util.get_config('discord', os.environ.get('TOKEN', 'dev'))
         # BLOCKING: N.o. e.s.c.a.p.e.
-        bot.run(dice.util.get_config('discord', os.environ.get('TOKEN', 'dev')))
+        loop.run_until_complete(bot.start(token))
+    except KeyboardInterrupt:
+        loop.run_until_complete(bot.close())
     finally:
         print('\nFinished Logging out.\n\nGoodbye human!')
 

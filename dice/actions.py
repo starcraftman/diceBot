@@ -167,7 +167,7 @@ class Play(Action):
     async def restart(self, mplayer):
         """ Restart the player at the beginning. """
         mplayer.reset_iterator()
-        mplayer.play()
+        await mplayer.play_when_ready()
         return "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
 
     async def stop(self, mplayer):
@@ -183,13 +183,13 @@ class Play(Action):
     async def next(self, mplayer):
         """ Play the next video. """
         if mplayer.next():
-            mplayer.play()
+            await mplayer.play_when_ready()
         return "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
 
     async def prev(self, mplayer):
         """ Play the previous video. """
         if mplayer.prev():
-            mplayer.play()
+            await mplayer.play_when_ready()
         return "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
 
     async def repeat_all(self, mplayer):
@@ -213,7 +213,7 @@ class Play(Action):
     async def shuffle(self, mplayer):
         """ Set player to repeat video when it finishes normally. """
         mplayer.toggle_shuffle()
-        mplayer.play()
+        await mplayer.play_when_ready()
         return "Player shuffle is now: **{}abled**".format('En' if mplayer.shuffle else 'Dis')
 
     async def status(self, mplayer):

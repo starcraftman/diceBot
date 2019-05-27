@@ -93,7 +93,7 @@ def test_make_stream(f_songs):
 
 
 def test_make_stream_not_exists(f_songs):
-    with pytest.raises(dice.exc.InternalException):
+    with pytest.raises(FileNotFoundError):
         dice.music.make_stream(f_songs[0])
 
 
@@ -251,18 +251,18 @@ def test_guild_player_play_no_vids(f_songs, f_vclient):
         player.play()
 
 
-def test_guild_player_after_call(f_songs, f_vclient):
+def test_guild_player_after_play(f_songs, f_vclient):
     player = dice.music.GuildPlayer(vids=f_songs, client=f_vclient)
     player.play = aiomock.Mock()
 
     player.cur_vid.repeat = True
-    player.after_call(None)
+    player.after_play(None)
     assert player.play.called
 
     player.cur_vid.repeat = False
     player.play = aiomock.Mock()
     player.next = aiomock.Mock()
-    player.after_call(None)
+    player.after_play(None)
     assert player.next.called
 
 
