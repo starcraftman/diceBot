@@ -21,6 +21,11 @@ import dicedb.query
 
 from tests.conftest import fake_msg_gears, fake_msg, fixed_id_fake_msg
 
+try:
+    all_tasks = asyncio.all_tasks
+except AttributeError:
+    all_tasks = asyncio.Task.all_tasks
+
 OGN_REASON = "Skipped to be kind and not spam OGN. To enable set env ALL_TESTS=True"
 OGN_TEST = pytest.mark.skipif(not os.environ.get('ALL_TESTS'), reason=OGN_REASON)
 
@@ -369,7 +374,7 @@ async def test_cmd_timer_seconds(f_bot):
         expect = "GearsandCogs: Timer 'GearsandCogs 1' has expired. Do something meatbag!"
         f_bot.send_message.assert_called_with(msg.channel, expect)
     finally:
-        for task in asyncio.all_tasks():
+        for task in all_tasks():
             if 'timer_monitor' in str(task):
                 task.cancel()
 
@@ -386,7 +391,7 @@ async def test_cmd_timer_with_description(f_bot):
         expect = "GearsandCogs: Timer 'A simple description' has expired. Do something meatbag!"
         f_bot.send_message.assert_called_with(msg.channel, expect)
     finally:
-        for task in asyncio.all_tasks():
+        for task in all_tasks():
             if 'timer_monitor' in str(task):
                 task.cancel()
 
@@ -403,7 +408,7 @@ async def test_cmd_timer_with_warnings(f_bot):
         f_bot.send_message.assert_called_with(msg.channel, expect)
         await asyncio.sleep(2)
     finally:
-        for task in asyncio.all_tasks():
+        for task in all_tasks():
             if 'timer_monitor' in str(task):
                 task.cancel()
 
