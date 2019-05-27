@@ -1,24 +1,38 @@
 # DiceBot
 
 Implements a bot with useful commands for playing pen and paper games over discord.
-Examples of features:
+There are a few other misc commands that were requested by users.
 
-    - Roll dice with `!roll`
-    - Play music from youtube and lookup from db with `!play` and `!songs`
-    - Implements a simple turn order manager for turn based combat.
-    - Simple ability to set per user timers for reminders.
+See the `!help` command (sample output below) and every subcommands help (i.e. !roll --help).
+
+Command |                   Effect
+------- | -------------------------------------------
+!d5     | Search on the D&D 5e wiki
+!effect | Add an effect to a user in turn order
+!e      | Alias for `!effect`
+!math   | Do some math operations
+!m      | Alias for `!math`
+!n      | Alias for `!turn --next`
+!pf     | Search on the Pathfinder wiki
+!play   | Play songs from youtube and server.
+!poni   | Pony?!?!
+!pun    | Prepare for pain!
+!roll   | Roll a dice like: 2d6 + 5
+!r      | Alias for `!roll`
+!songs  | Create manage song lookup.
+!star   | Search on the Starfinder wiki.
+!status | Show status of bot including uptime
+!timer  | Set a timer for HH:MM:SS in future
+!timers | See the status of all YOUR active timers
+!turn   | Manager turn order for pen and paper combat
+!help   | This help message
 
 Support for discord.py <= 1.0.0 is discontinued.
 
 ## Required Permissions
 
 The bot doesn't need any perms for core functions other than read/send to channel.
-Optionally provide manage channel permission so it can clean up bad invocations and help requests.
-
-## Commands
-
-See a full list of commands with `!help`. For each top level command see specific help,
-for instance for help with `!roll`, try `!roll --help`.
+Optionally provide manage messages permission so it can clean up bad invocations and help requests.
 
 ## Setup
 
