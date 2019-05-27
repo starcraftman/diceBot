@@ -351,14 +351,11 @@ class PagingMenu(abc.ABC):
             except concurrent.futures.TimeoutError:
                 self.entries = None
                 await self.send('Paging menu timed out. Goodbye human!.')
-            except (KeyError, ValueError):
-                await self.act.bot.send_ttl_message(
-                    self.msg.channel,
-                    'Selection not understood. Make choice from numbers [1, {}]'.format(len(self.cur_entries))
-                )
-                await asyncio.sleep(3)
-            except dice.exc.InvalidCommandArgs as exc:
-                await self.act.bot.send_ttl_message(self.msg.channel, str(exc))
+            except (KeyError, ValueError, dice.exc.InvalidCommandArgs) as exc:
+                msg = "Selection not understood. Make choice from numbers [1, {}]".format(len(self.cur_entries))
+                if isinstance(exc, dice.exc.InvalidCommandArgs):
+                    msg = str(exc)
+                await self.act.bot.send_ttl_message(self.msg.channel, msg)
                 await asyncio.sleep(3)
             finally:
                 user_select = None
