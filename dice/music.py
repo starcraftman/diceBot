@@ -31,7 +31,7 @@ import dice.util
 from dicedb.schema import Song  # noqa F401 pylint: disable=unused-import
 
 
-CMD_TIMEOUT = 30
+CMD_TIMEOUT = 150
 CACHE_LIMIT = dice.util.get_config('music', 'cache_limit', default=250) * 1024 ** 2
 PLAYER_TIMEOUT = dice.util.get_config('music', 'player_timeout', default=120)  # seconds
 VOICE_JOIN_TIMEOUT = dice.util.get_config('music', 'voice_join_timeout', default=5)  # seconds
@@ -313,9 +313,16 @@ async def yt_search(terms):
         async with session.get(YT_SEARCH + "+".join(terms)) as resp:
             soup = bs4.BeautifulSoup(await resp.text(), 'html.parser')
 
+    log = logging.getLogger('dice.music')
+    log.debug("Requested Search: %s", "+".join(terms))
+    log.debug("Returned:\n\n %s", str(soup.find_all('div', class_='yt-lockup-content')))
+
     results = []
     for match in soup.find_all('div', class_='yt-lockup-content'):
-        url = match.a.get('href')
+        try:
+            url = match.a.get('href')
+        except AttributeError:
+            url = ''
         if 'watch?v=' not in url:
             continue
 
@@ -504,7 +511,8 @@ __Video List__:{vids}
         if self.itr.is_finished() and self.repeat_all:
             self.reset_iterator(to_last=(self.itr.index == -1))
         elif not self.cur_vid.repeat:
-            self.next()
+            if not self.next():
+                return
         self.play()
 
     def toggle_pause(self):
