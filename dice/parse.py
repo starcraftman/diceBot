@@ -403,3 +403,18 @@ def subs_pun(subs, prefix):
     sub.add_argument('-a', '--add', nargs='+', help='Add the provided pun.')
     sub.add_argument('-m', '--manage', action="store_true", help='Manage puns selectively.')
     sub.set_defaults(cmd='Pun')
+
+
+@register_parser
+def subs_search(subs, prefix):
+    """ Subcommand parsing for timers """
+    desc = """Search youtube for songs to play.
+
+{prefix}yt critical hit
+        Search for "critical hit" on youtube and show a paging menu with results.
+        Select one to play or exit from menu.
+    """.format(prefix=prefix)
+    sub = subs.add_parser(prefix + 'yt', description=desc, formatter_class=RawHelp)
+    sub.set_defaults(cmd='YTSearch')
+    sub.add_argument('-f', '--first', action="store_true", help='Play first match.')
+    sub.add_argument('terms', nargs='+', help='To search.')

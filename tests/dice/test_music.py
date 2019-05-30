@@ -330,7 +330,12 @@ def test_parse_search_label():
 
 @pytest.mark.asyncio
 async def test_yt_search():
-    expect = ["'https://youtu.be/IrbCrwtDIUA", 'no more kings - critical hit', '0:03:51', 52949]
+    expect = {
+        'url': "https://youtu.be/IrbCrwtDIUA",
+        'title': 'no more kings - critical hit',
+        'duration': '0:03:51',
+        'views': 52949
+    }
     results = await dice.music.yt_search(['critical', 'hit'])
     assert expect in results
     assert len(results) > 10

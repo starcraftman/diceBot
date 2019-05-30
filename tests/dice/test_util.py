@@ -126,7 +126,10 @@ def test_init_chrome():
         browser = dice.util.init_chrome()
         assert isinstance(browser, selenium.webdriver.Chrome)
     finally:
-        browser.quit()
+        try:
+            browser.quit()
+        except UnboundLocalError:
+            pass
 
 
 def test_biterator__init__():

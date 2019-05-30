@@ -1182,6 +1182,61 @@ class Pun(Action):
         await self.bot.send_message(self.msg.channel, msg)
 
 
+class YTSearch(Action):
+    """
+    Search youtube for videos to play.
+    """
+    class YTMenu(PagingMenu):
+        """
+        Select a youtube video to play from search results.
+        """
+        def menu(self):
+            cnt = 1
+            msg = """**Youtube Search**
+    Page {}/{}
+    Select a song to play by number [1..{}]:
+
+
+""".format(self.page, self.total_pages, len(self.cur_entries))
+
+            for result in self.cur_entries:
+                msg += """    {cnt}) **{title}**    <{url}>
+            __Time__ {duration}    __Views__ {views}
+""".format(cnt=cnt, **result)
+                cnt += 1
+            msg = msg.rstrip()
+            msg += PAGING_FOOTER
+
+            return msg
+
+        async def handle_msg(self, user_select):
+            choice = int(user_select.content) - 1
+            if choice < 0 or choice >= len(self.cur_entries):
+                raise ValueError
+
+            selected = self.entries[choice]
+            videos = dicedb.query.validate_videos([selected['url']])
+            videos[0].name = selected['title']
+            await get_guild_player(self.act.guild_id, self.msg).replace_and_play(videos)
+
+            return True
+
+    async def execute(self):
+        terms = [re.subn(r'[^a-z0-9\',.]+', '', term)[0] for term in self.args.terms]
+
+        entries = await dice.music.yt_search(terms)
+        mplayer = get_guild_player(self.guild_id, self.msg)
+        if self.args.first:
+            videos = dicedb.query.validate_videos([entries[0]['url']])
+            videos[0].name = entries[0]['title']
+            await mplayer.replace_and_play(videos)
+        else:
+            await YTSearch.YTMenu(self, entries, 6).run()
+
+        msg = 'Playing: ' + str(mplayer.cur_vid)
+        await self.bot.send_message(self.msg.channel, msg)
+
+
 async def timer_monitor(timers, sleep_time=CHECK_TIMER_GAP):
     """
     Perform a check on all active timers every sleep_time seconds.

@@ -297,8 +297,9 @@ async def yt_search(terms):
     Returns:
         A list of the following form:
         [
-            [url, title, duration, views],
-            [url, title, duration, views],
+            {'url': url, 'title': title, 'duration': duration, 'views': views},
+            {'url': url, 'title': title, 'duration': duration, 'views': views},
+            {'url': url, 'title': title, 'duration': duration, 'views': views},
             ...
         ]
 
@@ -321,13 +322,14 @@ async def yt_search(terms):
         if '&list=' in url:
             url = "https://youtube.com" + url
         else:
-            url = "'https://youtu.be/" + url.replace("/watch?v=", "")
+            url = "https://youtu.be/" + url.replace("/watch?v=", "")
 
-        time, views = parse_search_label(match.span.get('aria-label'))
+        duration, views = parse_search_label(match.span.get('aria-label'))
 
-        results += [[url, match.a.get('title'), time, views]]
+        results += [{'url': url, 'title': match.a.get('title'), 'duration': duration, 'views': views}]
 
     return results
+
 
 # Implemented in self.__client, stop, pause, resume, disconnect(async), move_to(async)
 class GuildPlayer():
