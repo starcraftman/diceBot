@@ -31,7 +31,7 @@ import dice.util
 from dicedb.schema import Song  # noqa F401 pylint: disable=unused-import
 
 
-CMD_TIMEOUT = 15
+CMD_TIMEOUT = 30
 CACHE_LIMIT = dice.util.get_config('music', 'cache_limit', default=250) * 1024 ** 2
 PLAYER_TIMEOUT = dice.util.get_config('music', 'player_timeout', default=120)  # seconds
 VOICE_JOIN_TIMEOUT = dice.util.get_config('music', 'voice_join_timeout', default=5)  # seconds

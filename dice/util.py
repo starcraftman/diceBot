@@ -2,7 +2,11 @@
 Utility functions, mainly matching now.
 """
 from __future__ import absolute_import, print_function
+import abc
+import asyncio
+import concurrent
 import datetime
+import functools
 import logging
 import logging.handlers
 import logging.config
@@ -11,6 +15,7 @@ import os
 import random
 import re
 
+import discord
 import numpy.random
 import selenium.webdriver
 from selenium.webdriver.chrome.options import Options as ChromeOpts
@@ -30,6 +35,13 @@ IS_YT_LIST = re.compile(r'https?://((www.)?youtube.com/watch\?v=\S+&|youtu.be/\S
                         re.ASCII | re.IGNORECASE)
 IS_URL = re.compile(r'(https?://)?(\w+\.)+(com|org|net|ca|be)(/\S+)*', re.ASCII | re.IGNORECASE)
 MAX_SEED = int(math.pow(2, 32) - 1)
+PAGING_STOP_WORDS = ['done', 'exit', 'stop']
+PAGING_FOOTER = """
+
+Type __done__ or __exit__ or __stop__ to cancel menu
+Type __next__ to display the next page of entries
+Type **1** to select entry (1)
+"""
 
 
 class ModFormatter(logging.Formatter):
@@ -41,6 +53,185 @@ class ModFormatter(logging.Formatter):
         relmod = record.__dict__['pathname'].replace(ROOT_DIR + os.path.sep, '')
         record.__dict__['relmod'] = relmod[:-3]
         return super().format(record)
+
+
+class BIterator():
+    """
+    Bidirectional iterator that can move up and down list.
+    If you want a shuffle, just feed in random.shuffle(items).
+
+    Attributes:
+        items: The list of items to iterate through.
+        index: The position in the list. Iterator always starts off the list at -1 unless specified.
+               Index will end iterating the liast at len(items).
+    """
+    def __init__(self, items, index=-1):
+        self.items = items
+        self.index = index
+
+    def __repr__(self):
+        return "BIterator(index={}, items={})".format(self.index, self.items)
+
+    def __next__(self):
+        """ Allow using it like an actual iterator. """
+        self.index = min(self.index + 1, len(self.items))
+        if self.index < len(self.items):
+            return self.items[self.index]
+
+        raise StopIteration
+
+    @property
+    def current(self):
+        """ The current item the iterator is pointing to. """
+        if self.is_finished():
+            return None
+
+        return self.items[self.index]
+
+    def is_finished(self):
+        """ The iterator is not currently pointing at anything. """
+        return self.index in (-1, len(self.items))
+
+    def finish(self):
+        """ Exhaust the iterator. """
+        self.index = len(self.items)
+
+    def next(self):
+        """
+        Move the iterator to the next position.
+
+        Raises:
+            StopIteration: Iterator is exhausted.
+        """
+        return self.__next__()
+
+    def prev(self):
+        """
+        Move the iterator to the prev position.
+
+        Raises:
+            StopIteration: Iterator is exhausted.
+        """
+        self.index = max(self.index - 1, -1)
+        if self.index > -1:
+            return self.items[self.index]
+
+        raise StopIteration
+
+
+class PagingMenu(abc.ABC):
+    """
+    Implement a reusable menuing interface.
+    Simply present user a menu based on entries and
+    at a later time handle_msg when he responds.
+
+    Attributes:
+        act: The action that was invoked for the user.
+        msgs: Collection of any messages sent to user, will be deleted as needed.
+        entries: The list of things to choose from.
+        limit: The limit of choices to give to user per page.
+        page: The page we are on.
+    """
+    def __init__(self, act, entries, limit=8):
+        self.act = act
+        self.msgs = []
+        self.entries = entries
+        self.limit = limit
+        self.page = 1
+        self.total_pages = math.ceil(len(entries) / self.limit)
+
+    @property
+    def msg(self):
+        """ The original discord.Message received from user. """
+        return self.act.msg
+
+    @property
+    def cur_entries(self):
+        """ The entries to display on current page. """
+        return self.entries[:self.limit]
+
+    async def send(self, msg):
+        """
+        Send a message to the user who requested the paging menu.
+
+        Args:
+            msg: The message to send the user.
+
+        Returns:
+            The discord.Message that was sent.
+        """
+        return await self.act.msg.channel.send(msg)
+
+    async def run(self):
+        """
+        Run a simple paging menu over a list of entries.
+        On each iteration of the loop generate the menu and wait for user response.
+        Then handle response within handle_msg.
+        Keep prompting user until handle_msg returns True.
+        """
+        while self.entries:
+            try:
+                self.msgs += [await self.send(self.menu())]
+
+                user_select = await self.act.bot.wait_for(
+
+                    'message', check=functools.partial(check_messages, self.msg), timeout=30)
+
+                if user_select:
+                    self.msgs += [user_select]
+                    user_select.content = user_select.content.lower().strip()
+
+                if not user_select or user_select.content in PAGING_STOP_WORDS:
+                    await self.send('Paging menu terminated. Goodbye human!.')
+                    break
+
+                elif user_select.content == 'next':
+                    self.entries = self.entries[self.limit:]
+                    self.page += 1
+
+                elif await self.handle_msg(user_select):
+                    self.entries = None
+            except concurrent.futures.TimeoutError:
+                self.entries = None
+                await self.send('Paging menu timed out. Goodbye human!.')
+            except (KeyError, ValueError, dice.exc.InvalidCommandArgs) as exc:
+                msg = "Selection not understood. Make choice from numbers [1, {}]".format(len(self.cur_entries))
+                if isinstance(exc, dice.exc.InvalidCommandArgs):
+                    msg = str(exc)
+                await self.act.bot.send_ttl_message(self.msg.channel, msg)
+                await asyncio.sleep(3)
+            finally:
+                user_select = None
+                try:
+                    await self.msg.channel.delete_messages(self.msgs)
+                except discord.Forbidden:
+                    self.act.log.error("Missing manage messages bot permission. On: " + str(self.msg.guild))
+
+    @abc.abstractmethod
+    def menu(self):
+        """
+        Generate the menu to send to the user.
+
+        Returns:
+            A string that will be sent to the user.
+        """
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def handle_msg(self, user_select):
+        """
+        Handle a user's response.
+
+        Args:
+            user_select: The response discord.Message from the user.
+
+        Raises:
+            ValueError: Bad user response, try again.
+
+        Returns:
+            True, if and only if you want to stop processing and all went well.
+        """
+        raise NotImplementedError
 
 
 def rel_to_abs(*path_parts):
@@ -302,68 +493,12 @@ def init_chrome():
     return selenium.webdriver.Chrome(options=opts)
 
 
-class BIterator():
+def check_messages(original, msg):
     """
-    Bidirectional iterator that can move up and down list.
-    If you want a shuffle, just feed in random.shuffle(items).
-
-    Attributes:
-        items: The list of items to iterate through.
-        index: The position in the list. Iterator always starts off the list at -1 unless specified.
-               Index will end iterating the liast at len(items).
+    Simply check if message came from same author and text channel.
+    Use functools to bind self.msg into original to make predicate.
     """
-    def __init__(self, items, index=-1):
-        self.items = items
-        self.index = index
-
-    def __repr__(self):
-        return "BIterator(index={}, items={})".format(self.index, self.items)
-
-    def __next__(self):
-        """ Allow using it like an actual iterator. """
-        self.index = min(self.index + 1, len(self.items))
-        if self.index < len(self.items):
-            return self.items[self.index]
-
-        raise StopIteration
-
-    @property
-    def current(self):
-        """ The current item the iterator is pointing to. """
-        if self.is_finished():
-            return None
-
-        return self.items[self.index]
-
-    def is_finished(self):
-        """ The iterator is not currently pointing at anything. """
-        return self.index in (-1, len(self.items))
-
-    def finish(self):
-        """ Exhaust the iterator. """
-        self.index = len(self.items)
-
-    def next(self):
-        """
-        Move the iterator to the next position.
-
-        Raises:
-            StopIteration: Iterator is exhausted.
-        """
-        return self.__next__()
-
-    def prev(self):
-        """
-        Move the iterator to the prev position.
-
-        Raises:
-            StopIteration: Iterator is exhausted.
-        """
-        self.index = max(self.index - 1, -1)
-        if self.index > -1:
-            return self.items[self.index]
-
-        raise StopIteration
+    return msg.author == original.author and msg.channel == original.channel
 
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
