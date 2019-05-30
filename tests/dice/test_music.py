@@ -316,3 +316,21 @@ async def test_guild_player_replace_and_play(f_songs, f_vclient):
     assert not player.is_done()
     assert not f_vclient.stop.called
     assert os.path.exists(f_songs[0].fname)
+
+
+def test_parse_search_label():
+    assert dice.music.parse_search_label(None) == ("", 0)
+    assert dice.music.parse_search_label("ago ") == ("", 0)
+    assert dice.music.parse_search_label("ago 4 hours 4 views") == ("4:00:00", 4)
+    assert dice.music.parse_search_label("ago 1 hour, 2 minutes 4 views") == ("1:02:00", 4)
+    assert dice.music.parse_search_label("ago 21 minutes, 43 seconds 40 views") == ("0:21:43", 40)
+    assert dice.music.parse_search_label("ago 3 hours, 21 minutes, 1 second 2 views") == ("3:21:01", 2)
+    assert dice.music.parse_search_label("ago 3,222,111 views") == ("", 3222111)
+
+
+@pytest.mark.asyncio
+async def test_yt_search():
+    expect = ["'https://youtu.be/IrbCrwtDIUA", 'no more kings - critical hit', '0:03:51', 52949]
+    results = await dice.music.yt_search(['critical', 'hit'])
+    assert expect in results
+    assert len(results) > 10

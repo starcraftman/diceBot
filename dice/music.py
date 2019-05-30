@@ -16,11 +16,14 @@ import logging
 import os
 import pathlib
 import random
+import re
 import shlex
 import subprocess
 import time
 
+import aiohttp
 import discord
+import bs4
 from numpy import random as rand
 
 import dice.exc
@@ -38,6 +41,9 @@ Try again later or contact bot owner. """.format(VOICE_JOIN_TIMEOUT)
 # Filename goes after o flag, urls at end
 YTDL_CMD = "youtube-dl -x --audio-format opus --audio-quality 0 -o"  # + out_template + url
 YTDL_PLAYLIST = "youtube-dl -j --flat-playlist"  # + url
+YT_SEARCH_REG = re.compile(r'((\d+) hours?)?[, ]*((\d+) minutes?)?[, ]*((\d+) seconds?)?[, ]*(([0-9,]+) views)?', re.ASCII | re.IGNORECASE)
+YT_SEARCH = "https://www.youtube.com/results?search_query="
+
 
 # Stupid youtube: https://github.com/Rapptz/discord.py/issues/315
 # Archived if go back to streaming youtube
@@ -246,6 +252,82 @@ async def prefetch_in_order(vids):
 
         await asyncio.gather(*jobs)
 
+
+def parse_search_label(line):
+    """
+    Parse the label for video duration & view count from a youtube label.
+
+    Args:
+        line: A string containing the label parsed from youtube html.
+
+    Returns:
+        [duration, views]
+
+        duration: A string of format HH:MM:SS. Empty if errored during parsing.
+        views: The integer view count of the video. 0 if no information found.
+    """
+    try:
+        duration, views = '', 0
+        index = line.index('ago')
+        if index != -1:
+            line = line[index + 3:].strip()
+
+        matched = YT_SEARCH_REG.match(line)
+        if matched:
+            time_parts = []
+            for num in (2, 4, 6):
+                time_parts += [matched.group(num) if matched.group(num) else 0]
+
+            duration = "{}:{:>2}:{:>2}".format(*time_parts).replace(' ', '0')
+            views = int(matched.group(8).replace(',', ''))
+
+            if duration == "0:00:00":
+                duration = ""
+    except (AttributeError, ValueError):
+        duration, views = '', 0
+
+    return duration, views
+
+
+async def yt_search(terms):
+    """
+    Search youtube for terms & return results to present to the user.
+    Returns first 20 results as presented on first page of search.
+
+    Returns:
+        A list of the following form:
+        [
+            [url, title, duration, views],
+            [url, title, duration, views],
+            ...
+        ]
+
+        Breakdown:
+            url: Either a shortened video link or a link to a full playlist.
+            title: The title of the video or playlist.
+            duration: For videos, the HH:MM:SS it asts for. For playlists, ''.
+            views: For videos, the view count. For playlists, 0.
+    """
+    async with aiohttp.ClientSession() as session:
+        async with session.get(YT_SEARCH + "+".join(terms)) as resp:
+            soup = bs4.BeautifulSoup(await resp.text(), 'html.parser')
+
+    results = []
+    for match in soup.find_all('div', class_='yt-lockup-content'):
+        url = match.a.get('href')
+        if 'watch?v=' not in url:
+            continue
+
+        if '&list=' in url:
+            url = "https://youtube.com" + url
+        else:
+            url = "'https://youtu.be/" + url.replace("/watch?v=", "")
+
+        time, views = parse_search_label(match.span.get('aria-label'))
+
+        results += [[url, match.a.get('title'), time, views]]
+
+    return results
 
 # Implemented in self.__client, stop, pause, resume, disconnect(async), move_to(async)
 class GuildPlayer():
