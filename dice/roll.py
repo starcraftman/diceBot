@@ -1,6 +1,15 @@
 """
 Dice module for throwing dice.
 """
+# See systems listed: https://wiki.roll20.net/Dice_Reference
+# These are a series of ideas rather than firm commitments to implement.
+# TODO: Refactor to a Dice class + some addable modifiers on demand.
+# TODO: Add !gmroll to pars/actions, only shows to player and GM.
+# TODO: Allow comments post roll, i.e. 3d6 + 20 this comment gets replayed back.
+# TODO: Roll history, track rolls by session and recall last #N rolls + detailed breakdown.
+# TODO: Exploding dice, 3d6! -> reroll on hitting 6, 3d6!>4, explode greater than 4.
+# TODO: Simple success/fail system, 3d6 > 4, report # sucess over 4.
+# TODO: 4DF, fate dice are 6 sides (2 * -1, 0, 1).
 import abc
 import functools
 import re
