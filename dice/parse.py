@@ -77,9 +77,9 @@ def subs_math(subs, prefix):
 
 
 @register_parser
-def subs_play(subs, prefix):
+def subs_music(subs, prefix):
     """ Subcommand parsing for timers """
-    desc = """A simple music player for games.
+    desc = """A simple music player for users to stream yt or local media.
 
 {prefix}m is aliased to this command.
 
@@ -87,9 +87,9 @@ def subs_play(subs, prefix):
         Play one or more youtube links or local files on server.
 {prefix}music play youtube_playlist
         Play the playlist from start to finish. Only 1 playlist supported.
-{prefix}music append youtube_link_1 local_name_1
+{prefix}music add youtube_link_1 local_name_1
         Append the following songs to the list.
-{prefix}music append youtube_playlist
+{prefix}music add youtube_playlist
         Append the playlist from start to finish. Only 1 playlist supported.
 {prefix}music clear
         Stop playing the music and clear the queue.
@@ -118,9 +118,9 @@ def subs_play(subs, prefix):
     subsub = sub.add_subparsers(title='sub-subcommands',
                                 description='The subcommands of play',
                                 dest='sub')
-    sub3 = subsub.add_parser('append', description="Append the vids to the music queue.")
+    sub3 = subsub.add_parser('add', description="Append the vids to the music queue.")
     sub3.add_argument('vids', nargs="+", default=[], help='The videos to play.')
-    sub3 = subsub.add_parser('play', aliases=['p', 'replace'], description="Play the selected videos.")
+    sub3 = subsub.add_parser('play', aliases=['replace'], description="Play the selected videos.")
     sub3.add_argument('vids', nargs="+", default=[], help='The videos to play.')
     subsub.add_parser('clear', description="Clear the music queue.")
     subsub.add_parser('restart', description="Restart the music queue.")

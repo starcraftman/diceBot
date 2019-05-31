@@ -28,7 +28,7 @@ except ImportError:  # pragma: no cover
 import dice.exc
 
 BOT = None
-MSG_LIMIT = 1985  # Number chars before message truncation
+MSG_LIMIT = 2000  # Number chars before message truncation
 IS_YT = re.compile(r'https?://((www.)?youtube.com/watch\?v=|youtu.be/|y2u.be/)(\S+)',
                    re.ASCII | re.IGNORECASE)
 IS_YT_LIST = re.compile(r'https?://((www.)?youtube.com/watch\?v=\S+&|youtu.be/\S+\?)list=(\S+)',
@@ -150,31 +150,25 @@ class PagingMenu(abc.ABC):
         """ The entries to display on current page. """
         return self.entries[:self.limit]
 
-    async def send(self, msg):
+    async def reply(self, msg, **kwargs):
         """
         Send a message to the user who requested the paging menu.
 
-        Args:
-            msg: The message to send the user.
-
-        Returns:
-            The discord.Message that was sent.
+        Behaves exactly like Bot.send() except channel is filled in for you.
         """
-        return await self.act.msg.channel.send(msg)
+        return await self.act.bot.send(self.act.msg.channel, msg, **kwargs)
 
     async def run(self):
         """
         Run a simple paging menu over a list of entries.
         On each iteration of the loop generate the menu and wait for user response.
         Then handle response within handle_msg.
-        Keep prompting user until handle_msg returns True.
+        Keep prompting user until handle_msg returns True or no entries left.
         """
         while self.entries:
             try:
-                self.msgs += [await self.send(self.menu())]
-
+                self.msgs += await self.reply(self.menu())
                 user_select = await self.act.bot.wait_for(
-
                     'message', check=functools.partial(check_messages, self.msg), timeout=30)
 
                 if user_select:
@@ -182,7 +176,7 @@ class PagingMenu(abc.ABC):
                     user_select.content = user_select.content.lower().strip()
 
                 if not user_select or user_select.content in PAGING_STOP_WORDS:
-                    await self.send('Paging menu terminated. Goodbye human!.')
+                    await self.reply('Paging menu terminated. Goodbye human!.')
                     break
 
                 elif user_select.content == 'next':
@@ -193,12 +187,12 @@ class PagingMenu(abc.ABC):
                     self.entries = None
             except concurrent.futures.TimeoutError:
                 self.entries = None
-                await self.send('Paging menu timed out. Goodbye human!.')
+                await self.reply('Paging menu timed out. Goodbye human!.')
             except (KeyError, ValueError, dice.exc.InvalidCommandArgs) as exc:
                 msg = "Selection not understood. Make choice from numbers [1, {}]".format(len(self.cur_entries))
                 if isinstance(exc, dice.exc.InvalidCommandArgs):
                     msg = str(exc)
-                await self.act.bot.send_ttl_message(self.msg.channel, msg)
+                await self.reply(msg, ttl=True)
                 await asyncio.sleep(3)
             finally:
                 user_select = None
@@ -368,37 +362,33 @@ def complete_blocks(parts):
     return new_parts
 
 
-def msg_splitter(msg, limit=None):
+def msg_splitter(msg, limit=MSG_LIMIT):
     """
-    Split a message intelligently to fit the limit provided.
-    By default, limit will fit under the 2k limit.
+    Split a given msg of text into parts less than limit long.
+    Try best to split on last possible new line.
+    If no new line found in line up to limit, split on limit character.
 
     Returns:
-        [msg, msg2, msg3, ...]
+        [part_msg, part_msg, part_msg, ...]
     """
-    new_msgs = []
-    cur_msg = ''
-    if not limit:
-        limit = MSG_LIMIT
+    parts = []
 
-    lines = msg.split('\n')
-    while lines:
-        line = lines[0] + '\n'
-        if len(line) > limit:
-            raise ValueError("Will not transmit a single line of {} chars.\n\n{}".format(limit, line[0:40]))
+    while msg:
+        if len(msg) <= limit:
+            parts += [msg]
+            break
 
-        if len(cur_msg + line) > limit:
-            new_msgs += [cur_msg.rstrip()]
-            cur_msg = line.lstrip()
-        else:
-            cur_msg += line
+        try:
+            last_nl = msg[:limit].rindex('\n')
+            parts += [msg[:last_nl]]
+            msg = msg[last_nl + 1:]
+        except ValueError:
+            log = logging.getLogger('dice.util')
+            log.warning("Cannot break on newline, breaking at limit. Message: (%d) %s", limit, msg)
+            parts += [msg[:limit]]
+            msg = msg[limit:]
 
-        lines = lines[1:]
-
-    if cur_msg.rstrip():
-        new_msgs += [cur_msg.rstrip()]
-
-    return new_msgs
+    return parts
 
 
 def load_yaml(fname):

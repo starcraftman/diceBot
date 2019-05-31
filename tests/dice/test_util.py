@@ -80,6 +80,12 @@ Sitting in bed is fun."""
     assert dice.util.msg_splitter(text, 100) == expect
 
 
+def test_msg_splitter_no_newline():
+    text = "This is a long line to send to the line."
+    expect = ['This is a ', 'long line ', 'to send to', ' the line.']
+    assert dice.util.msg_splitter(text, 10) == expect
+
+
 def test_generate_seed():
     seed = dice.util.generate_seed()
     assert seed > 0

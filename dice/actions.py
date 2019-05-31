@@ -63,6 +63,14 @@ class Action():
         """
         return self.msg.guild.id
 
+    async def reply(self, reply, **kwargs):
+        """
+        Reply with a message directly to the user who invoked bot.
+
+        Behaves exactly like Bot.send() except channel is filled in for you.
+        """
+        return await self.bot.send(self.msg.channel, reply, **kwargs)
+
     async def execute(self):
         """
         Take steps to accomplish requested action, including possibly
@@ -109,12 +117,12 @@ class Help(Action):
         lines = [[line[0].format(prefix=prefix), line[1]] for line in lines]
 
         response = '\n'.join(over) + dice.tbl.wrap_markdown(dice.tbl.format_table(lines, header=True))
-        await self.bot.send_ttl_message(self.msg.channel, response)
+        await self.reply(response, ttl=True)
         try:
             await self.msg.delete()
-        except discord.Forbidden as exc:
-            self.log.error("Failed to delete msg on: %s/%s\n%s",
-                           self.msg.channel.guild, self.msg.channel, str(exc))
+        except discord.Forbidden:
+            logging.getLogger("dice.actions").error(
+                "Bot missing manage messages permission. On: %s", str(self.msg.guild))
 
 
 class Status(Action):
@@ -128,8 +136,7 @@ class Status(Action):
             ['Version', '{}'.format(dice.__version__)],
         ]
 
-        await self.bot.send_message(self.msg.channel,
-                                    dice.tbl.wrap_markdown(dice.tbl.format_table(lines)))
+        await self.reply(dice.tbl.wrap_markdown(dice.tbl.format_table(lines)))
 
 
 class Math(Action):
@@ -147,7 +154,7 @@ class Math(Action):
             # FIXME: Dangerous, but re blocking anything not simple maths.
             resp += [line + " = " + str(eval(line))]
 
-        await self.bot.send_message(self.msg.channel, '\n'.join(resp))
+        await self.reply('\n'.join(resp))
 
 
 class Music(Action):
@@ -198,7 +205,7 @@ class Music(Action):
     async def pause(self, mplayer):
         """ Pause the player. """
         mplayer.toggle_pause()
-        return"Player is now: " + mplayer.state
+        return "Player is now: " + mplayer.state
 
     async def next(self, mplayer):
         """ Play the next video. """
@@ -244,29 +251,33 @@ class Music(Action):
         """ Set the volume for current song. """
         mplayer.set_volume(self.args.volume)
         msg = "Player volume: {}/100".format(mplayer.cur_vid.volume_int)
-        await self.bot.send_message(self.msg.channel, msg)
+        await self.reply(msg)
 
-    async def append(self, mplayer):
+    async def add(self, mplayer):
         """ Append to the end of the queue. """
         new_vids = await self.__class__.make_videos(self.args.vids)
         mplayer.append_vids(new_vids)
         await dice.music.prefetch_in_order(new_vids)
-        await self.bot.send_message(self.msg.channel, str(mplayer))
+        await self.reply(str(mplayer))
 
     async def play(self, mplayer):
         """ Start playing or replace entire playlist. """
         new_vids = await self.__class__.make_videos(self.args.vids)
-        msg = await self.bot.send_message(self.msg.channel, "Please wait, ensuring first song downloaded. Rest will download in background.")
+        msgs = await self.reply("Please wait, ensuring first song downloaded. Rest will download in background.")
         await dice.music.prefetch_all(new_vids[:1])
         mplayer.set_vids(new_vids)
         mplayer.play()
         try:
-            await msg.delete()
+            for msg in msgs:
+                await msg.delete()
         except discord.Forbidden:
-            pass
+            logging.getLogger("dice.actions").error(
+                "Bot missing manage messages permission. On: %s", str(self.msg.guild))
 
-        await self.bot.send_message(self.msg.channel, str(mplayer))
+        await self.reply(str(mplayer))
         await dice.music.prefetch_in_order(new_vids[1:])
+
+    replace = play
 
     async def execute(self):
         mplayer = get_guild_player(self.guild_id, self.msg)
@@ -280,7 +291,7 @@ class Music(Action):
         except dice.exc.RemoteError as exc:
             msg = str(exc)
         if msg:
-            await self.bot.send_long_message(self.msg.channel, msg)
+            await self.reply(msg)
 
         if mplayer.cur_vid.id and self.args.sub in ['repeat', 'volume']:
             song = dicedb.query.get_song_by_id(self.session, mplayer.cur_vid.id)
@@ -308,7 +319,7 @@ Select a song to remove by number [1..{}]:
 
         dicedb.query.remove_song_with_tags(self.act.session, self.entries[choice].name)
         del self.entries[choice]
-        await self.send("**Song Deleted**\n\n    {}".format(self.entries[choice].name))
+        await self.reply("**Song Deleted**\n\n    {}".format(self.entries[choice].name))
 
         return False
 
@@ -345,13 +356,15 @@ Type __list__ to go select by song list"""
         songs = dicedb.query.get_songs_with_tag(self.act.session, self.cur_entries[choice])
         if 'all' in user_select.content:
             mplayer = get_guild_player(self.act.guild_id, self.msg)
-            self.msgs += [await self.send('Please wait, downloading as needed before playing.')]
-            await mplayer.replace_and_play(songs)
-            await self.send(str(mplayer))
+            self.msgs += await self.reply('Appending new selection(s) to playlist. Select another or exit.')
+            mplayer.append_vids(songs)
+            asyncio.ensure_future(dice.music.prefetch_all(songs))
+            await self.reply(str(mplayer))
         else:
             await SelectSong(self.act, songs).run()
+            return True
 
-        return True
+        return False
 
 
 class SelectSong(dice.util.PagingMenu):
@@ -380,12 +393,11 @@ Select a song to play by number [1..{}]:
             raise ValueError
         selected = self.entries[choice]
 
-        self.msgs += [await self.send('Appending new selection to playlist. Select another or exit.')]
-        await get_guild_player(self.act.guild_id).append_vids([selected])
-        await dice.music.prefetch_all([selected])
-        await self.send('**Song Started**\n\n' + str(selected))
+        self.msgs += await self.reply('Appending new selection(s) to playlist. Select another or exit.')
+        get_guild_player(self.act.guild_id, self.act.msg).append_vids([selected])
+        asyncio.ensure_future(dice.music.prefetch_all([selected]))
 
-        return True
+        return False
 
 
 # TODO: Need tests here
@@ -438,7 +450,7 @@ class Songs(Action):
             reply += song.format_menu(cnt)
             cnt += 1
 
-        await self.bot.send_long_message(self.msg.channel, reply)
+        await self.reply(reply)
 
     async def search_tags(self, term):
         """
@@ -456,7 +468,7 @@ class Songs(Action):
                 cnt += 1
             reply += "\n"
 
-        await self.bot.send_long_message(self.msg.channel, reply)
+        await self.bot.reply(reply)
 
     async def execute(self):
         if self.args.add:
@@ -468,7 +480,7 @@ class Songs(Action):
             song = self.add(name, url, tags)
 
             reply = '__Song Added__\n\n' + song.format_menu(1)
-            await self.bot.send_message(self.msg.channel, reply)
+            await self.reply(reply)
         if self.args.list:
             await self.list()
         elif self.args.manage:
@@ -499,8 +511,7 @@ Top {} Results:\n\n{}"""
             result = await self.bot.loop.run_in_executor(pool, get_results_in_background,
                                                          full_url, self.args.num)
 
-        await self.bot.send_message(self.msg.channel, msg.format(
-            self.args.wiki, terms, self.args.num, result))
+        await self.reply(msg.format(self.args.wiki, terms, self.args.num, result))
 
 
 class Poni(Action):
@@ -532,7 +543,7 @@ class Poni(Action):
 
                 msg = 'https:' + img_found["full"]
 
-        await self.bot.send_message(self.msg.channel, msg)
+        await self.reply(msg)
 
 
 class Roll(Action):
@@ -597,7 +608,7 @@ class Roll(Action):
             resp += await self.make_rolls(full_spec)
             msg = '\n'.join(resp)
 
-        await self.bot.send_long_message(self.msg.channel, msg)
+        await self.reply(msg)
 
 
 class Timer(Action):
@@ -617,7 +628,7 @@ class Timer(Action):
         if not re.match(r'[0-9:]+', self.args.time) or self.args.time.count(':') > 2:
             raise dice.exc.InvalidCommandArgs("I can't understand time spec! Use format: **HH:MM:SS**")
 
-        self.last_msg = None
+        self.last_msgs = []
         end_offset = parse_time_spec(self.args.time)
         self.start = datetime.datetime.utcnow()
         self.end = self.start + datetime.timedelta(seconds=end_offset)
@@ -638,7 +649,7 @@ class Timer(Action):
                    remain=diff)
 
     def __repr__(self):
-        keys = ['description', 'start', 'end', 'last_msg', 'triggers']
+        keys = ['description', 'start', 'end', 'last_msgs', 'triggers']
         kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
 
         return "Timer({})".format(', '.join(kwargs))
@@ -732,17 +743,18 @@ class Timer(Action):
         Args:
             new_msg: The new message to send.
         """
-        if self.last_msg:
+        if self.last_msgs:
             try:
-                await self.last_msg.delete()
+                for msg in self.last_msgs:
+                    await msg.delete()
             except discord.Forbidden:
                 logging.getLogger("dice.actions").error("Bot missing manage messages permission. On: %s", str(self.msg.guild))
 
-        self.last_msg = await self.bot.send_message(self.msg.channel, new_msg)
+        self.last_msgs = await self.reply(new_msg)
 
     async def execute(self):
         TIMERS[self.key] = self
-        self.last_msg = await self.bot.send_message(self.msg.channel, "Starting timer for: " + self.args.time)
+        self.last_msgs = await self.reply("Starting timer for: " + self.args.time)
 
 
 class TimersMenu(dice.util.PagingMenu):
@@ -768,7 +780,7 @@ Select a timer to cancel from [1..{}]:
         except (KeyError, ValueError):
             pass
 
-        return True
+        return False
 
 
 class Timers(Action):
@@ -779,13 +791,12 @@ class Timers(Action):
         if self.args.clear:
             for key_to_remove in [x for x in TIMERS if self.msg.author.name in x]:
                 del TIMERS[key_to_remove]
-            await self.bot.send_message(self.msg.channel, "Your timers have been cancelled.")
+            await self.reply("Your timers have been cancelled.")
         elif self.args.manage:
             entries = [x for x in TIMERS if self.msg.author.name in x]
             await TimersMenu(self, entries).run()
         else:
-            await self.bot.send_long_message(self.msg.channel,
-                                             timer_summary(TIMERS, self.msg.author.name))
+            await self.reply(timer_summary(TIMERS, self.msg.author.name))
 
 
 class Turn(Action):
@@ -935,7 +946,7 @@ class Turn(Action):
             except AttributeError:
                 pass
 
-        await self.bot.send_message(self.msg.channel, msg)
+        await self.reply(msg)
 
 
 class Effect(Action):
@@ -1027,7 +1038,7 @@ class Effect(Action):
 
         dicedb.query.update_turn_order(self.session, self.chan_id, order)
 
-        await self.bot.send_message(self.msg.channel, msg)
+        await self.reply(msg)
 
 
 class PunMenu(dice.util.PagingMenu):
@@ -1078,7 +1089,7 @@ class Pun(Action):
             msg = '**Randomly Selected Pun**\n\n'
             msg += dicedb.query.randomly_select_pun(self.session)
 
-        await self.bot.send_message(self.msg.channel, msg)
+        await self.reply(msg)
 
 
 class YTMenu(dice.util.PagingMenu):
@@ -1114,15 +1125,11 @@ Select a song to play by number [1..{}]:
         videos[0].name = selected['title'][:30]
 
         mplayer = get_guild_player(self.act.guild_id, self.msg)
-        msg = await self.send("Please wait, ensuring first song downloaded. Rest will download in background.")
-        await mplayer.replace_and_play(videos)
-        await self.send(str(mplayer))
-        try:
-            await msg.delete()
-        except discord.Forbidden:
-            pass
+        mplayer.append_vids(videos)
+        asyncio.ensure_future(dice.music.prefetch_all(videos))
+        self.msgs += await self.reply('Appending new selection(s) to playlist. Select another or exit.')
 
-        return True
+        return False
 
 
 class YTSearch(Action):
@@ -1137,13 +1144,10 @@ class YTSearch(Action):
         if self.args.first:
             videos = dicedb.query.validate_videos([entries[0]['url']])
             videos[0].name = entries[0]['title']
-            msg = await self.bot.send_message(self.msg.channel, "Please wait, ensuring first song downloaded. Rest will download in background.")
-            await mplayer.replace_and_play(videos)
-            await self.bot.send_message(self.msg.channel, str(mplayer))
-            try:
-                await msg.delete()
-            except discord.Forbidden:
-                pass
+
+            mplayer.append_vids(videos)
+            asyncio.ensure_future(dice.music.prefetch_all(videos))
+            await self.reply('Appending first match to playlist. ' + videos[0].name)
         else:
             await YTMenu(self, entries, 6).run()
 

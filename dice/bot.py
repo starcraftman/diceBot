@@ -203,7 +203,7 @@ class DiceBot(discord.Client):
                 except dice.exc.ArgumentHelpError as exc2:
                     exc.message = 'Invalid command use. Check the command help.'
                     exc.message += '\n{}\n{}'.format(len(exc.message) * '-', exc2.message)
-            await self.send_ttl_message(channel, exc.reply())
+            await self.send(channel, exc.reply(), ttl=True)
             try:
                 await message.delete()
             except discord.DiscordException:
@@ -211,7 +211,7 @@ class DiceBot(discord.Client):
 
         except dice.exc.UserException as exc:
             exc.write_log(log, content=content, author=author, channel=channel)
-            await self.send_ttl_message(channel, exc.reply())
+            await self.send(channel, exc.reply(), ttl=True)
             try:
                 await message.delete()
             except discord.DiscordException:
@@ -219,19 +219,19 @@ class DiceBot(discord.Client):
 
         except dice.exc.InternalException as exc:
             exc.write_log(log, content=content, author=author, channel=channel)
-            await channel.send(exc.reply())
+            await self.send(channel, exc.reply())
             raise exc
 
         except discord.DiscordException as exc:
             if exc.args[0].startswith("BAD REQUEST (status code: 400"):
-                await self.send_ttl_message(channel, "Response would be > 2000 chars, cannot transmit to Discord.\n\nSorry. If this is a problem see Gears.")
+                await self.send(channel, "It appears Response would be > 2000 chars, cannot transmit.", ttl=True)
                 try:
                     await message.delete()
                 except discord.DiscordException:
                     pass
             else:
                 owner = channel.guild.owner.mention
-                await channel.send("A critical discord error occurred, see log {}.".format(owner))
+                await self.send(channel, "A critical discord error occurred, see log {}.".format(owner))
             line = "Discord.py Library raised an exception"
             line += dice.exc.log_format(content=content, author=author, channel=channel)
             log.exception(line)
@@ -245,68 +245,39 @@ class DiceBot(discord.Client):
 
         await cls(**kwargs).execute()
 
-    async def send_long_message(self, channel, content=None, *, tts=False, embed=None):
+    async def send(self, channel, content=None, *, ttl=False, **kwargs):
         """
-        Behaves excactly like Client.send_message except it:
+        Almost identical to discord.Client.send
 
-            Splits messages > 2k limit into smaller messages and transmits.
-            Returns a list of all messages sent, [1..N]
+        Differences:
+
+            By default, messages longer than 2k will be split on new lines and sent
+            sequentially automatically. If message contains no new lines, truncate at limit.
+
+            To send a TTL message with default time, set ttl=True
+            To send a TTL with non-standard time, use delete_after like normal.
+
+            Log any sending errors to trace cause.
+
+        Raises:
+            Anything discord.Client.send can.
+
+        Returns:
+            Always returns a list of dice.Messages sent to the user.
         """
-        sent_msgs = []
-        for part in dice.util.complete_blocks(dice.util.msg_splitter(content)):
-            sent_msgs += [await channel.send(part, tts=tts, embed=embed)]
+        if ttl:
+            kwargs.update({'delete_after': dice.util.get_config('ttl')})
 
-        return sent_msgs
-
-    async def send_message(self, channel, content=None, *, tts=False, embed=None):
-        """
-        Behaves excactly like Client.send_message except it:
-
-            Allow several retries before failing, raises on last exception.
-            If content is too long, truncate it
-        """
-        log = logging.getLogger('dice.bot')
-        if content and len(content) > dice.util.MSG_LIMIT:
-            log.warning('Critical problem, content len close to 2000 limit. Truncating.\
-                        \n    Len is %d, starts with: %s', len(content), content[:50])
-            content = content[:dice.util.MSG_LIMIT] + '\n**MSG Truncated**'
-
-        attempts = 4
-        while attempts:
+        sent = []
+        for part in dice.util.msg_splitter(content):
             try:
-                return await channel.send(content, tts=tts, embed=embed)
-            except discord.HTTPException:
-                # Catching these due to infrequent issues with discord remote.
-                await asyncio.sleep(1.5)
-                attempts -= 1
-                if not attempts:
-                    log.exception('SND_MSG Failed to send message to user.')
-                    raise
+                sent += [await channel.send(part, **kwargs)]
+            except discord.DiscordException as exc:
+                # Monitor any errors on sending to log
+                logging.getLogger('dice.bot').error(exc)
+                raise
 
-    async def send_ttl_message(self, channel, content, **kwargs):
-        """
-        Behaves excactly like Client.send_message except:
-            After sending message wait 'ttl' seconds then delete message.
-
-        Extra Kwargs:
-            ttl: The time message lives before deletion (default 30s)
-        """
-        async def internal_wait(ttl, msg):
-            """ Internally schedule the deletion for later. """
-            try:
-                await asyncio.sleep(ttl)
-                await msg.delete()
-            except (discord.NotFound, discord.Forbidden):
-                logging.getLogger("dice.bot").error("Bot missing manage messages permission. On: %s", str(channel.guild))
-
-        try:
-            ttl = kwargs.pop('ttl')
-        except KeyError:
-            ttl = dice.util.get_config('ttl')
-
-        content += '\n\n__This message will be deleted in {} seconds__'.format(ttl)
-        message = await channel.send(content, **kwargs)
-        asyncio.ensure_future(internal_wait(ttl, message))
+        return sent
 
     async def broadcast(self, content, ttl=False, channels=None, **kwargs):
         """
@@ -317,9 +288,8 @@ class DiceBot(discord.Client):
             ttl: If true, send a message that deletes itself.
             channels: A list of channel names (strings) to broadcast to.
          """
-        send = self.send_message
         if ttl:
-            send = self.send_ttl_message
+            kwargs.update({'delete_after': dice.util.get_config('ttl')})
 
         if channels:
             channels = [self.get_channel_by_name(name) for name in channels]
@@ -330,7 +300,7 @@ class DiceBot(discord.Client):
         for channel in channels:
             if channel.permissions_for(channel.guild.me).send_messages and \
                channel.type == discord.ChannelType.text:
-                messages += [send(channel, "**Broadcast**\n\n" + content, **kwargs)]
+                messages += [self.send(channel, "**Broadcast**\n\n" + content, **kwargs)]
 
         await asyncio.gather(*messages)
 

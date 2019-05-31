@@ -54,7 +54,7 @@ def action_map(fake_message, fake_bot):
 
     # await action_map(msg, f_bot).execute()
 
-    # print(str(f_bot.send_message.call_args).replace("\\n", "\n"))
+    # print(str(f_bot.send.call_args).replace("\\n", "\n"))
 
 
 # General Parse Fails
@@ -88,7 +88,7 @@ async def test_cmd_help(f_bot):
 
     await action_map(msg, f_bot).execute()
 
-    assert "Here is an overview of my commands." in str(f_bot.send_ttl_message.call_args)
+    assert "Here is an overview of my commands." in str(f_bot.send.call_args)
 
 
 @OGN_TEST
@@ -104,7 +104,7 @@ Top 3 Results:
 Detect Magic – 5th Edition SRD
       <https://www.5esrd.com/spellcasting/all-spells/d/detect-magic/>"""
 
-    assert expect in str(f_bot.send_message.call_args).replace("\\n", "\n")
+    assert expect in str(f_bot.send.call_args).replace("\\n", "\n")
 
 
 @pytest.mark.asyncio
@@ -116,19 +116,7 @@ async def test_cmd_math(f_bot):
     expect = """__Math Calculations__
 
 (5 * 30) / 10 = 15.0"""
-    f_bot.send_message.assert_called_with(msg.channel, expect)
-
-
-@pytest.mark.asyncio
-async def test_cmd_math_alias(f_bot):
-    msg = fake_msg_gears("!m (5 * 30) / 10")
-
-    await action_map(msg, f_bot).execute()
-
-    expect = """__Math Calculations__
-
-(5 * 30) / 10 = 15.0"""
-    f_bot.send_message.assert_called_with(msg.channel, expect)
+    f_bot.send.assert_called_with(msg.channel, expect)
 
 
 @pytest.mark.asyncio
@@ -140,7 +128,7 @@ async def test_cmd_math_fail(f_bot):
     expect = """__Math Calculations__
 
 'math.cos(suspicious)' looks suspicious. Allowed characters: 0-9 ()+-/*"""
-    f_bot.send_message.assert_called_with(msg.channel, expect)
+    f_bot.send.assert_called_with(msg.channel, expect)
 
 
 @OGN_TEST
@@ -159,7 +147,7 @@ Conjuration – d20PFSRD
       <https://www.d20pfsrd.com/classes/core-classes/wizard/arcane-schools/paizo-arcane-schools/classic-arcane-schools/conjuration/>
 Earth Domain – d20PFSRD
       <https://www.d20pfsrd.com/classes/core-classes/cleric/domains/paizo-domains/earth-domain/>"""
-    f_bot.send_message.assert_called_with(msg.channel, expect)
+    f_bot.send.assert_called_with(msg.channel, expect)
 
 
 @OGN_TEST
@@ -176,7 +164,7 @@ Acid Dart – d20PFSRD
       <https://www.d20pfsrd.com/magic/3rd-party-spells/sean-k-reynolds-games/acid-dart/>
 Conjuration – d20PFSRD
       <https://www.d20pfsrd.com/classes/core-classes/wizard/arcane-schools/paizo-arcane-schools/classic-arcane-schools/conjuration/>"""
-    f_bot.send_message.assert_called_with(msg.channel, expect)
+    f_bot.send.assert_called_with(msg.channel, expect)
 
 
 @pytest.mark.asyncio
@@ -199,7 +187,7 @@ Top 3 Results:
 
 Starships – Starjammer SRD
       <https://www.starjammersrd.com/equipment/starships/>"""
-    assert expect in str(f_bot.send_message.call_args).replace("\\n", "\n")
+    assert expect in str(f_bot.send.call_args).replace("\\n", "\n")
 
 
 @pytest.mark.asyncio
@@ -208,7 +196,7 @@ async def test_cmd_poni_no_image(f_bot):
 
     await action_map(msg, f_bot).execute()
 
-    f_bot.send_message.assert_called_with(msg.channel, 'No images found!')
+    f_bot.send.assert_called_with(msg.channel, 'No images found!')
 
 
 @pytest.mark.asyncio
@@ -220,7 +208,7 @@ async def test_cmd_poni_one_image(f_bot):
     expect = 'https://derpicdn.net/img/view/2017/2/24/1371687__safe_artist-colon-iluvchedda_'\
              'oc_oc-colon-blue+moon_oc+only_oc-colon-radieux_apple+tree_g2_moon_night_pegasus_'\
              'pony_rock_tree_unshorn+fetlocks.jpeg'
-    f_bot.send_message.assert_called_with(msg.channel, expect)
+    f_bot.send.assert_called_with(msg.channel, expect)
 
 
 @pytest.mark.asyncio
@@ -229,7 +217,7 @@ async def test_cmd_poni_more_images(f_bot):
 
     await action_map(msg, f_bot).execute()
 
-    assert 'https://' in str(f_bot.send_message.call_args).replace("\\n", "\n")
+    assert 'https://' in str(f_bot.send.call_args).replace("\\n", "\n")
 
 
 @pytest.mark.asyncio
@@ -238,7 +226,7 @@ async def test_cmd_pun(f_bot, f_puns):
 
     await action_map(msg, f_bot).execute()
 
-    assert 'Randomly Selected' in str(f_bot.send_message.call_args).replace("\\n", "\n")
+    assert 'Randomly Selected' in str(f_bot.send.call_args).replace("\\n", "\n")
 
 
 @pytest.mark.asyncio
@@ -265,7 +253,7 @@ async def test_cmd_roll(f_bot):
 
     await action_map(msg, f_bot).execute()
 
-    actual = str(f_bot.send_long_message.call_args).replace("\\n", "\n")
+    actual = str(f_bot.send.call_args).replace("\\n", "\n")
     actual = actual[actual.index("__Dice Rolls"):]
     act = actual.split('\n')
 
@@ -281,7 +269,7 @@ async def test_cmd_roll_alias(f_bot):
 
     await action_map(msg, f_bot).execute()
 
-    actual = str(f_bot.send_long_message.call_args).replace("\\n", "\n")
+    actual = str(f_bot.send.call_args).replace("\\n", "\n")
     actual = actual[actual.index("__Dice Rolls"):]
     act = actual.split('\n')
 
@@ -297,7 +285,7 @@ async def test_cmd_roll_recall(f_bot, f_saved_rolls):
 
     await action_map(msg, f_bot).execute()
 
-    capture = str(f_bot.send_long_message.call_args).replace("\\n", "\n")
+    capture = str(f_bot.send.call_args).replace("\\n", "\n")
     assert '(Crossbow)' in capture
     assert 'd20 + 7' in capture
 
@@ -313,7 +301,7 @@ __Staff__: d20 + 2, d6"""
 
     await action_map(msg, f_bot).execute()
 
-    assert expect in str(f_bot.send_long_message.call_args).replace("\\n", "\n")
+    assert expect in str(f_bot.send.call_args).replace("\\n", "\n")
 
 
 @pytest.mark.asyncio
@@ -324,12 +312,12 @@ async def test_cmd_roll_remove(f_bot, f_saved_rolls):
     msg = fake_msg("!roll --remove bow")
 
     await action_map(msg_list, f_bot).execute()
-    assert removed in str(f_bot.send_long_message.call_args).replace("\\n", "\n")
+    assert removed in str(f_bot.send.call_args).replace("\\n", "\n")
 
     await action_map(msg, f_bot).execute()
 
     await action_map(msg_list, f_bot).execute()
-    assert removed not in str(f_bot.send_long_message.call_args).replace("\\n", "\n")
+    assert removed not in str(f_bot.send.call_args).replace("\\n", "\n")
 
 
 @pytest.mark.asyncio
@@ -340,12 +328,12 @@ async def test_cmd_roll_save(f_bot, f_saved_rolls):
     msg = fake_msg("!roll --save Wand d20 + 6, 10d6")
 
     await action_map(msg_list, f_bot).execute()
-    assert added not in str(f_bot.send_long_message.call_args).replace("\\n", "\n")
+    assert added not in str(f_bot.send.call_args).replace("\\n", "\n")
 
     await action_map(msg, f_bot).execute()
 
     await action_map(msg_list, f_bot).execute()
-    assert added in str(f_bot.send_long_message.call_args).replace("\\n", "\n")
+    assert added in str(f_bot.send.call_args).replace("\\n", "\n")
 
 
 @pytest.mark.asyncio
@@ -359,7 +347,7 @@ async def test_cmd_status(f_bot):
         ['Uptime', '5'],
         ['Version', '{}'.format(dice.__version__)],
     ]))
-    f_bot.send_message.assert_called_with(msg.channel, expect)
+    f_bot.send.assert_called_with(msg.channel, expect)
 
 
 @pytest.mark.asyncio
@@ -372,7 +360,7 @@ async def test_cmd_timer_seconds(f_bot):
         await asyncio.sleep(2)
 
         expect = "GearsandCogs: Timer 'GearsandCogs 1' has expired. Do something meatbag!"
-        f_bot.send_message.assert_called_with(msg.channel, expect)
+        f_bot.send.assert_called_with(msg.channel, expect)
     finally:
         for task in all_tasks():
             if 'timer_monitor' in str(task):
@@ -389,7 +377,7 @@ async def test_cmd_timer_with_description(f_bot):
         await asyncio.sleep(2)
 
         expect = "GearsandCogs: Timer 'A simple description' has expired. Do something meatbag!"
-        f_bot.send_message.assert_called_with(msg.channel, expect)
+        f_bot.send.assert_called_with(msg.channel, expect)
     finally:
         for task in all_tasks():
             if 'timer_monitor' in str(task):
@@ -405,7 +393,7 @@ async def test_cmd_timer_with_warnings(f_bot):
         asyncio.ensure_future(dice.actions.timer_monitor(dice.actions.TIMERS, 0.5))
         await asyncio.sleep(2)
         expect = "GearsandCogs: Timer 'GearsandCogs 3' has 0:00:02 time remaining!"
-        f_bot.send_message.assert_called_with(msg.channel, expect)
+        f_bot.send.assert_called_with(msg.channel, expect)
         await asyncio.sleep(2)
     finally:
         for task in all_tasks():
@@ -415,32 +403,34 @@ async def test_cmd_timer_with_warnings(f_bot):
 
 @pytest.mark.asyncio
 async def test_cmd_timers(f_bot):
-    with mock.patch('dice.actions.CHECK_TIMER_GAP', 1):
+    try:
         msg = fake_msg_gears("!timer 4:00 -w 2")
         msg2 = fake_msg_gears("!timers")
 
         await action_map(msg, f_bot).execute()
         await action_map(msg, f_bot).execute()
-        await action_map(msg2, f_bot).execute()
-
-        capture = str(f_bot.send_message.call_args).replace("\\n", "\n")
+        capture = str(f_bot.send.call_args).replace("\\n", "\n")
         assert "Starting timer for: 4:00" in capture
-        await asyncio.sleep(2)
+
+        await action_map(msg2, f_bot).execute()
+        capture = str(f_bot.send.call_args).replace("\\n", "\n")
+        assert "Active timers for" in capture
+    finally:
+        dice.actions.TIMERS.clear()
 
 
 @pytest.mark.asyncio
 async def test_cmd_timers_clear(f_bot):
-    msg = fake_msg_gears("!timer 4 -w 2")
-    msg2 = fake_msg_gears("!timers --clear")
-    msg3 = fake_msg_gears("!timers")
+    try:
+        msg = fake_msg_gears("!timer 4 -w 2")
+        msg2 = fake_msg_gears("!timers --clear")
 
-    await action_map(msg, f_bot).execute()
-    await action_map(msg, f_bot).execute()
-    await action_map(msg2, f_bot).execute()
-    await action_map(msg3, f_bot).execute()
-
-    f_bot.send_message.assert_called_with(msg2.channel, "Your timers have been cancelled.")
-    await asyncio.sleep(2)
+        await action_map(msg, f_bot).execute()
+        await action_map(msg, f_bot).execute()
+        await action_map(msg2, f_bot).execute()
+        f_bot.send.assert_called_with(msg2.channel, "Your timers have been cancelled.")
+    finally:
+        dice.actions.TIMERS.clear()
 
 
 @pytest.mark.asyncio
@@ -467,7 +457,7 @@ async def test_cmd_turn_no_flags(f_bot, db_cleanup):
 > Chris < | +7   | 21.00
 Dwarf     | +3   | 12.00
 Orc       | +2   | 10.00```"""
-        f_bot.send_message.assert_called_with(msg2.channel, expect)
+        f_bot.send.assert_called_with(msg2.channel, expect)
     finally:
         await action_map(fake_msg('!turn --clear'), f_bot).execute()
 
@@ -482,7 +472,7 @@ async def test_cmd_turn_add(session, f_bot, db_cleanup):
         await action_map(msg2, f_bot).execute()
 
         assert dicedb.query.get_turn_order(session, '{}_{}'.format(msg.guild.id, msg.channel.id))
-        capture = str(f_bot.send_message.call_args).replace("\\n", "\n")
+        capture = str(f_bot.send.call_args).replace("\\n", "\n")
         for name in ['Chris', 'Orc', 'Dwarf']:
             assert name in capture
     finally:
@@ -499,7 +489,7 @@ async def test_cmd_turn_clear(session, f_bot, db_cleanup):
     assert dicedb.query.get_turn_order(dicedb.Session(), key)
     await action_map(msg2, f_bot).execute()
 
-    f_bot.send_message.assert_called_with(msg2.channel, 'Turn order cleared.')
+    f_bot.send.assert_called_with(msg2.channel, 'Turn order cleared.')
     assert not dicedb.query.get_turn_order(dicedb.Session(), key)
 
 
@@ -512,7 +502,7 @@ async def test_cmd_turn_next(f_bot, db_cleanup):
         await action_map(msg, f_bot).execute()
         await action_map(msg2, f_bot).execute()
 
-        f_bot.send_message.assert_called_with(msg2.channel, '**Next User**\nDwarf (3): 12.00')
+        f_bot.send.assert_called_with(msg2.channel, '**Next User**\nDwarf (3): 12.00')
     finally:
         await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
@@ -526,7 +516,7 @@ async def test_cmd_turn_next_num(f_bot, db_cleanup):
         await action_map(msg, f_bot).execute()
         await action_map(msg2, f_bot).execute()
 
-        actual = (str(f_bot.send_message.call_args).replace("\\n", "\n"))
+        actual = (str(f_bot.send.call_args).replace("\\n", "\n"))
         assert actual.count('Next User') == 3
     finally:
         await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
@@ -549,7 +539,7 @@ async def test_cmd_turn_next_with_effects(f_bot, db_cleanup):
 
 **Next User**
 Dwarf (3): 12.00"""
-        f_bot.send_message.assert_called_with(msg3.channel, expect)
+        f_bot.send.assert_called_with(msg3.channel, expect)
     finally:
         await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
@@ -565,7 +555,7 @@ async def test_cmd_turn_remove_exists(f_bot, db_cleanup):
         await action_map(msg2, f_bot).execute()
         await action_map(msg3, f_bot).execute()
 
-        capture = str(f_bot.send_message.call_args).replace("\\n", "\n")
+        capture = str(f_bot.send.call_args).replace("\\n", "\n")
         assert 'Orc' not in capture
     finally:
         await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
@@ -616,11 +606,11 @@ async def test_cmd_turn_update_user(f_bot, f_dusers):
         msg3 = fixed_id_fake_msg("!turn")
 
         await action_map(msg, f_bot).execute()
-        assert '| +7   | 1.00' not in str(f_bot.send_message.call_args).replace("\\n", "\n")
+        assert '| +7   | 1.00' not in str(f_bot.send.call_args).replace("\\n", "\n")
 
         await action_map(msg2, f_bot).execute()
         await action_map(msg3, f_bot).execute()
-        assert '| +7   | 1.00' in str(f_bot.send_message.call_args).replace("\\n", "\n")
+        assert '| +7   | 1.00' in str(f_bot.send.call_args).replace("\\n", "\n")
     finally:
         await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
@@ -643,7 +633,7 @@ Chris (7): 21.00
         blind: 3
 
 """
-        f_bot.send_message.assert_called_with(msg3.channel, expect)
+        f_bot.send.assert_called_with(msg3.channel, expect)
     finally:
         await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
@@ -668,7 +658,7 @@ Chris (7): 21.00
         blind: 1
 
 """
-        f_bot.send_message.assert_called_with(msg4.channel, expect)
+        f_bot.send.assert_called_with(msg4.channel, expect)
     finally:
         await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
@@ -692,7 +682,7 @@ Chris (7): 21.00
         blind: 3
 
 """
-        f_bot.send_message.assert_called_with(msg4.channel, expect)
+        f_bot.send.assert_called_with(msg4.channel, expect)
     finally:
         await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
@@ -707,7 +697,7 @@ async def test_cmd_effect_no_action(f_bot, db_cleanup):
         await action_map(msg2, f_bot).execute()
 
         expect = 'No action selected for targets [--add|--remove|--update].'
-        f_bot.send_message.assert_called_with(msg2.channel, expect)
+        f_bot.send.assert_called_with(msg2.channel, expect)
     finally:
         await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
@@ -730,7 +720,7 @@ Chris (7): 21.00
         blind: 3
 
 """
-        f_bot.send_message.assert_called_with(msg3.channel, expect)
+        f_bot.send.assert_called_with(msg3.channel, expect)
     finally:
         await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 

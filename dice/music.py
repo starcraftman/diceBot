@@ -455,7 +455,10 @@ __Video List__:{vids}
         self.vids += new_vids
         if self.shuffle:
             rand.shuffle(new_vids)
-        self.itr.items += new_vids
+        try:
+            self.itr.items += new_vids
+        except AttributeError:
+            self.reset_iterator()
 
     def play(self, next_vid=None):
         """

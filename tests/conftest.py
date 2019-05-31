@@ -234,9 +234,7 @@ def f_bot():
     Return a mocked bot.
 
     Bot must have methods:
-        bot.send_message
-        bot.send_long_message
-        bot.send_ttl_message
+        bot.send
         bot.delete_message
         bot.emoji.fix - EmojiResolver tested elsewhere
         bot.loop.run_in_executor, None, func, *args
@@ -248,9 +246,7 @@ def f_bot():
     member = aiomock.Mock()
     member.mention = "@GearsandCogs"
     fake_bot = aiomock.AIOMock(uptime=5, prefix="!")
-    fake_bot.send_message.async_return_value = None
-    fake_bot.send_ttl_message.async_return_value = None
-    fake_bot.send_long_message.async_return_value = None
+    fake_bot.send.async_return_value = None
     fake_bot.get_member_by_substr.return_value = member
     fake_bot.delete_message.async_return_value = None
     fake_bot.emoji.fix = lambda x, y: x

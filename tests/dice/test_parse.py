@@ -25,9 +25,9 @@ def test_make_parser_throws():
     with pytest.raises(dice.exc.ArgumentParseError):
         parser.parse_args(['!not_cmd'])
     with pytest.raises(dice.exc.ArgumentHelpError):
-        parser.parse_args('!m --help'.split())
+        parser.parse_args('!math --help'.split())
     with pytest.raises(dice.exc.ArgumentParseError):
-        parser.parse_args('!m --invalidflag'.split())
+        parser.parse_args('!math --invalidflag'.split())
 
 
 def test_make_parser():
@@ -35,5 +35,5 @@ def test_make_parser():
     Simply verify it works, not all parser paths.
     """
     parser = dice.parse.make_parser('!')
-    args = parser.parse_args('!m 1 + 1'.split())
+    args = parser.parse_args('!math 1 + 1'.split())
     assert args.cmd == 'Math'
