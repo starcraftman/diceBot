@@ -278,7 +278,8 @@ def test_guild_player_next(f_songs, f_vclient):
     assert not player.is_done()
     assert not f_vclient.stop.called
 
-    assert player.next() is None
+    with pytest.raises(StopIteration):
+        player.next()
     assert player.cur_vid == f_songs[2]
     assert player.is_done()
     assert f_vclient.stop.called
@@ -298,7 +299,8 @@ def test_guild_player_prev(f_songs, f_vclient):
     assert not player.is_done()
     assert not f_vclient.stop.called
 
-    assert player.prev() is None
+    with pytest.raises(StopIteration):
+        player.prev()
     assert player.cur_vid == f_songs[0]
     assert player.is_done()
     assert f_vclient.stop.called
@@ -310,12 +312,17 @@ async def test_guild_player_replace_and_play(f_songs, f_vclient):
     player.play = aiomock.Mock()
     f_vclient.is_connected.return_value = True
 
-    await player.replace_and_play(list(f_songs))
+    gen = player.replace_and_play(list(f_songs))
+    await gen.__anext__()
     assert player.vids == list(f_songs)
     assert player.itr.index == 0
     assert not player.is_done()
     assert not f_vclient.stop.called
-    assert os.path.exists(f_songs[0].fname)
+    assert f_songs[0].ready
+    assert not f_songs[1].ready
+
+    await gen.__anext__()
+    assert f_songs[1].ready
 
 
 def test_parse_search_label():

@@ -46,7 +46,7 @@ def test_find_user_by_name_raises():
         dice.turn.find_user_by_name(users, "Dwarf")
 
 
-def test_duplicate_users():
+def test_users_same_init():
     user = TurnUser('Chris', 7)
     user.init = 27
     user2 = TurnUser('Orc', 2)
@@ -77,18 +77,91 @@ def test_parse_turn_users_errors():
         dice.turn.parse_turn_users(tokens)
 
 
-def test_tuser_roll_create():
+def test_turn_effect__repr__():  # covers __init__ too, quite simple
+    effect = dice.turn.TurnEffect('poison', 3)
+
+    assert repr(effect) == "TurnEffect(text='poison', turns=3)"
+
+
+def test_turn_effect__str__():
+    effect = dice.turn.TurnEffect('poison', 3)
+
+    assert str(effect) == 'poison: 3'
+
+
+def test_turn_effect__eq__():
+    effect = dice.turn.TurnEffect('poison', 3)
+    effect2 = dice.turn.TurnEffect('poison', 1)
+
+    assert effect == effect2
+
+
+def test_turn_effect__lt__():
+    effect = dice.turn.TurnEffect('poison', 3)
+    effect2 = dice.turn.TurnEffect('on fire', 1)
+
+    assert effect > effect2
+
+
+def test_turn_effect__hash__():
+    effect = dice.turn.TurnEffect('poison', 3)
+
+    assert hash(effect) == hash(effect.text)
+
+
+def test_turn_effect__add__():
+    effect = dice.turn.TurnEffect('poison', 3)
+    n_effect = effect + 1
+
+    assert effect.turns == n_effect.turns - 1
+    assert n_effect.turns == 4
+
+
+def test_turn_effect__sub__():
+    effect = dice.turn.TurnEffect('poison', 3)
+    n_effect = effect - 1
+
+    assert effect.turns == n_effect.turns + 1
+    assert n_effect.turns == 2
+
+
+def test_turn_effect__radd__():
+    effect = dice.turn.TurnEffect('poison', 3)
+    n_effect = 1 + effect
+
+    assert effect.turns == n_effect.turns - 1
+    assert n_effect.turns == 4
+
+
+def test_turn_effect__iadd__():
+    effect = dice.turn.TurnEffect('poison', 3)
+    effect += 1
+
+    assert effect.turns == 4
+
+
+def test_turn_effect__isub__():
+    effect = dice.turn.TurnEffect('poison', 3)
+    effect -= 1
+
+    assert effect.turns == 2
+
+
+def test_turn_effect_is_expired():
+    effect = dice.turn.TurnEffect('poison', 1)
+    assert not effect.is_expired()
+
+    effect -= 1
+    assert effect.is_expired()
+
+
+def test_tuser__init__():
     user = TurnUser('Chris', 7)
     assert user.init in list(range(7, 28))
     user = TurnUser('Chris', 7, 22)
     assert user.init == 22
     user = TurnUser('Chris', 7, 22, ['poison'])
     assert user.effects == ['poison']
-
-
-def test_tuser_roll_init():
-    user = TurnUser('Chris', 7)
-    assert user.init in list(range(7, 28))
 
 
 def test_tuser__repr__():
@@ -139,6 +212,15 @@ def test_tuser__lt__():
     assert user2 < user
 
 
+def test_tuser_roll_init():
+    user = TurnUser('Chris', 7)
+    old = user.init
+    while user.init == old:
+        user.roll_init()
+
+    assert user.init != old
+
+
 def test_tuser_add_effect():
     user = TurnUser('Chris', 7, 27)
     user.add_effect('Poison', 4)
@@ -185,7 +267,7 @@ def test_tuser_decrement_effects():
     assert user.effects == [TurnEffect(text='Rufus', turns=1)]
 
 
-def test_torder_create():
+def test_torder__init__():
     order = TurnOrder()
     assert order.users == []
     assert order.cur_user is None
@@ -256,7 +338,7 @@ def test_torder_add_second():
     assert user2 in order.users
 
 
-def test_torder_resolve_collision_recurse():
+def test_torder_add_all_diff_modifiers():
     order = TurnOrder()
     user = TurnUser('Chris', 7, 10)
     user2 = TurnUser('Orc', 2, 10)
@@ -268,19 +350,19 @@ def test_torder_resolve_collision_recurse():
     assert 'Dwarf' in str(order)
 
 
-def test_turn_add_collide():
+def test_torder_add_all_same():
     order = TurnOrder()
-    user = TurnUser('Chris', 7)
-    user.init = 27
-    user2 = TurnUser('Orc', 2)
-    user2.init = 27
-    order.add(user)
-    order.add(user2)
+    user = TurnUser('Chris', 4, 10)
+    user2 = TurnUser('Orc', 4, 10)
+    user3 = TurnUser('Dwarf', 4, 10)
+    order.add_all([user, user2, user3])
 
-    assert order.users == [user, user2]
+    assert user.init != user2.init
+    assert user2.init != user3.init
+    assert user.init != user3.init
 
 
-def test_turn_add_collide_on_decrement():
+def test_turn_add_collide_on_addition():
     order = TurnOrder()
     user = TurnUser('Chris', 7)
     user.init = 27
@@ -405,81 +487,3 @@ def test_torder_update_user_raises():
 
     with pytest.raises(dice.exc.InvalidCommandArgs):
         order.update_user('Chris', 'a')
-
-
-def test_turn_effect__repr__():
-    effect = dice.turn.TurnEffect('poison', 3)
-
-    assert repr(effect) == "TurnEffect(text='poison', turns=3)"
-
-
-def test_turn_effect__str__():
-    effect = dice.turn.TurnEffect('poison', 3)
-
-    assert str(effect) == 'poison: 3'
-
-
-def test_turn_effect__eq__():
-    effect = dice.turn.TurnEffect('poison', 3)
-    effect2 = dice.turn.TurnEffect('poison', 1)
-
-    assert effect == effect2
-
-
-def test_turn_effect__lt__():
-    effect = dice.turn.TurnEffect('poison', 3)
-    effect2 = dice.turn.TurnEffect('on fire', 1)
-
-    assert effect > effect2
-
-
-def test_turn_effect__hash__():
-    effect = dice.turn.TurnEffect('poison', 3)
-
-    assert hash(effect) == hash(effect.text)
-
-
-def test_turn_effect__add__():
-    effect = dice.turn.TurnEffect('poison', 3)
-    n_effect = effect + 1
-
-    assert effect.turns == n_effect.turns - 1
-    assert n_effect.turns == 4
-
-
-def test_turn_effect__sub__():
-    effect = dice.turn.TurnEffect('poison', 3)
-    n_effect = effect - 1
-
-    assert effect.turns == n_effect.turns + 1
-    assert n_effect.turns == 2
-
-
-def test_turn_effect__radd__():
-    effect = dice.turn.TurnEffect('poison', 3)
-    n_effect = 1 + effect
-
-    assert effect.turns == n_effect.turns - 1
-    assert n_effect.turns == 4
-
-
-def test_turn_effect__iadd__():
-    effect = dice.turn.TurnEffect('poison', 3)
-    effect += 1
-
-    assert effect.turns == 4
-
-
-def test_turn_effect__isub__():
-    effect = dice.turn.TurnEffect('poison', 3)
-    effect -= 1
-
-    assert effect.turns == 2
-
-
-def test_turn_effect_is_expired():
-    effect = dice.turn.TurnEffect('poison', 1)
-    assert not effect.is_expired()
-
-    effect -= 1
-    assert effect.is_expired()

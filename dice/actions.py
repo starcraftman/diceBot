@@ -209,15 +209,21 @@ class Music(Action):
 
     async def next(self, mplayer):
         """ Play the next video. """
-        if mplayer.next():
+        try:
+            mplayer.next()
             await mplayer.play_when_ready()
-        return "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
+            return "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
+        except StopIteration:
+            return "Queue finished. Stopping."
 
     async def prev(self, mplayer):
         """ Play the previous video. """
-        if mplayer.prev():
+        try:
+            mplayer.prev()
             await mplayer.play_when_ready()
-        return "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
+            return "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
+        except StopIteration:
+            return "Queue finished. Stopping."
 
     async def repeatqueue(self, mplayer):
         """ Set player to loop to beginning. """
@@ -257,16 +263,15 @@ class Music(Action):
         """ Append to the end of the queue. """
         new_vids = await self.__class__.make_videos(self.args.vids)
         mplayer.append_vids(new_vids)
-        await dice.music.prefetch_in_order(new_vids)
         await self.reply(str(mplayer))
 
     async def play(self, mplayer):
         """ Start playing or replace entire playlist. """
         new_vids = await self.__class__.make_videos(self.args.vids)
         msgs = await self.reply("Please wait, ensuring first song downloaded. Rest will download in background.")
-        await dice.music.prefetch_all(new_vids[:1])
-        mplayer.set_vids(new_vids)
-        mplayer.play()
+
+        gen = mplayer.replace_and_play(new_vids)
+        await gen.__anext__()
         try:
             for msg in msgs:
                 await msg.delete()
@@ -275,7 +280,7 @@ class Music(Action):
                 "Bot missing manage messages permission. On: %s", str(self.msg.guild))
 
         await self.reply(str(mplayer))
-        await dice.music.prefetch_in_order(new_vids[1:])
+        await gen.__anext__()
 
     replace = play
 
@@ -358,7 +363,6 @@ Type __list__ to go select by song list"""
             mplayer = get_guild_player(self.act.guild_id, self.msg)
             self.msgs += await self.reply('Appending new selection(s) to playlist. Select another or exit.')
             mplayer.append_vids(songs)
-            asyncio.ensure_future(dice.music.prefetch_all(songs))
             await self.reply(str(mplayer))
         else:
             await SelectSong(self.act, songs).run()
@@ -395,7 +399,6 @@ Select a song to play by number [1..{}]:
 
         self.msgs += await self.reply('Appending new selection(s) to playlist. Select another or exit.')
         get_guild_player(self.act.guild_id, self.act.msg).append_vids([selected])
-        asyncio.ensure_future(dice.music.prefetch_all([selected]))
 
         return False
 
@@ -1126,7 +1129,6 @@ Select a song to play by number [1..{}]:
 
         mplayer = get_guild_player(self.act.guild_id, self.msg)
         mplayer.append_vids(videos)
-        asyncio.ensure_future(dice.music.prefetch_all(videos))
         self.msgs += await self.reply('Appending new selection(s) to playlist. Select another or exit.')
 
         return False
@@ -1146,7 +1148,6 @@ class YTSearch(Action):
             videos[0].name = entries[0]['title']
 
             mplayer.append_vids(videos)
-            asyncio.ensure_future(dice.music.prefetch_all(videos))
             await self.reply('Appending first match to playlist. ' + videos[0].name)
         else:
             await YTMenu(self, entries, 6).run()

@@ -363,6 +363,7 @@ def validate_videos(list_vids, session=None):
     if not session:
         session = dicedb.Session()
 
+    pat = pathlib.Path(dice.util.get_config('paths', 'music'))
     new_vids = []
     for vid in list_vids:
         match = re.match(r'\s*<\s*(\S+)\s*>\s*', vid)
@@ -382,10 +383,9 @@ def validate_videos(list_vids, session=None):
             raise dice.exc.InvalidCommandArgs("Only youtube links supported: " + vid)
 
         else:
-            pat = pathlib.Path(dice.util.get_config('paths', 'music'))
             globbed = list(pat.glob(vid + "*"))
             if len(globbed) != 1:
-                raise dice.exc.InvalidCommandArgs("Cannot find local video: " + vid)
+                raise dice.exc.InvalidCommandArgs("{} does not match a Song in db or a local file.".format(vid))
 
             name = os.path.basename(globbed[0]).replace('.opus', '')
             new_vids.append(Song(id=None, name=name, folder=pat, url=None, repeat=False,

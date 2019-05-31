@@ -447,7 +447,10 @@ __Video List__:{vids}
         self.reset_iterator()
 
     def append_vids(self, new_vids):
-        """ Append videos into the player and update iterator. """
+        """
+        Append videos into the player and update iterator.
+        If needed, new vids will be downloaded in the background.
+        """
         for vid in new_vids:
             if not isinstance(vid, Song):
                 raise ValueError("Must add Songs to the GuildPlayer.")
@@ -459,6 +462,7 @@ __Video List__:{vids}
             self.itr.items += new_vids
         except AttributeError:
             self.reset_iterator()
+        asyncio.ensure_future(dice.music.prefetch_in_order(new_vids))
 
     def play(self, next_vid=None):
         """
@@ -514,8 +518,7 @@ __Video List__:{vids}
         if self.itr.is_finished() and self.repeat_all:
             self.reset_iterator(to_last=(self.itr.index == -1))
         elif not self.cur_vid.repeat:
-            if not self.next():
-                return
+            self.next()
         self.play()
 
     def toggle_pause(self):
@@ -569,6 +572,7 @@ __Video List__:{vids}
                 return self.cur_vid
 
             self.stop()
+            raise
 
     def prev(self):
         """
@@ -586,9 +590,12 @@ __Video List__:{vids}
                 return self.cur_vid
 
             self.stop()
+            raise
 
     async def replace_and_play(self, new_vids):
         """
+        N.B. Yields between first song download/play and rest downloading.
+
         Replace the playlist with new_vids.
         Take care to download them if needed and play them.
         Thia is primarily a convenience compounding a useful flow.
@@ -601,7 +608,10 @@ __Video List__:{vids}
 
         self.set_vids(new_vids)
         self.play()
+
+        yield
         await dice.music.prefetch_in_order(new_vids[1:])
+        yield
 
     async def disconnect(self):
         """

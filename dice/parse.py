@@ -104,7 +104,7 @@ def subs_music(subs, prefix):
 {prefix}music prev
         Play the previous song.
 {prefix}music volume
-        Set the volume: [0, 100]')
+        Set the volume: [0, 100]
 {prefix}music repeat
         Set the current song to repeat when it finishes.
 {prefix}music repeatqueue
