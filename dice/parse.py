@@ -71,7 +71,7 @@ def subs_math(subs, prefix):
 {prefix}math 1 + 2, 55/5, 5 * 10
         Do several math operations.
     """.format(prefix=prefix)
-    sub = subs.add_parser(prefix + 'math', aliases=[prefix + 'm'], description=desc, formatter_class=RawHelp)
+    sub = subs.add_parser(prefix + 'math', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Math')
     sub.add_argument('spec', nargs='+', help='The math operations.')
 
@@ -81,52 +81,59 @@ def subs_play(subs, prefix):
     """ Subcommand parsing for timers """
     desc = """A simple music player for games.
 
-{prefix}play youtube_link, song db name, local_name ...
+{prefix}m is aliased to this command.
+
+{prefix}music play youtube_link, song db name, local_name ...
         Play one or more youtube links or local files on server.
-{prefix}play youtube_playlist
-        Play the playlist from start to finish. Only 1 playlist supported. Will play all vids therein.
-{prefix}play -a youtube_link_1 local_name_1
-{prefix}play --append youtube_link_1 local_name_1
+{prefix}music play youtube_playlist
+        Play the playlist from start to finish. Only 1 playlist supported.
+{prefix}music append youtube_link_1 local_name_1
         Append the following songs to the list.
-{prefix}play -p
-{prefix}play --pause
+{prefix}music append youtube_playlist
+        Append the playlist from start to finish. Only 1 playlist supported.
+{prefix}music clear
+        Stop playing the music and clear the queue.
+{prefix}music pause
         Pause or resume playing the music.
-{prefix}play -s
-{prefix}play --stop
+{prefix}music stop
         Stop playing the music.
-{prefix}play -r
-{prefix}play --restart
-        Play the current song from the beginning.
-{prefix}play -n
-{prefix}play --next
+{prefix}music restart
+        Play the queue from the beginning.
+{prefix}music next
         Play the next song.
-{prefix}play -v
-{prefix}play --prev
+{prefix}music prev
         Play the previous song.
-{prefix}play -o
-{prefix}play --volume
+{prefix}music volume
         Set the volume: [0, 100]')
-{prefix}play --repeat
-        Set the current song to repeat when it plays.
-{prefix}play --repeat-all
-        Set the player to start back at front of list when finished all.
-{prefix}play --shuffle
+{prefix}music repeat
+        Set the current song to repeat when it finishes.
+{prefix}music repeatqueue
+        Set the player to start back at front of list when finished queue.
+{prefix}music shuffle
         Player will enable shuffle mode and randomly play every song once then restart.
     """.format(prefix=prefix)
-    sub = subs.add_parser(prefix + 'play', description=desc, formatter_class=RawHelp)
-    sub.set_defaults(cmd='Play')
-    sub.add_argument('-a', '--append', action="store_true", help='Append songs to playlist.')
-    sub.add_argument('--repeat', action="store_true", help='Toggle looping the video, permanent.')
-    sub.add_argument('--repeat-all', action="store_true", help='Toggle looping the music once list finished.')
-    sub.add_argument('--shuffle', action="store_true", help='Toggle music shuffling.')
-    sub.add_argument('-p', '--pause', action="store_true", help='Toggle pausing the player.')
-    sub.add_argument('-r', '--restart', action="store_true", help='Restart current song.')
-    sub.add_argument('--status', action="store_true", help='Show player status.')
-    sub.add_argument('-s', '--stop', action="store_true", help='Stop the music!')
-    sub.add_argument('-n', '--next', action="store_true", help='Next song in list.')
-    sub.add_argument('-v', '--prev', action="store_true", help='Previous song in list.')
-    sub.add_argument('-o', '--volume', default='zero', help='Set the volume: [0, 100]')
-    sub.add_argument('vids', nargs="*", default=[], help='A single youtube link to play.')
+    sub = subs.add_parser(prefix + 'music', aliases=[prefix + 'm'], description=desc, formatter_class=RawHelp)
+    sub.set_defaults(cmd='Music')
+
+    subsub = sub.add_subparsers(title='sub-subcommands',
+                                description='The subcommands of play',
+                                dest='sub')
+    sub3 = subsub.add_parser('append', description="Append the vids to the music queue.")
+    sub3.add_argument('vids', nargs="+", default=[], help='The videos to play.')
+    sub3 = subsub.add_parser('play', aliases=['p', 'replace'], description="Play the selected videos.")
+    sub3.add_argument('vids', nargs="+", default=[], help='The videos to play.')
+    subsub.add_parser('clear', description="Clear the music queue.")
+    subsub.add_parser('restart', description="Restart the music queue.")
+    subsub.add_parser('stop', description="Stop the player and disconnect from channel.")
+    subsub.add_parser('next', description="Play next song in queue.")
+    subsub.add_parser('prev', description="Play previous song in queue.")
+    subsub.add_parser('pause', description="Puase the player.")
+    subsub.add_parser('repeat', description="Repeat current song until next called.")
+    subsub.add_parser('repeatqueue', description="When queue finished, start over again.")
+    subsub.add_parser('shuffle', description="Enable shuffle mode, songs will be randomly selected from queue.")
+    subsub.add_parser('status', description="Show player status and queue.")
+    sub3 = subsub.add_parser('volume', description="Restart the music queue.")
+    sub3.add_argument('volume', type=int, help='Set the volume: [0, 100]')
 
 
 @register_parser

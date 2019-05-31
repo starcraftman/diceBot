@@ -90,10 +90,10 @@ class Help(Action):
             ['{prefix}effect', 'Add an effect to a user in turn order'],
             ['{prefix}e', 'Alias for `!effect`'],
             ['{prefix}math', 'Do some math operations'],
-            ['{prefix}m', 'Alias for `!math`'],
+            ['{prefix}music', 'Play songs from youtube and server.'],
+            ['{prefix}m', 'Alias for `!music`'],
             ['{prefix}n', 'Alias for `!turn --next`'],
             ['{prefix}pf', 'Search on the Pathfinder wiki'],
-            ['{prefix}play', 'Play songs from youtube and server.'],
             ['{prefix}poni', 'Pony?!?!'],
             ['{prefix}pun', 'Prepare for pain!'],
             ['{prefix}roll', 'Roll a dice like: 2d6 + 5'],
@@ -150,10 +150,40 @@ class Math(Action):
         await self.bot.send_message(self.msg.channel, '\n'.join(resp))
 
 
-class Play(Action):
+class Music(Action):
     """
     Transparent mapper from user input onto the music player.
     """
+    @staticmethod
+    async def make_videos(arg_vids):
+        """
+        Preprocess the arguments and return a list of valid videos
+        the player can handle.
+
+        Args:
+            arg_vids: The args.vids list of arguments from user.
+
+        Returns:
+            A list of valid Song objects that can be played.
+        """
+        parts = [part.strip() for part in re.split(r'\s*,\s*', ' '.join(arg_vids))]
+
+        if dice.util.is_valid_playlist(parts[0]):
+            vid_info = await dice.music.get_yt_info(parts[0])
+            new_vids = dicedb.query.validate_videos([x[0] for x in vid_info])
+            for vid in new_vids:
+                _, title = vid_info[0]
+                vid_info = vid_info[1:]
+                vid.name = title[:30]
+        else:
+            new_vids = dicedb.query.validate_videos(parts)
+
+        return new_vids
+
+    async def clear(self, mplayer):
+        mplayer.stop()
+        mplayer.set_vids([])
+
     async def restart(self, mplayer):
         """ Restart the player at the beginning. """
         mplayer.reset_iterator()
@@ -182,7 +212,7 @@ class Play(Action):
             await mplayer.play_when_ready()
         return "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
 
-    async def repeat_all(self, mplayer):
+    async def repeatqueue(self, mplayer):
         """ Set player to loop to beginning. """
         mplayer.repeat_all = not mplayer.repeat_all
         msg = "Player will stop playing after last song in list."
@@ -210,60 +240,49 @@ class Play(Action):
         """ Show current bot status. """
         return str(mplayer)
 
-    async def vids(self, mplayer):
-        """ Initialize the player with requested videos and start playing. """
-        parts = [part.strip() for part in re.split(r'\s*,\s*', ' '.join(self.args.vids))]
+    async def volume(self, mplayer):
+        """ Set the volume for current song. """
+        mplayer.set_volume(self.args.volume)
+        msg = "Player volume: {}/100".format(mplayer.cur_vid.volume_int)
+        await self.bot.send_message(self.msg.channel, msg)
 
-        if dice.util.is_valid_playlist(parts[0]):
-            vid_info = await dice.music.get_yt_info(parts[0])
-            new_vids = dicedb.query.validate_videos([x[0] for x in vid_info])
-            for vid in new_vids:
-                _, title = vid_info[0]
-                vid_info = vid_info[1:]
-                vid.name = title[:30]
-        else:
-            new_vids = dicedb.query.validate_videos(parts)
+    async def append(self, mplayer):
+        """ Append to the end of the queue. """
+        new_vids = await self.__class__.make_videos(self.args.vids)
+        mplayer.append_vids(new_vids)
+        await dice.music.prefetch_in_order(new_vids)
+        await self.bot.send_message(self.msg.channel, str(mplayer))
 
-        if self.args.append:
-            mplayer.append_vids(new_vids)
-            fetch_rest = new_vids
-        else:
-            msg = await self.bot.send_message(self.msg.channel, "Please wait, ensuring first song downloaded. Rest will download in background.")
-            await dice.music.prefetch_all(new_vids[:1])
-            mplayer.set_vids(new_vids)
-            mplayer.play()
-            fetch_rest = new_vids[1:]
-            try:
-                await msg.delete()
-            except discord.Forbidden:
-                pass
+    async def play(self, mplayer):
+        """ Start playing or replace entire playlist. """
+        new_vids = await self.__class__.make_videos(self.args.vids)
+        msg = await self.bot.send_message(self.msg.channel, "Please wait, ensuring first song downloaded. Rest will download in background.")
+        await dice.music.prefetch_all(new_vids[:1])
+        mplayer.set_vids(new_vids)
+        mplayer.play()
+        try:
+            await msg.delete()
+        except discord.Forbidden:
+            pass
 
         await self.bot.send_message(self.msg.channel, str(mplayer))
-        await dice.music.prefetch_in_order(fetch_rest)
+        await dice.music.prefetch_in_order(new_vids[1:])
 
     async def execute(self):
         mplayer = get_guild_player(self.guild_id, self.msg)
         await mplayer.join_voice_channel()
 
-        if self.args.volume != 'zero':
-            mplayer.set_volume(self.args.volume)
-            msg = "Player volume: {}/100".format(mplayer.cur_vid.volume_int)
-            await self.bot.send_message(self.msg.channel, msg)
+        if not getattr(self.args, 'sub'):
+            self.args.sub = 'status'
 
-        msg = str(mplayer)
-        methods = [x[0] for x in inspect.getmembers(self, inspect.ismethod)
-                   if x[0] not in ['__init__', 'execute']]
-        for name in methods:
-            if getattr(self.args, name):
-                try:
-                    msg = await getattr(self, name)(mplayer)
-                except dice.exc.RemoteError as exc:
-                    msg = str(exc)
-                if msg:
-                    await self.bot.send_long_message(self.msg.channel, msg)
-                break
+        try:
+            msg = await getattr(self, self.args.sub)(mplayer)
+        except dice.exc.RemoteError as exc:
+            msg = str(exc)
+        if msg:
+            await self.bot.send_long_message(self.msg.channel, msg)
 
-        if mplayer.cur_vid.id and (self.args.volume or self.args.repeat):
+        if mplayer.cur_vid.id and self.args.sub in ['repeat', 'volume']:
             song = dicedb.query.get_song_by_id(self.session, mplayer.cur_vid.id)
             song.update(mplayer.cur_vid)
             self.session.add(song)
@@ -361,8 +380,9 @@ Select a song to play by number [1..{}]:
             raise ValueError
         selected = self.entries[choice]
 
-        self.msgs += [await self.send('Please wait, downloading as needed before playing.')]
-        await get_guild_player(self.act.guild_id, self.msg).replace_and_play([selected])
+        self.msgs += [await self.send('Appending new selection to playlist. Select another or exit.')]
+        await get_guild_player(self.act.guild_id).append_vids([selected])
+        await dice.music.prefetch_all([selected])
         await self.send('**Song Started**\n\n' + str(selected))
 
         return True
