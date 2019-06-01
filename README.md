@@ -11,10 +11,10 @@ Command |                   Effect
 !effect | Add an effect to a user in turn order
 !e      | Alias for `!effect`
 !math   | Do some math operations
-!m      | Alias for `!math`
+!music  | Play songs from server or youtube.
+!m      | Alias for `!music`
 !n      | Alias for `!turn --next`
 !pf     | Search on the Pathfinder wiki
-!play   | Play songs from youtube and server.
 !poni   | Pony?!?!
 !pun    | Prepare for pain!
 !roll   | Roll a dice like: 2d6 + 5
@@ -26,6 +26,7 @@ Command |                   Effect
 !timers | See the status of all YOUR active timers
 !turn   | Manager turn order for pen and paper combat
 !help   | This help message
+!o.o    | Funny eyes ?!?
 
 Support for discord.py <= 1.0.0 is discontinued.
 
