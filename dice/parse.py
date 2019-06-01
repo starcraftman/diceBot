@@ -440,10 +440,13 @@ def subs_googly(subs, prefix):
         Any subractions are added to used.
 {prefix}o.o --set
         Set the number of total googly eyes.
+{prefix}o.o --used
+        Set the number of used googly eyes.
 {prefix}o.o
         Show the overall status of googly eyes.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'o.o', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Googly')
-    sub.add_argument('--set', help='Set the value of the googly eye counter.')
+    sub.add_argument('--set', type=int, help='Set the total googly eyes.')
+    sub.add_argument('--used', type=int, help='Set the used googly eyes.')
     sub.add_argument('offset', nargs="?", type=int, help='The offset to modify.')

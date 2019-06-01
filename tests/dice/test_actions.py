@@ -766,6 +766,20 @@ async def test_cmd_googly_set(f_bot, f_googly):
 
 
 @pytest.mark.asyncio
+async def test_cmd_googly_used(f_bot, f_googly):
+    msg = fixed_id_fake_msg("!o.o --used 5")
+    msg.author.id = '1'
+
+    await action_map(msg, f_bot).execute()
+
+    expect = """__**Googly Counter**__
+
+    Total: 100
+    Used: 5"""
+    f_bot.send.assert_called_with(msg.channel, expect)
+
+
+@pytest.mark.asyncio
 async def test_cmd_googly_add(f_bot, f_googly):
     msg = fixed_id_fake_msg("!o.o 5")
     msg.author.id = '1'

@@ -1166,8 +1166,10 @@ class Googly(Action):
         googly = dicedb.query.get_googly(self.session, self.msg.author.id)
 
         if self.args.set:
-            googly.total = self.args.set
-        elif self.args.offset:
+            googly.total = max(self.args.set, 0)
+        if self.args.used:
+            googly.used = max(self.args.used, 0)
+        if self.args.offset:
             googly += self.args.offset
 
         self.session.add(googly)
