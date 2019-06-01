@@ -13,7 +13,7 @@ from sqlalchemy import func
 
 import dice.exc
 import dicedb
-from dicedb.schema import (DUser, Pun, SavedRoll, TurnChar, TurnOrder, Song, SongTag)
+from dicedb.schema import (DUser, Pun, SavedRoll, TurnChar, TurnOrder, Song, SongTag, Googly)
 
 DEFAULT_VOLUME = dice.util.get_config('music', 'default_volume', default=20)
 
@@ -392,3 +392,21 @@ def validate_videos(list_vids, session=None):
                                  volume_int=DEFAULT_VOLUME))
 
     return new_vids
+
+
+def get_googly(session, user_id):
+    """
+    Get a Googly from the db for the given user.
+    If none set, create one.
+
+    Returns:
+        A Googly for user.
+    """
+    try:
+        googly = session.query(Googly).filter(Googly.id == user_id).one()
+    except sqla_oexc.NoResultFound:
+        googly = Googly(id=user_id)
+        session.add(googly)
+        session.commit()
+
+    return googly

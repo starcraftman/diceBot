@@ -5,7 +5,7 @@ from __future__ import absolute_import, print_function
 
 import dicedb
 import dicedb.schema
-from dicedb.schema import (DUser, Pun, SavedRoll, TurnOrder, TurnChar, Song)
+from dicedb.schema import (DUser, Pun, SavedRoll, TurnOrder, TurnChar, Song, Googly)
 
 
 def test_duser__eq__(f_dusers):
@@ -113,6 +113,70 @@ def test_turnorder__str__(f_turnorders):
 
 def test_turnorder__eq__(f_turnorders):
     assert f_turnorders[0] == TurnOrder(id='guild1-chan1', text='TurnOrder')
+
+
+def test_googly__init__(f_googly):
+    assert f_googly[0].total == 100
+
+
+def test_googly__str__(f_googly):
+    expect = """__**Googly Counter**__
+
+    Total: 100
+    Used: 0"""
+    assert str(f_googly[0]) == expect
+
+
+def test_googly__repr__(f_googly):
+    expect = "Googly(id='1', total=100, used=0)"
+    assert repr(f_googly[0]) == expect
+
+
+def test_googly__eq__(f_googly):
+    orig = f_googly[0]
+    assert orig == Googly(id=222, total=orig.total, used=orig.used)
+
+
+def test_googly__add__(f_googly):
+    assert f_googly[0] + 4 == Googly(id='1', total=104, used=0)
+    assert f_googly[0] + -4 == Googly(id='1', total=96, used=4)
+    assert f_googly[0] + -200 == Googly(id='1', total=0, used=100)
+
+
+def test_googly__sub__(f_googly):
+    assert f_googly[0] - 4 == Googly(id='1', total=96, used=4)
+    assert f_googly[0] - -4 == Googly(id='1', total=104, used=0)
+    assert f_googly[0] - 200 == Googly(id='1', total=0, used=100)
+
+
+def test_googly__radd__(f_googly):
+    assert 4 + f_googly[0] == Googly(id='1', total=104, used=0)
+    assert -4 + f_googly[0] == Googly(id='1', total=96, used=4)
+    assert -200 + f_googly[0] == Googly(id='1', total=0, used=100)
+
+
+def test_googly__iadd__(f_googly):
+    modified = f_googly[0]
+    modified += 4
+    assert modified == Googly(id='1', total=104, used=0)
+
+    modified += -4
+    assert modified == Googly(id='1', total=100, used=4)
+
+    modified += -200
+    assert modified == Googly(id='1', total=0, used=104)
+
+
+def test_googly__isub__(f_googly):
+    modified = f_googly[0]
+    modified -= 4
+    assert modified == Googly(id='1', total=96, used=4)
+
+    modified -= -4
+    assert modified == Googly(id='1', total=100, used=4)
+
+    modified -= 200
+    assert modified == Googly(id='1', total=0, used=104)
 
 
 def test_song__init__(f_songs):

@@ -260,3 +260,13 @@ def test_validate_videos_local_not_found():
 def test_validate_videos_local_found(f_songs):
     links = [f_songs[-1].name]
     dicedb.query.validate_videos(links)
+
+
+def test_get_googly_exists(session, f_googly):
+    assert dicedb.query.get_googly(session, '1') == f_googly[0]
+
+
+def test_get_googly_no_exists(session, f_googly):
+    new_googly = dicedb.query.get_googly(session, '5')
+    assert new_googly.id == '5'
+    assert new_googly.total == 0

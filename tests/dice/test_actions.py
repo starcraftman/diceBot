@@ -736,6 +736,63 @@ async def test_cmd_effect_turn_order_none(f_bot, db_cleanup):
         await action_map(fixed_id_fake_msg('!turn --clear'), f_bot).execute()
 
 
+@pytest.mark.asyncio
+async def test_cmd_googly_status(f_bot, f_googly):
+    msg = fixed_id_fake_msg("!o.o")
+    msg.author.id = '1'
+
+    await action_map(msg, f_bot).execute()
+
+    expect = """__**Googly Counter**__
+
+    Total: 100
+    Used: 0"""
+
+    f_bot.send.assert_called_with(msg.channel, expect)
+
+
+@pytest.mark.asyncio
+async def test_cmd_googly_set(f_bot, f_googly):
+    msg = fixed_id_fake_msg("!o.o --set 5")
+    msg.author.id = '1'
+
+    await action_map(msg, f_bot).execute()
+
+    expect = """__**Googly Counter**__
+
+    Total: 5
+    Used: 0"""
+    f_bot.send.assert_called_with(msg.channel, expect)
+
+
+@pytest.mark.asyncio
+async def test_cmd_googly_add(f_bot, f_googly):
+    msg = fixed_id_fake_msg("!o.o 5")
+    msg.author.id = '1'
+
+    await action_map(msg, f_bot).execute()
+
+    expect = """__**Googly Counter**__
+
+    Total: 105
+    Used: 0"""
+    f_bot.send.assert_called_with(msg.channel, expect)
+
+
+@pytest.mark.asyncio
+async def test_cmd_googly_sub(f_bot, f_googly):
+    msg = fixed_id_fake_msg("!o.o -5")
+    msg.author.id = '1'
+
+    await action_map(msg, f_bot).execute()
+
+    expect = """__**Googly Counter**__
+
+    Total: 95
+    Used: 5"""
+    f_bot.send.assert_called_with(msg.channel, expect)
+
+
 def test_parse_time_spec():
     time_spec = "1:15:30"
     assert dice.actions.parse_time_spec(time_spec) == 3600 + 900 + 30

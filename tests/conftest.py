@@ -24,7 +24,7 @@ except ImportError:
 
 import dicedb
 import dicedb.schema
-from dicedb.schema import (DUser, SavedRoll, Pun, TurnChar, TurnOrder, Song, SongTag)
+from dicedb.schema import (DUser, SavedRoll, Pun, TurnChar, TurnOrder, Song, SongTag, Googly)
 
 
 #  @pytest.yield_fixture(scope='function', autouse=True)
@@ -468,6 +468,26 @@ def f_songs(session):
         session.delete(matched)
     session.commit()
     tdir.cleanup()
+
+
+@pytest.fixture
+def f_googly(session):
+    """
+    Fixture to insert some test Googly objects.
+    """
+    googlys = (
+        Googly(id='1', total=100, used=0),
+        Googly(id='2', total=40, used=10),
+        Googly(id='3', total=55, used=22),
+    )
+    session.add_all(googlys)
+    session.commit()
+
+    yield googlys
+
+    for matched in session.query(Googly):
+        session.delete(matched)
+    session.commit()
 
 
 @pytest.fixture

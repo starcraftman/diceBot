@@ -280,6 +280,57 @@ class SongTag(Base):
         return self.name < other.name
 
 
+class Googly(Base):
+    """
+    Track googly eyes ???
+    """
+    __tablename__ = 'googly'
+
+    id = sqla.Column(sqla.String(LEN_DID), primary_key=True)  # Discord id
+    total = sqla.Column(sqla.Integer, default=0)
+    used = sqla.Column(sqla.Integer, default=0)
+
+    def __repr__(self):
+        keys = ['id', 'total', 'used']
+        kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
+
+        return "Googly({})".format(', '.join(kwargs))
+
+    def __str__(self):
+        return """__**Googly Counter**__
+
+    Total: {}
+    Used: {}""".format(self.total, self.used)
+
+    def __eq__(self, other):
+        return (self.total, self.used) == (other.total, other.used)
+
+    def __add__(self, num):
+        new_total = max(self.total + num, 0)
+        new_used = self.used
+        if num < 0:
+            new_used = self.used + min(self.total, -num)
+
+        return Googly(id=self.id, total=new_total, used=new_used)
+
+    def __sub__(self, num):
+        return self + -num
+
+    def __radd__(self, num):
+        return self + num
+
+    def __iadd__(self, num):
+        if num < 0:
+            self.used = self.used + min(self.total, -num)
+
+        self.total = max(self.total + num, 0)
+        return self
+
+    def __isub__(self, num):
+        self += -num
+        return self
+
+
 def parse_int(word):
     """ Parse into int, on failure return 0 """
     try:

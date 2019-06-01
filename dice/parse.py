@@ -78,7 +78,7 @@ def subs_math(subs, prefix):
 
 @register_parser
 def subs_music(subs, prefix):
-    """ Subcommand parsing for timers """
+    """ Subcommand parsing for music """
     desc = """A simple music player for users to stream yt or local media.
 
 {prefix}m is aliased to this command.
@@ -169,7 +169,7 @@ def subs_roll(subs, prefix):
 
 @register_parser
 def subs_pf(subs, prefix):
-    """ Subcommand parsing for timers """
+    """ Subcommand parsing for searching pathfinder wiki """
     desc = """Search something on Pathfinder Wiki.
 
 {prefix}pf arcane mark
@@ -185,7 +185,7 @@ def subs_pf(subs, prefix):
 
 @register_parser
 def subs_d5e(subs, prefix):
-    """ Subcommand parsing for timers """
+    """ Subcommand parsing for searching d&d5 wiki """
     desc = """Search something on D&D 5e Wiki.
 
 {prefix}d5 arcane mark
@@ -201,7 +201,7 @@ def subs_d5e(subs, prefix):
 
 @register_parser
 def subs_star(subs, prefix):
-    """ Subcommand parsing for timers """
+    """ Subcommand parsing for searching starfinder wiki """
     desc = """Search something on Starfinder Wiki.
 
 {prefix}pf arcane mark
@@ -217,7 +217,7 @@ def subs_star(subs, prefix):
 
 @register_parser
 def subs_poni(subs, prefix):
-    """ Subcommand parsing for timers """
+    """ Subcommand parsing for poni """
     desc = """Be magical!
 
 {prefix}poni tag_1, tag 2, tag of words
@@ -313,7 +313,7 @@ def subs_turn(subs, prefix):
 
 @register_parser
 def subs_n(subs, prefix):
-    """ Subcommand parsing for timer """
+    """ Subcommand parsing for n (alias for turn --next) """
     desc = """Shortcut for !turn --next
 
 {prefix}n
@@ -328,7 +328,7 @@ def subs_n(subs, prefix):
 
 @register_parser
 def subs_effect(subs, prefix):
-    """ Subcommand parsing for roll """
+    """ Subcommand parsing for effect """
     desc = """Track effects on characters in the turn order.
 Any text is allowed, the number following is the number of turns to persist.
 The turn counter will decrement at the end of a character's turn.
@@ -398,7 +398,7 @@ def subs_timers(subs, prefix):
 
 @register_parser
 def subs_pun(subs, prefix):
-    """ Subcommand parsing for timers """
+    """ Subcommand parsing for puns """
     desc = """Manage the puns!
 
 {prefix}pun
@@ -415,8 +415,8 @@ def subs_pun(subs, prefix):
 
 
 @register_parser
-def subs_search(subs, prefix):
-    """ Subcommand parsing for timers """
+def subs_yt(subs, prefix):
+    """ Subcommand parsing for youtube search """
     desc = """Search youtube for songs to play.
 
 {prefix}yt critical hit
@@ -427,3 +427,23 @@ def subs_search(subs, prefix):
     sub.set_defaults(cmd='YTSearch')
     sub.add_argument('-f', '--first', action="store_true", help='Play first match.')
     sub.add_argument('terms', nargs='+', help='To search.')
+
+
+@register_parser
+def subs_googly(subs, prefix):
+    """ Subcommand parsing for googly!  """
+    desc = """Search youtube for songs to play.
+
+{prefix}o.o +5
+{prefix}o.o +5
+        Add or subtract a number from googly eyes.
+        Any subractions are added to used.
+{prefix}o.o --set
+        Set the number of total googly eyes.
+{prefix}o.o
+        Show the overall status of googly eyes.
+    """.format(prefix=prefix)
+    sub = subs.add_parser(prefix + 'o.o', description=desc, formatter_class=RawHelp)
+    sub.set_defaults(cmd='Googly')
+    sub.add_argument('--set', help='Set the value of the googly eye counter.')
+    sub.add_argument('offset', nargs="?", type=int, help='The offset to modify.')

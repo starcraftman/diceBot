@@ -113,6 +113,7 @@ class Help(Action):
             ['{prefix}timers', 'See the status of all YOUR active timers'],
             ['{prefix}turn', 'Manager turn order for pen and paper combat'],
             ['{prefix}help', 'This help message'],
+            ['{prefix}o.o', 'Funny eyes ?!?'],
         ]
         lines = [[line[0].format(prefix=prefix), line[1]] for line in lines]
 
@@ -1155,6 +1156,24 @@ class YTSearch(Action):
             await self.reply('Appending first match to playlist. ' + videos[0].name)
         else:
             await YTMenu(self, entries, 6).run()
+
+
+class Googly(Action):
+    """
+    Track amazing googly eyes.
+    """
+    async def execute(self):
+        googly = dicedb.query.get_googly(self.session, self.msg.author.id)
+
+        if self.args.set:
+            googly.total = self.args.set
+        elif self.args.offset:
+            googly += self.args.offset
+
+        self.session.add(googly)
+        self.session.commit()
+
+        await self.reply(str(googly))
 
 
 async def timer_monitor(timers, sleep_time=CHECK_TIMER_GAP):
