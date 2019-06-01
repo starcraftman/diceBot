@@ -450,3 +450,21 @@ def subs_googly(subs, prefix):
     sub.add_argument('--set', type=int, help='Set the total googly eyes.')
     sub.add_argument('--used', type=int, help='Set the used googly eyes.')
     sub.add_argument('offset', nargs="?", type=int, help='The offset to modify.')
+
+
+@register_parser
+def subs_reroll(subs, prefix):
+    """ Subcommand parsing for rerolls  """
+    desc = """Search youtube for songs to play.
+
+{prefix}reroll
+        Reroll the last roll you issued.
+{prefix}reroll -2
+        Reroll a roll made two rolls ago.
+{prefix}reroll --select
+        Browse the list of rolls you made and select one.
+    """.format(prefix=prefix)
+    sub = subs.add_parser(prefix + 'reroll', description=desc, formatter_class=RawHelp)
+    sub.set_defaults(cmd='Reroll')
+    sub.add_argument('--select', type=int, help='Set the total googly eyes.')
+    sub.add_argument('offset', nargs="?", type=int, help='The offset to modify.')

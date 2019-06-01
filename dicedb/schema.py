@@ -331,6 +331,42 @@ class Googly(Base):
         return self
 
 
+class LastRoll(Base):
+    """
+    Roll history, keep the last N rolls a user makes.
+    """
+    __tablename__ = 'last_rolls'
+
+    id = sqla.Column(sqla.String(LEN_DID), primary_key=True)
+    roll_num = sqla.Column(sqla.Integer, primary_key=True)
+    roll_str = sqla.Column(sqla.Integer, default=0)
+
+    def __repr__(self):
+        keys = ['id', 'roll_num', 'roll_str']
+        kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
+
+        return "LastRoll({})".format(', '.join(kwargs))
+
+    def __str__(self):
+        return repr(self)
+
+    def __eq__(self, other):
+        return isinstance(other, self.__class__) and self.roll_str == other.roll_str
+
+    def __add__(self, num):
+        roll_num = max(self.total + num, 0)
+
+        return LastRoll(id=self.id, roll_num=roll_num, roll_str=self.roll_str)
+
+    def __radd__(self, num):
+        return self + num
+
+    def __iadd__(self, num):
+        self.roll_num = max(self.total + num, 0)
+
+        return self
+
+
 def parse_int(word):
     """ Parse into int, on failure return 0 """
     try:
