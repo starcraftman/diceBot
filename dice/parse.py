@@ -156,6 +156,8 @@ def subs_roll(subs, prefix):
         Remove NameNoSpace from saved rolls.
 {prefix}roll NameNoSpace
         Roll the saved roll associated with NameNoSpace.
+{prefix}roll 4d6 @user1 @user2
+        Roll 4d6, only you, user1 and user2 will see the result in direct DMs by bot.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'roll', aliases=[prefix + 'r'], description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Roll')

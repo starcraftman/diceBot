@@ -611,7 +611,11 @@ class Roll(Action):
             resp += await self.make_rolls(full_spec)
             msg = '\n'.join(resp)
 
-        await self.reply(msg)
+        if self.msg.mentions:
+            for member in set(self.msg.mentions + [self.msg.author]):
+                await member.send(msg)
+        else:
+            await self.reply(msg)
 
 
 class Timer(Action):
