@@ -164,6 +164,9 @@ class PagingMenu(abc.ABC):
         On each iteration of the loop generate the menu and wait for user response.
         Then handle response within handle_msg.
         Keep prompting user until handle_msg returns True or no entries left.
+
+        Returns:
+            Anything that was returned by handle_msg that evualuated to True.
         """
         while self.entries:
             try:
@@ -183,8 +186,9 @@ class PagingMenu(abc.ABC):
                     self.entries = self.entries[self.limit:]
                     self.page += 1
 
-                elif await self.handle_msg(user_select):
-                    self.entries = None
+                ret = await self.handle_msg(user_select)
+                if ret:
+                    return ret
             except concurrent.futures.TimeoutError:
                 self.entries = None
                 await self.reply('Paging menu timed out. Goodbye human!.')
@@ -224,6 +228,7 @@ class PagingMenu(abc.ABC):
 
         Returns:
             True, if and only if you want to stop processing and all went well.
+            To return to caller by returning a true value not True.
         """
         raise NotImplementedError
 

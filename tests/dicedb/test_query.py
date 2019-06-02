@@ -186,45 +186,23 @@ def test_remove_song_with_tags(session, f_songs):
 
 
 def test_search_songs_by_name(session, f_songs):
-    """
-    Get the possible song by name.
-    """
     assert dicedb.query.search_songs_by_name(session, f_songs[0].name) == [f_songs[0]]
     assert dicedb.query.search_songs_by_name(session, f_songs[0].name[:-2]) == [f_songs[0]]
 
 
 def test_get_song_by_id(session, f_songs):
-    """
-    Get a song that you want by id.
-    """
     assert dicedb.query.get_song_by_id(session, f_songs[0].id) == f_songs[0]
 
 
 def test_get_songs_with_tag(session, f_songs):
-    """
-    Get the possible song by name.
-    """
     assert dicedb.query.get_songs_with_tag(session, f_songs[0].tags[0].name) == [f_songs[0]]
 
 
 def test_get_song_choices(session, f_songs):
-    """
-    Get all possible choices for song names.
-
-    args:
-        session: session to the database.
-    """
     assert dicedb.query.get_song_choices(session) == sorted(f_songs)
 
 
 def test_get_tag_choices(session, f_songs):
-    """
-    Get all possible choices for tag names and their counts.
-
-    args:
-        session: session to the database.
-        similar_to: Only return tags similar to this.
-    """
     expect = []
     for song in f_songs:
         for tag in song.tags:
@@ -270,3 +248,26 @@ def test_get_googly_no_exists(session, f_googly):
     new_googly = dicedb.query.get_googly(session, '5')
     assert new_googly.id == '5'
     assert new_googly.total == 0
+
+
+def test_get_last_rolls(session, f_lastrolls):
+    assert dicedb.query.get_last_rolls(session, '1') == list(f_lastrolls[:3])
+    assert dicedb.query.get_last_rolls(session, '9999') == []
+
+
+def test_add_last_roll_same(session, f_lastrolls):
+    last_roll = f_lastrolls[2]
+    dicedb.query.add_last_roll(session, last_roll.id, last_roll.roll_str)
+    assert len(dicedb.query.get_last_rolls(session, '1')) == 3
+
+
+def test_add_last_roll_differs(session, f_lastrolls):
+    last_roll = f_lastrolls[2]
+    dicedb.query.add_last_roll(session, last_roll.id, last_roll.roll_str + " + 10")
+    assert len(dicedb.query.get_last_rolls(session, '1')) != 3
+
+
+def test_add_last_roll_prune(session, f_lastrolls):
+    last_roll = f_lastrolls[2]
+    dicedb.query.add_last_roll(session, last_roll.id, last_roll.roll_str + " + 10", 1)
+    assert len(dicedb.query.get_last_rolls(session, '1')) == 2

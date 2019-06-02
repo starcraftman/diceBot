@@ -13,7 +13,7 @@ from sqlalchemy import func
 
 import dice.exc
 import dicedb
-from dicedb.schema import (DUser, Pun, SavedRoll, TurnChar, TurnOrder, Song, SongTag, Googly)
+from dicedb.schema import (DUser, Pun, SavedRoll, TurnChar, TurnOrder, Song, SongTag, Googly, LastRoll)
 
 DEFAULT_VOLUME = dice.util.get_config('music', 'default_volume', default=20)
 
@@ -410,3 +410,44 @@ def get_googly(session, user_id):
         session.commit()
 
     return googly
+
+
+def get_last_rolls(session, user_id):
+    """
+    Simply get all previous rolls by a user.
+
+    Args:
+        session: An SQLAlchemy session.
+        user_id: A discord user id.
+
+    Returns:
+        [LastRoll(), LastRoll(), ...]
+    """
+    return session.query(LastRoll).filter(LastRoll.id == user_id).order_by(LastRoll.id_num).all()
+
+
+def add_last_roll(session, user_id, roll_str, limit=20):
+    """
+    A user has made a new roll. Store only if the spec differs from last one.
+    Will not store two following rolls that are exactly the same.
+
+    Args:
+        user_id: A discord user ID.
+        roll_str: A dice specification.
+        limit: The limit of dice to keep.
+    """
+    rolls = get_last_rolls(session, user_id)
+    try:
+        last_roll = rolls[-1]
+        if last_roll.roll_str == roll_str:
+            return
+        next_id_num = last_roll.id_num + 1 % 1000
+    except (AttributeError, IndexError):
+        next_id_num = 0
+
+    for roll in rolls[:-limit]:
+        session.delete(roll)
+
+    new_roll = LastRoll(id=user_id, id_num=next_id_num, roll_str=roll_str)
+    session.add(new_roll)
+    session.commit()

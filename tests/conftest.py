@@ -24,7 +24,7 @@ except ImportError:
 
 import dicedb
 import dicedb.schema
-from dicedb.schema import (DUser, SavedRoll, Pun, TurnChar, TurnOrder, Song, SongTag, Googly)
+from dicedb.schema import (DUser, SavedRoll, Pun, TurnChar, TurnOrder, Song, SongTag, Googly, LastRoll)
 
 
 #  @pytest.yield_fixture(scope='function', autouse=True)
@@ -176,9 +176,9 @@ def fake_guilds():
     """ Generate fake discord guilds for testing. """
     guild = Guild("Gears' Hideout")
     channels = [
-        Channel("feedback", guild=guild),
-        Channel("live_hudson", guild=guild),
-        Channel("private_dev", guild=guild),
+        Channel("general", guild=guild),
+        Channel("dev", guild=guild),
+        Channel("gaming", guild=guild),
         Channel("voice1", guild=guild, type=discord.enums.ChannelType.voice),
     ]
     for cha in channels:
@@ -312,7 +312,7 @@ def session():
     sess.close()
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def db_cleanup():
     """ Nuke anything left in db after test. """
     yield
@@ -486,6 +486,27 @@ def f_googly(session):
     yield googlys
 
     for matched in session.query(Googly):
+        session.delete(matched)
+    session.commit()
+
+
+@pytest.fixture
+def f_lastrolls(session):
+    """
+    Fixture to insert some test Googly objects.
+    """
+    rolls = (
+        LastRoll(id='1', id_num=0, roll_str='4d6 + 1'),
+        LastRoll(id='1', id_num=1, roll_str='4d6 + 2'),
+        LastRoll(id='1', id_num=2, roll_str='4d6 + 3'),
+        LastRoll(id='2', id_num=0, roll_str='2d20 + 4'),
+    )
+    session.add_all(rolls)
+    session.commit()
+
+    yield rolls
+
+    for matched in session.query(LastRoll):
         session.delete(matched)
     session.commit()
 

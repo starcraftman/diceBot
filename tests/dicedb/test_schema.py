@@ -5,7 +5,7 @@ from __future__ import absolute_import, print_function
 
 import dicedb
 import dicedb.schema
-from dicedb.schema import (DUser, Pun, SavedRoll, TurnOrder, TurnChar, Song, Googly)
+from dicedb.schema import (DUser, Pun, SavedRoll, TurnOrder, TurnChar, Song, Googly, LastRoll)
 
 
 def test_duser__eq__(f_dusers):
@@ -177,6 +177,24 @@ def test_googly__isub__(f_googly):
 
     modified -= 200
     assert modified == Googly(id='1', total=0, used=104)
+
+
+def test_lastroll__init__(f_lastrolls):
+    roll = LastRoll(id=4, id_num=0, roll_str='4d6 + 10')
+    assert roll.roll_str == '4d6 + 10'
+
+
+def test_lastroll__repr__(f_lastrolls):
+    assert repr(f_lastrolls[0]) == "LastRoll(id='1', id_num=0, roll_str='4d6 + 1')"
+
+
+def test_lastroll__eq__(f_lastrolls):
+    assert f_lastrolls[0] == LastRoll(id='1', id_num=0, roll_str='4d6 + 1')
+
+
+def test_lastroll__lt__(f_lastrolls):
+    assert repr(f_lastrolls[0]) < f_lastrolls[-1]
+    assert repr(f_lastrolls[0]) < f_lastrolls[1]
 
 
 def test_song__init__(f_songs):

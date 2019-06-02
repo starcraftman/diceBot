@@ -35,6 +35,7 @@ STAR_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3Awyjvzq2cjz8&q=
 PONI_URL = "https://derpibooru.org/search.json?q="
 LIMIT_SONGS = 8
 LIMIT_TAGS = 16
+LIMIT_REROLLS = dice.util.get_config('reroll_limit', default=20)
 PLAYERS = {}
 
 
@@ -554,28 +555,8 @@ class Roll(Action):
     """
     Perform one or more rolls of dice according to spec.
     """
-    async def make_rolls(self, spec):
-        """
-        Take a specification of dice rolls and return a string.
-        """
-        lines = []
-
-        for line in spec.split(','):
-            line = line.strip()
-            times = 1
-
-            if ':' in line:
-                parts = line.split(':')
-                times, line = int(parts[0]), parts[1].strip()
-
-            throw = dice.roll.Throw(dice.roll.tokenize_dice_spec(line))
-            with concurrent.futures.ProcessPoolExecutor() as pool:
-                for _ in range(times):
-                    lines += [line + " = {}".format(await self.bot.loop.run_in_executor(pool, throw_in_pool, throw))]
-
-        return lines
-
     async def execute(self):
+        update_rolls = False
         full_spec = ' '.join(self.args.spec).strip()
         user_id = self.msg.author.id
         msg = ''
@@ -609,14 +590,19 @@ class Roll(Action):
             except dice.exc.NoMatch:
                 resp = ['__Dice Rolls__', '']
 
-            resp += await self.make_rolls(full_spec)
+            resp += await make_rolls(full_spec)
             msg = '\n'.join(resp)
+            update_rolls = True
 
         if self.msg.mentions:
             for member in set(self.msg.mentions + [self.msg.author]):
                 await member.send(msg)
         else:
             await self.reply(msg)
+
+        if update_rolls:
+            await self.bot.loop.run_in_executor(
+                None, dicedb.query.add_last_roll, self.session, self.msg.author.id, full_spec, LIMIT_REROLLS)
 
 
 class Timer(Action):
@@ -1178,6 +1164,60 @@ class Googly(Action):
         await self.reply(str(googly))
 
 
+class RerollMenu(dice.util.PagingMenu):
+    """
+    Select a youtube video to play from search results.
+    """
+    def menu(self):
+        msg = """**Last {} Rolls**
+Page {}/{}
+Select a roll by number [1..{}]:
+
+""".format(LIMIT_REROLLS, self.page, self.total_pages, len(self.cur_entries))
+
+        for cnt, entry in enumerate(self.cur_entries, start=1):
+            msg += "    {cnt}) {spec}\n".format(cnt=cnt, spec=entry.roll_str)
+        msg = msg.rstrip()
+        msg += dice.util.PAGING_FOOTER
+
+        return msg
+
+    async def handle_msg(self, user_select):
+        choice = int(user_select.content) - 1
+        if choice < 0 or choice >= len(self.cur_entries):
+            raise ValueError
+
+        return self.entries[choice]
+
+
+class Reroll(Action):
+    """
+    Reoll the last n commands.
+    """
+    async def execute(self):
+        rolls = dicedb.query.get_last_rolls(self.session, self.msg.author.id)
+        if not rolls:
+            raise dice.exc.InvalidCommandArgs("No rolls stored, make a !roll first.")
+
+        if self.args.menu:
+            selected = await RerollMenu(self, list(reversed(rolls))).run()
+            if not selected:
+                return
+        else:
+            try:
+                if self.args.offset > -1:
+                    raise IndexError
+                selected = rolls[self.args.offset]
+            except IndexError:
+                raise dice.exc.InvalidCommandArgs("Please select a negative offset from : [-1, -{}]".format(LIMIT_REROLLS))
+
+        msg = "**Reroll Result**\n\n" + '\n'.join(await make_rolls(selected.roll_str))
+        await self.reply(msg)
+
+        await self.bot.loop.run_in_executor(
+            None, dicedb.query.add_last_roll, self.session, self.msg.author.id, selected.roll_str, LIMIT_REROLLS)
+
+
 async def timer_monitor(timers, sleep_time=CHECK_TIMER_GAP):
     """
     Perform a check on all active timers every sleep_time seconds.
@@ -1317,3 +1357,25 @@ def get_guild_player(guild_id, msg):
     PLAYERS[guild_id].target_channel = target
 
     return PLAYERS[guild_id]
+
+
+async def make_rolls(spec):
+    """
+    Take a specification of dice rolls and return a string.
+    """
+    lines = []
+
+    for line in spec.split(','):
+        line = line.strip()
+        times = 1
+
+        if ':' in line:
+            parts = line.split(':')
+            times, line = int(parts[0]), parts[1].strip()
+
+        throw = dice.roll.Throw(dice.roll.tokenize_dice_spec(line))
+        with concurrent.futures.ProcessPoolExecutor() as pool:
+            for _ in range(times):
+                lines += [line + " = {}".format(await asyncio.get_event_loop().run_in_executor(pool, throw_in_pool, throw))]
+
+    return lines

@@ -434,7 +434,7 @@ async def test_cmd_timers_clear(f_bot):
 
 
 @pytest.mark.asyncio
-async def test_cmd_turn_no_turn_order(f_bot, db_cleanup):
+async def test_cmd_turn_no_turn_order(f_bot):
     msg = fake_msg("!turn --next")
 
     with pytest.raises(dice.exc.InvalidCommandArgs):
@@ -442,7 +442,7 @@ async def test_cmd_turn_no_turn_order(f_bot, db_cleanup):
 
 
 @pytest.mark.asyncio
-async def test_cmd_turn_no_flags(f_bot, db_cleanup):
+async def test_cmd_turn_no_flags(f_bot):
     try:
         msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
         msg2 = fixed_id_fake_msg("!turn")
@@ -463,7 +463,7 @@ Orc       | +2   | 10.00```"""
 
 
 @pytest.mark.asyncio
-async def test_cmd_turn_add(session, f_bot, db_cleanup):
+async def test_cmd_turn_add(session, f_bot):
     try:
         msg = fixed_id_fake_msg("!turn --add Chris/7, Orc/2")
         msg2 = fixed_id_fake_msg("!turn --add Dwarf/3/20")
@@ -480,7 +480,7 @@ async def test_cmd_turn_add(session, f_bot, db_cleanup):
 
 
 @pytest.mark.asyncio
-async def test_cmd_turn_clear(session, f_bot, db_cleanup):
+async def test_cmd_turn_clear(session, f_bot):
     msg = fixed_id_fake_msg("!turn --add Chris/7, Orc/2")
     msg2 = fixed_id_fake_msg("!turn --clear")
     key = '{}_{}'.format(msg.guild.id, msg.channel.id)
@@ -494,7 +494,7 @@ async def test_cmd_turn_clear(session, f_bot, db_cleanup):
 
 
 @pytest.mark.asyncio
-async def test_cmd_turn_next(f_bot, db_cleanup):
+async def test_cmd_turn_next(f_bot):
     try:
         msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
         msg2 = fixed_id_fake_msg("!turn --next")
@@ -508,7 +508,7 @@ async def test_cmd_turn_next(f_bot, db_cleanup):
 
 
 @pytest.mark.asyncio
-async def test_cmd_turn_next_num(f_bot, db_cleanup):
+async def test_cmd_turn_next_num(f_bot):
     try:
         msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
         msg2 = fixed_id_fake_msg("!n 3")
@@ -523,7 +523,7 @@ async def test_cmd_turn_next_num(f_bot, db_cleanup):
 
 
 @pytest.mark.asyncio
-async def test_cmd_turn_next_with_effects(f_bot, db_cleanup):
+async def test_cmd_turn_next_with_effects(f_bot):
     try:
         msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
         msg2 = fixed_id_fake_msg("!effect Chris --add poison/1, blind/3")
@@ -545,7 +545,7 @@ Dwarf (3): 12.00"""
 
 
 @pytest.mark.asyncio
-async def test_cmd_turn_remove_exists(f_bot, db_cleanup):
+async def test_cmd_turn_remove_exists(f_bot):
     try:
         msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
         msg2 = fixed_id_fake_msg("!turn --remove Orc")
@@ -562,7 +562,7 @@ async def test_cmd_turn_remove_exists(f_bot, db_cleanup):
 
 
 @pytest.mark.asyncio
-async def test_cmd_turn_remove_not_exists(f_bot, db_cleanup):
+async def test_cmd_turn_remove_not_exists(f_bot):
     try:
         msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
         msg2 = fixed_id_fake_msg("!turn --remove Cedric")
@@ -616,7 +616,7 @@ async def test_cmd_turn_update_user(f_bot, f_dusers):
 
 
 @pytest.mark.asyncio
-async def test_cmd_effect_add(f_bot, db_cleanup):
+async def test_cmd_effect_add(f_bot):
     try:
         msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
         msg2 = fixed_id_fake_msg("!effect Chris --add poison/2, blind/3")
@@ -639,7 +639,7 @@ Chris (7): 21.00
 
 
 @pytest.mark.asyncio
-async def test_cmd_effect_update(f_bot, db_cleanup):
+async def test_cmd_effect_update(f_bot):
     try:
         msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
         msg2 = fixed_id_fake_msg("!effect Chris --add poison/2, blind/3")
@@ -664,7 +664,7 @@ Chris (7): 21.00
 
 
 @pytest.mark.asyncio
-async def test_cmd_effect_remove(f_bot, db_cleanup):
+async def test_cmd_effect_remove(f_bot):
     try:
         msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
         msg2 = fixed_id_fake_msg("!effect Chris --add poison/2, blind/3")
@@ -688,7 +688,7 @@ Chris (7): 21.00
 
 
 @pytest.mark.asyncio
-async def test_cmd_effect_no_action(f_bot, db_cleanup):
+async def test_cmd_effect_no_action(f_bot):
     try:
         msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
         msg2 = fixed_id_fake_msg("!effect Chris poison/2, blind/3")
@@ -703,7 +703,7 @@ async def test_cmd_effect_no_action(f_bot, db_cleanup):
 
 
 @pytest.mark.asyncio
-async def test_cmd_effect_default_status(f_bot, db_cleanup):
+async def test_cmd_effect_default_status(f_bot):
     try:
         msg = fixed_id_fake_msg("!turn --add Chris/7/21, Orc/2/10, Dwarf/3/12")
         msg2 = fixed_id_fake_msg("!effect Chris --add poison/2, blind/3")
@@ -726,7 +726,7 @@ Chris (7): 21.00
 
 
 @pytest.mark.asyncio
-async def test_cmd_effect_turn_order_none(f_bot, db_cleanup):
+async def test_cmd_effect_turn_order_none(f_bot):
     try:
         msg = fixed_id_fake_msg("!effect Chris --add poison/2, blind/3")
 
@@ -807,6 +807,42 @@ async def test_cmd_googly_sub(f_bot, f_googly):
     f_bot.send.assert_called_with(msg.channel, expect)
 
 
+@pytest.mark.asyncio
+async def test_cmd_reroll_none(f_bot, f_lastrolls):
+    msg = fixed_id_fake_msg("!reroll")
+    msg.author.id = '1111'
+
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        await action_map(msg, f_bot).execute()
+
+
+@pytest.mark.asyncio
+async def test_cmd_reroll_last(f_bot, f_lastrolls):
+    msg = fixed_id_fake_msg("!reroll")
+    msg.author.id = '1'
+
+    await action_map(msg, f_bot).execute()
+    assert "**Reroll Result**\n\n4d6 + 3" in str(f_bot.send.call_args).replace("\\n", "\n")
+
+
+@pytest.mark.asyncio
+async def test_cmd_reroll_offset(f_bot, f_lastrolls):
+    msg = fixed_id_fake_msg("!reroll -3")
+    msg.author.id = '1'
+
+    await action_map(msg, f_bot).execute()
+    assert "**Reroll Result**\n\n4d6 + 1" in str(f_bot.send.call_args).replace("\\n", "\n")
+
+
+@pytest.mark.asyncio
+async def test_cmd_reroll_offset_invalid(f_bot, f_lastrolls):
+    msg = fixed_id_fake_msg("!reroll -10")
+    msg.author.id = '1'
+
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        await action_map(msg, f_bot).execute()
+
+
 def test_parse_time_spec():
     time_spec = "1:15:30"
     assert dice.actions.parse_time_spec(time_spec) == 3600 + 900 + 30
@@ -882,3 +918,10 @@ def test_timers_summary():
         assert "Ends at" in capture
     finally:
         dice.actions.TIMERS.clear()
+
+
+@pytest.mark.asyncio
+async def test_make_rolls():
+    capture = await dice.actions.make_rolls('3: 4d6')
+    assert '4d6 = ' in capture[0]
+    assert len(capture) == 3

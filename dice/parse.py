@@ -459,12 +459,14 @@ def subs_reroll(subs, prefix):
 
 {prefix}reroll
         Reroll the last roll you issued.
+{prefix}reroll -1
+        Reroll the last roll you issued.
 {prefix}reroll -2
         Reroll a roll made two rolls ago.
-{prefix}reroll --select
+{prefix}reroll --menu
         Browse the list of rolls you made and select one.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'reroll', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Reroll')
-    sub.add_argument('--select', type=int, help='Set the total googly eyes.')
-    sub.add_argument('offset', nargs="?", type=int, help='The offset to modify.')
+    sub.add_argument('--menu', action='store_true', help='Select reroll from reverse menu.')
+    sub.add_argument('offset', nargs="?", type=int, default=-1, help='The offset to modify.')
