@@ -163,9 +163,8 @@ class Die():
     def is_fail(self):
         return self.flags & Die.FAIL
 
-    def set_keep(self):
+    def reset_flags(self):
         """ Ensure this dice is kept, resets all other flags. """
-        self.flags = self.flags & (~Die.DROP & Die.MASK)
         self.flags = Die.KEEP
 
     def set_drop(self):
@@ -260,7 +259,7 @@ class DiceSet():
     def roll(self):
         for die in self.all_die:
             die.roll()
-            die.set_keep()
+            die.reset_flags()
 
     def apply_mods(self):
         for mod in self.mods:
@@ -335,12 +334,11 @@ class KeepOrDrop(ModifyDice):
         if not self.keep:
             all_die = list(reversed(all_die))
 
-        #  getattr(die, first, lambda: True)()
-        first, second = ['set_drop', 'set_keep'] if self.high else ['set_keep', 'set_drop']
+        first, second = ['set_drop', 'NOP'] if self.high else ['NOP', 'set_drop']
         for die in all_die[:-self.num]:
-            getattr(die, first)()
+            getattr(die, first, lambda: True)()
         for die in all_die[-self.num:]:
-            getattr(die, second)()
+            getattr(die, second, lambda: True)()
 
         return dice_set
 

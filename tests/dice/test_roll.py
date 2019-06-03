@@ -263,7 +263,7 @@ def test_die__str__():
     d.set_drop()
     assert str(d) == "~~1~~"
 
-    d.set_keep()
+    d.reset_flags()
     d.explode()
     assert str(d) == "__1__"
 
@@ -300,16 +300,16 @@ def test_die_roll():
 
 def test_die_set_drop():
     d = dice.roll.Die(sides=6, value=1)
-    d.set_keep()
+    d.reset_flags()
     d.set_drop()
     assert not d.is_kept()
     assert d.is_dropped()
 
 
-def test_die_set_keep():
+def test_die_reset_flags():
     d = dice.roll.Die(sides=6, value=1)
     d.set_drop()
-    d.set_keep()
+    d.reset_flags()
     assert d.is_kept()
     assert not d.is_dropped()
 
