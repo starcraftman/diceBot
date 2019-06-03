@@ -3,13 +3,16 @@ Dice module for throwing dice.
 """
 # See systems listed: https://wiki.roll20.net/Dice_Reference
 # These are a series of ideas rather than firm commitments to implement.
-# TODO: Refactor to a Dice class + some addable modifiers on demand.
-# TODO: Add !gmroll to pars/actions, only shows to player and GM.
 # TODO: Allow comments post roll, i.e. 3d6 + 20 this comment gets replayed back.
-# TODO: Roll history, track rolls by session and recall last #N rolls + detailed breakdown.
+# TODO: Simple success/fail system, 3d6>4, report # sucess over 4 or =. 3d6<5 # fails less than or = 5
+# TODO: Grouped rolls {2d10,4d20}kh1, take highest total value.
+
+# TODO: Rerolling low dice: 4d6r<2, 4d6r1r3r5
+#           Consider how they overlap and can cause infinite rerolls
+
+# TODO: Refactor to a Dice class + some addable modifiers on demand.
+# TODO: 4DF, fate dice are 3sides (-1, 0, 1).
 # TODO: Exploding dice, 3d6! -> reroll on hitting 6, 3d6!>4, explode greater than 4.
-# TODO: Simple success/fail system, 3d6 > 4, report # sucess over 4.
-# TODO: 4DF, fate dice are 6 sides (2 * -1, 0, 1).
 import abc
 import functools
 import re
@@ -37,6 +40,320 @@ Supported dice format:
     If leading number omitted, one roll is made.
 """
 DICE_REGEX = re.compile(r'(\d*)d(\d+)((kh?|kl)?(\d+))?', re.ASCII | re.IGNORECASE)
+
+
+def determine_predicate(partial, max_roll):
+    """
+    Raises:
+        ValueError: Predicate was impossible to discern or would always be true.
+
+    Returns:
+        The predicate.
+    """
+    match = re.match(r'(>)?(<)?(\d+)', partial)
+    if not match:
+        raise ValueError("Unable to determine predicate.")
+    val = int(match.group(3))
+
+    if match.group(1):
+        if val == 1:
+            raise ValueError("Predicate always true on rolled dice.")
+        return lambda d: d.value >= val
+
+    if match.group(2):
+        if val == max_roll:
+            raise ValueError("Predicate always true on rolled dice.")
+        return lambda d: d.value <= val
+
+    return lambda d: d.value == val
+
+
+@functools.total_ordering
+class Die():
+    """
+    Model a single dice with n sides.
+    """
+    def __init__(self, *, sides=1, value=1, kept=True, exploded=False):
+        self.sides = sides
+        self.kept = kept
+        self.exploded = exploded
+        self.value = value
+        self.fmt = "{}"
+
+    def __repr__(self):
+        keys = ['sides', 'value', 'kept', 'exploded']
+        kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
+
+        return "{}({})".format(self.__class__.__name__, ', '.join(kwargs))
+
+    def __str__(self):
+        return self.fmt.format(self.value)
+
+    def __hash__(self):
+        return hash('{}_{}'.format(self.sides, self.value))
+
+    def __eq__(self, other):
+        return issubclass(type(other), Die) and self.value == other.value
+
+    def __lt__(self, other):
+        return issubclass(type(other), Die) and self.value < other.value
+
+    def dupe(self):
+        """ Create a duplicate dice based on this spec. """
+        dupe = self.__class__(sides=self.sides)
+        dupe.roll()
+        return dupe
+
+    def set_drop(self):
+        """ Ensure this dice is dropped. """
+        self.kept = False
+        self.fmt = "~~{}~~"
+
+    def set_keep(self):
+        """ Ensure this dice is kept. """
+        self.kept = True
+        self.fmt = "{}"
+
+    def set_sucess(self):
+        self.fmt = "**{}**"
+        self.value = "S"
+
+    def set_fail(self):
+        self.fmt = "**{}**"
+        self.value = "F"
+
+    def explode(self):
+        """
+        Explode this dice.
+        Marks this one as exploded and returns a new dice of same spec.
+        """
+        self.fmt = "__{}__"
+        self.exploded = True
+        return self.dupe()
+
+    def roll(self):
+        """ Reroll the value of this dice. """
+        self.value = rand.randint(1, self.sides + 1)
+        return self.value
+
+
+class FateDie(Die):
+    def roll(self):
+        self.value = rand.randint(-1, 2)
+        return self.value
+
+
+class DiceSet():
+    """
+    Contain a group of dice to roll together.
+    Allow modifiers to be popped onto the set and applied after rolling.
+    """
+    def __init__(self, all_die=None, mods=None):
+        self.all_die = all_die if all_die else []
+        self.mods = all_die if all_die else []
+
+    def __str__(self):
+        return " + ".join([str(d) for d in self.all_die])
+
+    def add_dice(self, number, sides):
+        self.all_die += [Die(sides=sides) for _ in range(0, number)]
+
+    def roll(self):
+        for die in self.all_die:
+            die.roll()
+            die.set_keep()
+
+    def apply_mods(self):
+        for mod in self.mods:
+            mod.modify_dice(self)
+
+    def register_mod(self, mod):
+        self.mods += [mod]
+
+
+class ModifyDice(abc.ABC):
+    """
+    Standard interface to modify a dice set.
+    """
+    @abc.abstractstaticmethod
+    def parse(partial):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def modify_dice(self, die_list):
+        raise NotImplementedError
+
+
+class KeepOrDrop(ModifyDice):
+    """
+    Keep or drop N high or low rolls.
+    """
+    def __init__(self, *, keep=True, high=True, num=1):
+        self.keep = keep
+        self.high = high
+        self.num = num
+
+    def parse(partial):
+        """
+        Parse the partial string for an object.
+        Supports: kh4, kl3, dh4, dl2, k2
+            N. B. k2 == kh2
+
+        Raises:
+            ValueError: Could not understand specification.
+
+        Returns:
+            KeepOrDrop object on sucessful parsing.
+        """
+        if len(partial) < 3:
+            raise ValueError("Partial string too short.")
+
+        if partial[0] not in ('k', 'd'):
+            raise ValueError("First letter must be 'k' or 'd'.")
+        keep = True if partial[0] == 'k' else False
+
+        if partial[0] == 'd' and partial[1] not in ('h', 'l'):
+            raise ValueError("No default with drop, specify high or low.")
+        high = True if partial[1] != 'l' else False
+
+        return KeepOrDrop(keep=keep, high=high, num=int(partial[2:]))
+
+    def modify_dice(self, dice_set):
+        """
+        Depending on arguements can, keep or drop the num highest or lowest dice values.
+        Will not modify dice that have already been dropped.
+
+        Returns:
+            The original DiceSet.
+        """
+        all_die = sorted([d for d in dice_set.all_die.copy() if d.kept])
+        if not self.keep:
+            all_die = list(reversed(all_die))
+
+        first, second = ['set_drop', 'set_keep'] if self.high else ['set_keep', 'set_drop']
+        for die in all_die[:-self.num]:
+            getattr(die, first)()
+        for die in all_die[-self.num:]:
+            getattr(die, second)()
+
+        return dice_set
+
+
+class ExplodingDice(ModifyDice):
+    """
+    Explode on some predicate.
+
+    Predicate of form:
+        def pred(die):
+            return True IFF should explode this dice.
+    """
+    def __init__(self, pred):
+        self.pred = pred
+
+    def parse(partial):
+        """
+        Parse the partial string for an object.
+        Supports format: !6, !>6, !<6
+
+        Raises:
+            ValueError: Could not understand specification.
+
+        Returns:
+            ExplodingDice object on sucessful parsing.
+        """
+        if len(partial) < 2:
+            raise ValueError("Partial string too short.")
+
+        match = re.match(r'!(>)?(<)?(\d+)', partial)
+        if not match:
+            raise ValueError("ExplodingDice spec invalid.")
+
+        return ExplodingDice(determine_predicate(partial[1:]))
+
+    def modify_dice(self, dice_set):
+        """
+        Modifies the actual dice in the dice set.
+
+        Returns:
+            The original DiceSet.
+        """
+        to_explode = [d for d in dice_set.all_die if self.pred(d)]
+
+        while to_explode:
+            explosions = [d.explode() for d in to_explode]
+            dice_set.all_die += explosions
+
+            to_explode = [d for d in explosions if self.pred(d)]
+
+        return dice_set
+
+
+class CompoundingDice(ExplodingDice):
+    """
+    A specialized variant of exploding dice.
+    """
+    def parse(partial):
+        """
+        Parse the partial string for an object.
+        Supports format: !!6, !!>6, !!<6
+
+        Raises:
+            ValueError: Could not understand specification.
+
+        Returns:
+            CompoundingDice object on sucessful parsing.
+        """
+        if len(partial) < 3:
+            raise ValueError("Partial string too short.")
+
+        match = re.match(r'!!(>)?(<)?(\d+)', partial)
+        if not match:
+            raise ValueError("CompoundingDice spec invalid.")
+
+        return CompoundingDice(determine_predicate(partial[2:]))
+
+    def modify_dice(self, dice_set):
+        """
+        Keep exploding the dice until predicate failes.
+        All rolls are simply added to first explosion.
+        """
+        for d in dice_set.all_die:
+            new_explode = d
+            while self.pred(new_explode):
+                new_explode = d.explode()
+                d.value += new_explode.value
+
+        return dice_set
+
+
+class RerollDice(ModifyDice):
+    def __init__(self, pred):
+        self.pred = pred
+
+    def parse(partial):
+        """
+        Parse the partial string for an object.
+        Supports format: r6, r<2, r>5
+
+        Raises:
+            ValueError: Could not understand specification.
+
+        Returns:
+            RerollDice object on sucessful parsing.
+        """
+        if len(partial) < 2:
+            raise ValueError("Partial string too short.")
+
+        match = re.match(r'r(>)?(<)?(\d+)', partial)
+        if not match:
+            raise ValueError("RerollDice spec invalid.")
+
+        return RerollDice(determine_predicate(partial[1:]))
+
+    def modify_dice(self, dice_set):
+        for d in dice_set.all_die:
+            while self.pred(d):
+                d.roll()
 
 
 class Dice(abc.ABC):

@@ -244,3 +244,201 @@ def test_tokenize_dice_spec_raises():
     spec = '4D6KH3kl1'
     with pytest.raises(dice.exc.InvalidCommandArgs):
         dice.roll.tokenize_dice_spec(spec)
+
+
+def test_die__init__():
+    d = dice.roll.Die(sides=6, value=1)
+    assert d.value == 1
+
+
+def test_die__repr__():
+    d = dice.roll.Die(sides=6, value=1)
+    assert repr(d) == "Die(sides=6, value=1, kept=True, exploded=False)"
+
+
+def test_die__str__():
+    d = dice.roll.Die(sides=6, value=1)
+    assert str(d) == "1"
+
+    d.set_drop()
+    assert str(d) == "~~1~~"
+
+    d.explode()
+    assert str(d) == "__1__"
+
+
+def test_die__hash__():
+    d = dice.roll.Die(sides=6, value=1)
+    assert hash(d) == hash("6_1")
+
+
+def test_die__eq__():
+    d = dice.roll.Die(sides=6, value=1)
+    assert d == dice.roll.Die(sides=6, value=1)
+    assert d == dice.roll.Die(sides=10, value=1)
+
+
+def test_die__lt__():
+    d = dice.roll.Die(sides=6, value=1)
+    assert d < dice.roll.Die(sides=6, value=2)
+    assert not d < dice.roll.Die(sides=6, value=1)
+
+
+def test_die_roll():
+    d = dice.roll.Die(sides=6, value=1)
+    assert d.roll() in range(1, 7)
+
+
+def test_die_set_drop():
+    d = dice.roll.Die(sides=6, value=1)
+    d.set_drop()
+    assert not d.kept
+
+
+def test_die_set_keep():
+    d = dice.roll.Die(sides=6, value=1)
+    d.set_keep()
+    assert d.kept
+
+
+def test_fatedie_roll():
+    d = dice.roll.FateDie()
+    d.roll()
+    assert d.value in [-1, 0, 1]
+
+
+def test_diceset__init__():
+    dset = dice.roll.DiceSet()
+    assert str(dset) == ""
+
+
+def test_diceset_add_die():
+    dset = dice.roll.DiceSet()
+    dset.add_dice(4, 6)
+    assert len(dset.all_die) == 4
+    assert issubclass(type(dset.all_die[0]), dice.roll.Die)
+
+
+def test_diceset_roll_no_mod():
+    dset = dice.roll.DiceSet()
+    dset.add_dice(4, 6)
+    dset.roll()
+    assert str(dset) != " 1 + 1 + 1 + 1 "
+
+
+def test_keep_high_parse():
+    keep = dice.roll.KeepOrDrop.parse('kh10')
+    assert keep.keep
+    assert keep.high
+    assert keep.num == 10
+
+
+def test_keep_low_parse():
+    keep = dice.roll.KeepOrDrop.parse('kl10')
+    assert keep.keep
+    assert not keep.high
+    assert keep.num == 10
+
+
+def test_drop_high_parse():
+    keep = dice.roll.KeepOrDrop.parse('dh10')
+    assert not keep.keep
+    assert keep.high
+    assert keep.num == 10
+
+
+def test_drop_low_parse():
+    keep = dice.roll.KeepOrDrop.parse('dl10')
+    assert not keep.keep
+    assert not keep.high
+    assert keep.num == 10
+
+
+def test_keep_high():
+    dset = dice.roll.DiceSet()
+    dset.all_die = [
+        dice.roll.Die(sides=6, value=5),
+        dice.roll.Die(sides=6, value=2),
+        dice.roll.Die(sides=6, value=6),
+        dice.roll.Die(sides=6, value=1),
+    ]
+    dice.roll.KeepOrDrop(keep=True, high=True, num=2).modify_dice(dset)
+
+    assert dset.all_die[0].kept
+    assert not dset.all_die[1].kept
+    assert dset.all_die[2].kept
+    assert not dset.all_die[3].kept
+
+
+def test_keep_low():
+    dset = dice.roll.DiceSet()
+    dset.all_die = [
+        dice.roll.Die(sides=6, value=5),
+        dice.roll.Die(sides=6, value=2),
+        dice.roll.Die(sides=6, value=6),
+        dice.roll.Die(sides=6, value=1),
+    ]
+    dice.roll.KeepOrDrop(keep=True, high=False, num=2).modify_dice(dset)
+
+    assert not dset.all_die[0].kept
+    assert dset.all_die[1].kept
+    assert not dset.all_die[2].kept
+    assert dset.all_die[3].kept
+
+
+def test_drop_low():
+    dset = dice.roll.DiceSet()
+    dset.all_die = [
+        dice.roll.Die(sides=6, value=5),
+        dice.roll.Die(sides=6, value=2),
+        dice.roll.Die(sides=6, value=6),
+        dice.roll.Die(sides=6, value=1),
+    ]
+    dice.roll.KeepOrDrop(keep=False, high=False, num=2).modify_dice(dset)
+
+    assert dset.all_die[0].kept
+    assert not dset.all_die[1].kept
+    assert dset.all_die[2].kept
+    assert not dset.all_die[3].kept
+
+
+def test_drop_high():
+    dset = dice.roll.DiceSet()
+    dset.all_die = [
+        dice.roll.Die(sides=6, value=5),
+        dice.roll.Die(sides=6, value=2),
+        dice.roll.Die(sides=6, value=6),
+        dice.roll.Die(sides=6, value=1),
+    ]
+    dice.roll.KeepOrDrop(keep=False, high=True, num=2).modify_dice(dset)
+
+    assert not dset.all_die[0].kept
+    assert dset.all_die[1].kept
+    assert not dset.all_die[2].kept
+    assert dset.all_die[3].kept
+
+
+def test_exploding_dice():
+    dset = dice.roll.DiceSet()
+    dset.all_die = [
+        dice.roll.Die(sides=6, value=5),
+        dice.roll.Die(sides=6, value=2),
+        dice.roll.Die(sides=6, value=6),
+        dice.roll.Die(sides=6, value=1),
+    ]
+    dice.roll.ExplodingDice(lambda x: x.value == 6).modify_dice(dset)
+
+    print(dset)
+
+
+def test_compounding_dice():
+    dset = dice.roll.DiceSet()
+    dset.all_die = [
+        dice.roll.Die(sides=6, value=5),
+        dice.roll.Die(sides=6, value=2),
+        dice.roll.Die(sides=6, value=6),
+        dice.roll.Die(sides=6, value=1),
+    ]
+    dice.roll.CompoundingDice(lambda x: x.value == 6).modify_dice(dset)
+
+    print(dset)
