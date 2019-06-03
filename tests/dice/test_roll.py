@@ -253,7 +253,7 @@ def test_die__init__():
 
 def test_die__repr__():
     d = dice.roll.Die(sides=6, value=1)
-    assert repr(d) == "Die(sides=6, value=1, kept=True, exploded=False)"
+    assert repr(d) == "Die(sides=6, value=1, flags=1)"
 
 
 def test_die__str__():
@@ -263,6 +263,7 @@ def test_die__str__():
     d.set_drop()
     assert str(d) == "~~1~~"
 
+    d.set_keep()
     d.explode()
     assert str(d) == "__1__"
 
@@ -284,6 +285,14 @@ def test_die__lt__():
     assert not d < dice.roll.Die(sides=6, value=1)
 
 
+def test_die_dupe():
+    d = dice.roll.Die(sides=6, value=1)
+    dupe = d.dupe()
+
+    assert dupe != d
+    assert isinstance(dupe, dice.roll.Die)
+
+
 def test_die_roll():
     d = dice.roll.Die(sides=6, value=1)
     assert d.roll() in range(1, 7)
@@ -291,20 +300,82 @@ def test_die_roll():
 
 def test_die_set_drop():
     d = dice.roll.Die(sides=6, value=1)
+    d.set_keep()
     d.set_drop()
-    assert not d.kept
+    assert not d.is_kept()
+    assert d.is_dropped()
 
 
 def test_die_set_keep():
     d = dice.roll.Die(sides=6, value=1)
+    d.set_drop()
     d.set_keep()
-    assert d.kept
+    assert d.is_kept()
+    assert not d.is_dropped()
+
+
+# Test orthogonality of required flags
+def test_die_set_explode():
+    d = dice.roll.Die(sides=6, value=1)
+
+    assert not d.is_exploded()
+    d.explode()
+    assert d.is_exploded()
+
+    d.set_drop()
+    assert d.is_exploded()
+    assert d.is_dropped()
+
+    d.set_fail()
+    assert d.is_exploded()
+    assert d.is_dropped()
+    assert d.is_fail()
+
+
+def test_die_set_fail():
+    d = dice.roll.Die(sides=6, value=1)
+
+    assert not d.is_fail()
+    assert not d.is_success()
+    d.set_fail()
+    assert d.is_fail()
+    assert not d.is_success()
+
+
+def test_die_set_success():
+    d = dice.roll.Die(sides=6, value=1)
+
+    assert not d.is_fail()
+    assert not d.is_success()
+    d.set_success()
+    assert d.is_success()
+    assert not d.is_fail()
+
+
+def test_fatedie__str__():
+    d = dice.roll.FateDie()
+    d.value = 1
+    assert str(d) == '-'
+    d.value = 2
+    assert str(d) == '0'
+    d.value = 3
+    assert str(d) == '+'
 
 
 def test_fatedie_roll():
     d = dice.roll.FateDie()
     d.roll()
     assert d.value in [-1, 0, 1]
+
+
+def test_fatedie_value():
+    d = dice.roll.FateDie()
+    d.value = 1
+    assert d.value == -1
+    d.value = 2
+    assert d.value == 0
+    d.value = 3
+    assert d.value == 1
 
 
 def test_diceset__init__():
@@ -327,28 +398,28 @@ def test_diceset_roll_no_mod():
 
 
 def test_keep_high_parse():
-    keep = dice.roll.KeepOrDrop.parse('kh10')
+    keep = dice.roll.KeepOrDrop.parse('kh10', 6)
     assert keep.keep
     assert keep.high
     assert keep.num == 10
 
 
 def test_keep_low_parse():
-    keep = dice.roll.KeepOrDrop.parse('kl10')
+    keep = dice.roll.KeepOrDrop.parse('kl10', 6)
     assert keep.keep
     assert not keep.high
     assert keep.num == 10
 
 
 def test_drop_high_parse():
-    keep = dice.roll.KeepOrDrop.parse('dh10')
+    keep = dice.roll.KeepOrDrop.parse('dh10', 6)
     assert not keep.keep
     assert keep.high
     assert keep.num == 10
 
 
 def test_drop_low_parse():
-    keep = dice.roll.KeepOrDrop.parse('dl10')
+    keep = dice.roll.KeepOrDrop.parse('dl10', 6)
     assert not keep.keep
     assert not keep.high
     assert keep.num == 10
@@ -364,10 +435,10 @@ def test_keep_high():
     ]
     dice.roll.KeepOrDrop(keep=True, high=True, num=2).modify_dice(dset)
 
-    assert dset.all_die[0].kept
-    assert not dset.all_die[1].kept
-    assert dset.all_die[2].kept
-    assert not dset.all_die[3].kept
+    assert dset.all_die[0].is_kept()
+    assert not dset.all_die[1].is_kept()
+    assert dset.all_die[2].is_kept()
+    assert not dset.all_die[3].is_kept()
 
 
 def test_keep_low():
@@ -380,10 +451,10 @@ def test_keep_low():
     ]
     dice.roll.KeepOrDrop(keep=True, high=False, num=2).modify_dice(dset)
 
-    assert not dset.all_die[0].kept
-    assert dset.all_die[1].kept
-    assert not dset.all_die[2].kept
-    assert dset.all_die[3].kept
+    assert not dset.all_die[0].is_kept()
+    assert dset.all_die[1].is_kept()
+    assert not dset.all_die[2].is_kept()
+    assert dset.all_die[3].is_kept()
 
 
 def test_drop_low():
@@ -396,10 +467,10 @@ def test_drop_low():
     ]
     dice.roll.KeepOrDrop(keep=False, high=False, num=2).modify_dice(dset)
 
-    assert dset.all_die[0].kept
-    assert not dset.all_die[1].kept
-    assert dset.all_die[2].kept
-    assert not dset.all_die[3].kept
+    assert dset.all_die[0].is_kept()
+    assert not dset.all_die[1].is_kept()
+    assert dset.all_die[2].is_kept()
+    assert not dset.all_die[3].is_kept()
 
 
 def test_drop_high():
@@ -412,10 +483,10 @@ def test_drop_high():
     ]
     dice.roll.KeepOrDrop(keep=False, high=True, num=2).modify_dice(dset)
 
-    assert not dset.all_die[0].kept
-    assert dset.all_die[1].kept
-    assert not dset.all_die[2].kept
-    assert dset.all_die[3].kept
+    assert not dset.all_die[0].is_kept()
+    assert dset.all_die[1].is_kept()
+    assert not dset.all_die[2].is_kept()
+    assert dset.all_die[3].is_kept()
 
 
 def test_exploding_dice():
@@ -431,6 +502,26 @@ def test_exploding_dice():
     print(dset)
 
 
+def test_exploding_dice_parse():
+    assert dice.roll.ExplodingDice.parse('!>4', 6)
+    assert dice.roll.ExplodingDice.parse('!<4', 6)
+    assert dice.roll.ExplodingDice.parse('!4', 6)
+
+
+def test_exploding_dice_parse_impossible():
+    with pytest.raises(ValueError):
+        assert dice.roll.ExplodingDice.parse('4d6', 6)
+
+    with pytest.raises(ValueError):
+        assert dice.roll.ExplodingDice.parse('!!>1', 6)
+
+    with pytest.raises(ValueError):
+        assert dice.roll.ExplodingDice.parse('!>1', 6)
+
+    with pytest.raises(ValueError):
+        assert dice.roll.ExplodingDice.parse('!<6', 6)
+
+
 def test_compounding_dice():
     dset = dice.roll.DiceSet()
     dset.all_die = [
@@ -442,3 +533,96 @@ def test_compounding_dice():
     dice.roll.CompoundingDice(lambda x: x.value == 6).modify_dice(dset)
 
     print(dset)
+
+
+def test_compounding_dice_parse():
+    assert dice.roll.CompoundingDice.parse('!!>4', 6)
+    assert dice.roll.CompoundingDice.parse('!!<4', 6)
+    assert dice.roll.CompoundingDice.parse('!!4', 6)
+
+
+def test_compounding_dice_parse_impossible():
+    with pytest.raises(ValueError):
+        assert dice.roll.ExplodingDice.parse('4d6', 6)
+
+    with pytest.raises(ValueError):
+        assert dice.roll.ExplodingDice.parse('!>1', 6)
+
+    with pytest.raises(ValueError):
+        assert dice.roll.ExplodingDice.parse('!!>1', 6)
+
+    with pytest.raises(ValueError):
+        assert dice.roll.ExplodingDice.parse('!!<6', 6)
+
+
+def test_reroll_dice():
+    dset = dice.roll.DiceSet()
+    dset.all_die = [
+        dice.roll.Die(sides=6, value=5),
+        dice.roll.Die(sides=6, value=2),
+        dice.roll.Die(sides=6, value=6),
+        dice.roll.Die(sides=6, value=1),
+    ]
+    dice.roll.RerollDice([1, 2]).modify_dice(dset)
+
+    print(dset)
+
+
+def test_reroll_dice_parse():
+    dset = dice.roll.DiceSet()
+    dset.all_die = [
+        dice.roll.Die(sides=6, value=5),
+        dice.roll.Die(sides=6, value=2),
+        dice.roll.Die(sides=6, value=6),
+        dice.roll.Die(sides=6, value=1),
+    ]
+    rdice = dice.roll.RerollDice.parse('r>5r2', 6)
+    assert rdice.invalid_rolls == [2, 5, 6]
+
+
+def test_reroll_dice_parse_impossible():
+    with pytest.raises(ValueError):
+        dice.roll.RerollDice.parse('r>1', 6)
+
+    with pytest.raises(ValueError):
+        dice.roll.RerollDice.parse('r<6', 6)
+
+    with pytest.raises(ValueError):
+        dice.roll.RerollDice.parse('r<5r6', 6)
+
+    with pytest.raises(ValueError):
+        dice.roll.RerollDice.parse('r1r2r3r4r5r6', 6)
+
+
+def test_success_fail_parse():
+    dset = dice.roll.DiceSet()
+    dset.all_die = [
+        dice.roll.Die(sides=6, value=5),
+        dice.roll.Die(sides=6, value=2),
+        dice.roll.Die(sides=6, value=6),
+        dice.roll.Die(sides=6, value=1),
+    ]
+    mod = dice.roll.SuccessFail.parse('>4', 6)
+    mod.modify_dice(dset)
+
+    assert dset.all_die[0].is_success()
+    assert dset.all_die[1].is_fail()
+    assert dset.all_die[2].is_success()
+    assert dset.all_die[3].is_fail()
+
+
+def test_success_fail_modify_dice():
+    dset = dice.roll.DiceSet()
+    dset.all_die = [
+        dice.roll.Die(sides=6, value=5),
+        dice.roll.Die(sides=6, value=2),
+        dice.roll.Die(sides=6, value=6),
+        dice.roll.Die(sides=6, value=1),
+    ]
+    mod = dice.roll.SuccessFail(lambda x: x.value >= 4)
+    mod.modify_dice(dset)
+
+    assert dset.all_die[0].is_success()
+    assert dset.all_die[1].is_fail()
+    assert dset.all_die[2].is_success()
+    assert dset.all_die[3].is_fail()
