@@ -10,7 +10,7 @@ Dice module for throwing dice.
 
 
 # First Attempt Done
-# TODO: Simple success/fail system, 3d6>4, report # sucess over 4 or =. 3d6<5 # fails less than or = 5
+# TODO: Simple success/fail system, 3d6>4, report # success over 4 or =. 3d6<5 # fails less than or = 5
 # TODO: Refactor to a Dice class + some addable modifiers on demand.
 # TODO: 4DF, fate dice are 3sides (-1, 0, 1).
 # TODO: Exploding dice, 3d6! -> reroll on hitting 6, 3d6!>4, explode greater than 4.
@@ -183,7 +183,7 @@ class Die():
         self.flags = self.flags | Die.DROP
 
     def set_success(self):
-        """ Set sucess to display for this roll. """
+        """ Set success to display for this roll. """
         self.flags = self.flags & (~Die.FAIL & Die.MASK)
         self.flags = self.flags | Die.SUCCESS
 
@@ -339,7 +339,7 @@ class KeepOrDrop(ModifyDice):
             ValueError: Could not understand specification.
 
         Returns:
-            KeepOrDrop object on sucessful parsing.
+            KeepOrDrop object on successful parsing.
         """
         if len(partial) < 3:
             raise ValueError("Partial string too short.")
@@ -396,7 +396,7 @@ class ExplodingDice(ModifyDice):
             ValueError: Could not understand specification.
 
         Returns:
-            ExplodingDice object on sucessful parsing.
+            ExplodingDice object on successful parsing.
         """
         if len(partial) < 2:
             raise ValueError("Partial string too short.")
@@ -439,7 +439,7 @@ class CompoundingDice(ExplodingDice):
             ValueError: Could not understand specification.
 
         Returns:
-            CompoundingDice object on sucessful parsing.
+            CompoundingDice object on successful parsing.
         """
         if len(partial) < 3:
             raise ValueError("Partial string too short.")
@@ -483,7 +483,7 @@ class RerollDice(ModifyDice):
             ValueError: Could not understand specification.
 
         Returns:
-            RerollDice object on sucessful parsing.
+            RerollDice object on successful parsing.
         """
         if len(partial) < 2:
             raise ValueError("Partial string too short.")
@@ -517,40 +517,42 @@ class SuccessFail(ModifyDice):
     Set predicates to trigger the success or fail of a die.
     Dice that failed the predicate will be set to fail.
     """
-    def __init__(self, pred, sucess=True):
+    def __init__(self, pred, mark_success=True):
         self.pred = pred
-        self.mark = 'set_success' if sucess else 'set_fail'
+        self.mark = 'set_success' if mark_success else 'set_fail'
 
     @staticmethod
     def parse(partial, max_roll):
         """
         Parse the success or fail string.
-        Supports format:  <2 any val less 2 is fail, >5 is sucess
+        Supports:
+            Success: '<2' success on <=2 , '>5' success on >= 5
+            Fail: 'f1' fail if == 1, 'f<3' fail on <=3, 'f>4' fail on >=4
         When multiple rerolls declared, flatten down to single list of invalids.
 
         Raises:
             ValueError: Could not understand specification.
 
         Returns:
-            RerollDice object on sucessful parsing.
+            Returns a SuccessFail object ready to mark based on predicate.
         """
         if len(partial) < 2:
             raise ValueError("Partial string too short.")
 
-        matches = re.findall(r'[><]{1}\d+', partial)
+        mark_success = True if partial[0] != 'f' else False
+        if partial[0] == 'f':
+            partial = partial[1:]
+
+        matches = re.findall(r'[><]?\d+', partial)
         if not matches:
             raise ValueError("SuccessFail spec invalid.")
 
-        return SuccessFail(determine_predicate(partial, max_roll), partial[0] == '>')
+        return SuccessFail(determine_predicate(partial, max_roll), mark_success)
 
     def modify_dice(self, dice_set):
-        other = 'set_success' if self.mark == 'set_fail' else 'set_fail'
-
         for die in dice_set.all_die:
             if self.pred(die):
                 getattr(die, self.mark)()
-            else:
-                getattr(die, other)()
 
 
 class Dice(abc.ABC):

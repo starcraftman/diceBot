@@ -838,12 +838,10 @@ def test_success_fail_parse():
         dice.roll.Die(sides=6, value=1),
     ]
     mod = dice.roll.SuccessFail.parse('>4', 6)
-    mod.modify_dice(dset)
+    assert mod.mark == 'set_success'
 
-    assert dset.all_die[0].is_success()
-    assert dset.all_die[1].is_fail()
-    assert dset.all_die[2].is_success()
-    assert dset.all_die[3].is_fail()
+    mod = dice.roll.SuccessFail.parse('f>4', 6)
+    assert mod.mark == 'set_fail'
 
 
 def test_success_fail_modify_dice():
@@ -858,6 +856,6 @@ def test_success_fail_modify_dice():
     mod.modify_dice(dset)
 
     assert dset.all_die[0].is_success()
-    assert dset.all_die[1].is_fail()
+    assert dset.all_die[1].flags == 1
     assert dset.all_die[2].is_success()
-    assert dset.all_die[3].is_fail()
+    assert dset.all_die[3].flags == 1
