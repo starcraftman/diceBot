@@ -64,7 +64,7 @@ def determine_predicate(partial, max_roll):
     Returns:
         The predicate.
     """
-    match = re.match(r'(>)?(<)?(\d+)', partial)
+    match = re.match(r'(>)?(<)?(\d+$)', partial)
     if not match:
         raise ValueError("Unable to determine predicate.")
     val = int(match.group(3))
@@ -87,7 +87,7 @@ class Die():
     """
     Model a single dice with n sides.
     """
-    MASK = 0x1F
+    MASK = 0xF
     KEEP = 1 << 0
     DROP = 1 << 1
     EXPLODE = 1 << 2
@@ -98,6 +98,21 @@ class Die():
         self.sides = sides
         self._value = value
         self.flags = flags
+
+    def __repr__(self):
+        return "{}(sides={!r}, value={!r}, flags={!r})".format(self.__class__.__name__, self.sides, self.value, self.flags)
+
+    def __str__(self):
+        return self.fmt_string().format(self.value)
+
+    def __hash__(self):
+        return hash('{}_{}'.format(self.sides, self.value))
+
+    def __eq__(self, other):
+        return issubclass(type(other), Die) and self.value == other.value
+
+    def __lt__(self, other):
+        return issubclass(type(other), Die) and self.value < other.value
 
     @property
     def value(self):
@@ -115,12 +130,6 @@ class Die():
 
         self._value = new_value
 
-    def __repr__(self):
-        return "Die(sides={!r}, value={!r}, flags={!r})".format(self.sides, self.value, self.flags)
-
-    def __str__(self):
-        return self.fmt_string().format(self.value)
-
     def fmt_string(self):
         fmt = "{}"
 
@@ -128,25 +137,25 @@ class Die():
             fmt = "__" + fmt + "__"
         if self.is_dropped():
             fmt = "~~" + fmt + "~~"
-        if self.flags > self.__class__.FAIL:
+        if self.flags & (Die.FAIL | Die.SUCCESS):
             fmt = "**" + fmt + "**"
 
         return fmt
 
-    def __hash__(self):
-        return hash('{}_{}'.format(self.sides, self.value))
-
-    def __eq__(self, other):
-        return issubclass(type(other), Die) and self.value == other.value
-
-    def __lt__(self, other):
-        return issubclass(type(other), Die) and self.value < other.value
+    def roll(self):
+        """ Reroll the value of this dice. """
+        self._value = rand.randint(1, self.sides + 1)
+        return self.value
 
     def dupe(self):
         """ Create a duplicate dice based on this spec. """
         dupe = self.__class__(sides=self.sides)
         dupe.roll()
         return dupe
+
+    def reset_flags(self):
+        """ Ensure this dice is kept, resets all other flags. """
+        self.flags = Die.KEEP
 
     def is_kept(self):
         return self.flags & Die.KEEP
@@ -162,10 +171,6 @@ class Die():
 
     def is_fail(self):
         return self.flags & Die.FAIL
-
-    def reset_flags(self):
-        """ Ensure this dice is kept, resets all other flags. """
-        self.flags = Die.KEEP
 
     def set_drop(self):
         """ Ensure this dice is dropped. """
@@ -190,11 +195,6 @@ class Die():
         self.flags = self.flags | Die.EXPLODE
         return self.dupe()
 
-    def roll(self):
-        """ Reroll the value of this dice. """
-        self.value = rand.randint(1, self.sides + 1)
-        return self.value
-
 
 class FateDie(Die):
     """
@@ -212,8 +212,8 @@ class FateDie(Die):
         kwargs['sides'] = 3
         super().__init__(**kwargs)
 
-    def __repr__(self):
-        return "FateDie(sides={!r}, value={!r}, flags={!r})".format(self.sides, self.value, self.flags)
+        if 'value' not in kwargs:
+            self.value = 0
 
     def __str__(self):
         fmt = self.fmt_string()
@@ -232,10 +232,10 @@ class FateDie(Die):
 
     @value.setter
     def value(self, new_value):
-        if new_value not in range(1, 4):
+        if new_value not in range(-1, 2):
             raise ValueError
 
-        self._value = new_value
+        self._value = new_value + 2
 
 
 class DiceSet():
@@ -247,29 +247,53 @@ class DiceSet():
         self.all_die = all_die if all_die else []
         self.mods = mods if mods else []
 
+    def __repr__(self):
+        return "DiceSet(all_die={!r}, mods={!r})".format(self.all_die, self.mods)
+
     def __str__(self):
         return " + ".join([str(d) for d in self.all_die])
 
     def add_dice(self, number, sides):
+        """
+        Add a number of Die to this set.
+        All Die default to value of 1 until rolled.
+
+        Args:
+            number: The number of Die to add.
+            sides: The number of sides on the Die.
+        """
         self.all_die += [Die(sides=sides) for _ in range(0, number)]
 
     def add_fatedice(self, number):
+        """
+        Add a number of FateDie to this set.
+        All FateDie default to value of 0 until rolled.
+
+        Args:
+            number: The number of FateDie to add.
+        """
         self.all_die += [FateDie() for _ in range(0, number)]
 
+    def add_mod(self, mod):
+        if not issubclass(type(mod), ModifyDice):
+            raise ValueError("Not a subclass of ModifyDice.")
+
+        self.mods += [mod]
+
     def roll(self):
+        """
+        Roll all the die in this set.
+        """
         for die in self.all_die:
             die.roll()
             die.reset_flags()
 
     def apply_mods(self):
+        """
+        Apply the modifers to the current roll of die.
+        """
         for mod in self.mods:
             mod.modify_dice(self)
-
-    def register_mod(self, mod):
-        if not issubclass(type(mod), ModifyDice):
-            raise ValueError("Not a subclass of ModifyDice.")
-
-        self.mods += [mod]
 
 
 class ModifyDice(abc.ABC):
@@ -318,7 +342,7 @@ class KeepOrDrop(ModifyDice):
 
         if partial[0] == 'd' and partial[1] not in ('h', 'l'):
             raise ValueError("No default with drop, specify high or low.")
-        high = False if partial[1] == 'l' else True
+        high = True if partial[1] == 'h' else False
 
         return KeepOrDrop(keep=keep, high=high, num=int(partial[2:]))
 
