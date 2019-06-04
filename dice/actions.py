@@ -1347,14 +1347,16 @@ def get_guild_player(guild_id, msg):
     Current model assumes bot can maintain separate streams for each guild.
     """
     try:
-        target = msg.author.voice.channel
+        text = msg.channel
+        voice = msg.author.voice.channel
     except AttributeError:
-        target = discord.utils.find(lambda x: isinstance(x, discord.VoiceChannel),
-                                    msg.guild.channels)
+        voice = discord.utils.find(lambda x: isinstance(x, discord.VoiceChannel),
+                                   msg.guild.channels)
 
     if guild_id not in PLAYERS:
-        PLAYERS[guild_id] = GuildPlayer(vids=[], target_channel=target)
-    PLAYERS[guild_id].target_channel = target
+        PLAYERS[guild_id] = GuildPlayer(vids=[], voice_channel=voice, text_channel=text)
+    PLAYERS[guild_id].voice_channel = voice
+    PLAYERS[guild_id].text_channel = text
 
     return PLAYERS[guild_id]
 

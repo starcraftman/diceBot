@@ -43,7 +43,14 @@ YTDL_CMD = "youtube-dl -x --audio-format opus --audio-quality 0 -o"  # + out_tem
 YTDL_PLAYLIST = "youtube-dl -j --flat-playlist"  # + url
 YT_SEARCH_REG = re.compile(r'((\d+) hours?)?[, ]*((\d+) minutes?)?[, ]*((\d+) seconds?)?[, ]*(([0-9,]+) views)?', re.ASCII | re.IGNORECASE)
 YT_SEARCH = "https://www.youtube.com/results?search_query="
+PLAYBACK_WARNING = """Warning! Timeout downloading the following:
 
+{}
+
+It has been removed from queue. If it was currently playing, trying next one.
+
+If this happens freequently, check server.
+"""
 
 # Stupid youtube: https://github.com/Rapptz/discord.py/issues/315
 # Archived if go back to streaming youtube
@@ -201,7 +208,7 @@ async def gplayer_monitor(players, activity, gap=3):
     log.debug('GPlayer Monitor: %s %s  %s', cur_date, str(players), str(activity))
     for pid, player in players.items():
         try:
-            if not player.target_channel or not player.is_connected():
+            if not player.voice_channel or not player.is_connected():
                 raise AttributeError
         except (AttributeError, IndexError):
             continue
@@ -209,7 +216,7 @@ async def gplayer_monitor(players, activity, gap=3):
         if player.is_playing():
             activity[pid] = cur_date
 
-        real_users = [x for x in player.target_channel.members if not x.bot]
+        real_users = [x for x in player.voice_channel.members if not x.bot]
         has_timed_out = (cur_date - activity[pid]).seconds > PLAYER_TIMEOUT
         if not real_users or has_timed_out:
             log.debug('GPlayer Monitor: disconnect %s', player)
@@ -350,12 +357,12 @@ class GuildPlayer():
         itr: A bidirectional iterator to move through Songs.
         shuffle: When True next video is randomly selected until all videos fairly visited.
         repeat_all: When True, restart the queue at the beginning when finished.
-        target_channel: The voice channel to connect to.
+        voice_channel: The voice channel to connect to.
         __client: The reference to discord.VoiceClient, needed to manipulate underlying client.
                   Do no use directly, just use as if was self.
     """
     def __init__(self, *, cur_vid=None, vids=None, itr=None, repeat_all=False, shuffle=False,
-                 target_channel=None, client=None):
+                 voice_channel=None, text_channel=None, client=None):
         if not vids:
             vids = []
         self.vids = list(vids)
@@ -363,7 +370,8 @@ class GuildPlayer():
         self.cur_vid = cur_vid  # The current Song, or None if nothing in list.
         self.repeat_all = repeat_all  # Repeat vids list when last song finished
         self.shuffle = shuffle
-        self.target_channel = target_channel
+        self.voice_channel = voice_channel
+        self.text_channel = text_channel
 
         self.__client = client
 
@@ -404,7 +412,7 @@ __Video List__:{vids}
            shuffle='{}abled'.format('En' if self.shuffle else 'Dis'))
 
     def __repr__(self):
-        keys = ['cur_vid', 'vids', 'itr', 'repeat_all', 'shuffle', 'target_channel']
+        keys = ['cur_vid', 'vids', 'itr', 'repeat_all', 'shuffle', 'voice_channel', 'text_channel']
         kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
 
         return "GuildPlayer({})".format(', '.join(kwargs))
@@ -464,6 +472,21 @@ __Video List__:{vids}
             self.reset_iterator()
         asyncio.ensure_future(dice.music.prefetch_in_order(new_vids))
 
+    def ensure_removed(self, vid):
+        """
+        Ensure a video is removed from the current vids.
+        """
+        try:
+            self.vids.remove(vid)
+        except ValueError:
+            pass
+
+        if self.cur_vid == vid:
+            try:
+                self.next()
+            except StopIteration:
+                pass
+
     def play(self, next_vid=None):
         """
         Play the cur_vid, if it is playing it will be restarted.
@@ -486,12 +509,11 @@ __Video List__:{vids}
         When it is, call play_func with vid.
         On return, the Song must be available and playing.
 
+        On wait timeout bot will automatically remove the entry and go to next video.
+
         Args:
             vid: A Song to download then play.
             timeout: Maximum time to wait for download.
-
-        Raises:
-            TimeoutError: Timed out waiting for the Song to be ready.
         """
         if not vid:
             vid = self.cur_vid
@@ -499,7 +521,11 @@ __Video List__:{vids}
         start = datetime.datetime.now()
         while not vid.ready:
             if (datetime.datetime.now() - start).seconds > timeout:
-                raise TimeoutError
+                self.ensure_removed(vid)
+                asyncio.ensure_future(self.play_when_ready())
+
+                await self.text_channel.send(PLAYBACK_WARNING.format(str(vid)))
+                return
 
             await asyncio.sleep(0.5)
 
@@ -636,10 +662,10 @@ __Video List__:{vids}
         """
         try:
             if self.__client:
-                await asyncio.wait_for(self.__client.move_to(self.target_channel),
+                await asyncio.wait_for(self.__client.move_to(self.voice_channel),
                                        VOICE_JOIN_TIMEOUT)
             else:
-                self.__client = await asyncio.wait_for(self.target_channel.connect(),
+                self.__client = await asyncio.wait_for(self.voice_channel.connect(),
                                                        VOICE_JOIN_TIMEOUT)
         except asyncio.TimeoutError:
             await self.disconnect()
