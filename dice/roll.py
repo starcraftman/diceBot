@@ -158,22 +158,27 @@ class Die():
         self.flags = Die.KEEP
 
     def is_kept(self):
+        """ True if this dice still counts. """
         return self.flags & Die.KEEP
 
     def is_dropped(self):
+        """ True if this dice should be ignored. """
         return self.flags & Die.DROP
 
     def is_exploded(self):
+        """ True if this dice has exploded at least once. """
         return self.flags & Die.EXPLODE
 
     def is_success(self):
+        """ True if this dice passed a required threshold. """
         return self.flags & Die.SUCCESS
 
     def is_fail(self):
+        """ True if this dice failed a required threshold. """
         return self.flags & Die.FAIL
 
     def set_drop(self):
-        """ Ensure this dice is dropped. """
+        """ Ensure this dice is dropped and no longer counted. """
         self.flags = self.flags & (~Die.KEEP & Die.MASK)
         self.flags = self.flags | Die.DROP
 
@@ -191,6 +196,9 @@ class Die():
         """
         Explode this dice.
         Marks this one as exploded and returns a new dice of same spec.
+
+        Returns:
+            A duplicate of the current Die already rolled.
         """
         self.flags = self.flags | Die.EXPLODE
         return self.dupe()
