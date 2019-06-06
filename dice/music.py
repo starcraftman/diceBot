@@ -229,7 +229,7 @@ async def gplayer_monitor(players, activity, gap=3):
             await player.disconnect()
 
 
-async def prefetch_all(vids, *, sequential=False):
+async def prefetch_all(vids):
     """
     Aynchronously wait until all songs are downloaded by processes in the background.
     On return, all videos must be available.

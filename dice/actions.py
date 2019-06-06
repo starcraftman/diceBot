@@ -190,6 +190,7 @@ class Music(Action):
         return new_vids
 
     async def clear(self, mplayer):
+        """ Clear all Songs from current queue, implies player stopping. """
         await mplayer.disconnect()
         mplayer.set_vids([])
         return "Player has stopped and the queue is clear.\n\nPlay something new or browse songs."
@@ -362,7 +363,7 @@ class SelectTag(dice.util.PagingMenu):
 Page {}/{}
 Select a tag from blow to play or explore further:
 
-""".format(self.page, self.total_pages, len(self.cur_entries))
+""".format(self.page, self.total_pages)
         for ind, tag in enumerate(self.cur_entries, start=1):
             tagged_songs = dicedb.query.get_songs_with_tag(self.act.session, tag)
             menu += '        **{}**) {} ({} songs)\n'.format(ind, tag, len(tagged_songs))

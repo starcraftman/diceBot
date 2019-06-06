@@ -42,11 +42,14 @@ Supported dice format:
     If leading number omitted, one roll is made.
 """
 DICE_REGEX = re.compile(r'(\d*)d(\d+)((kh?|kl)?(\d+))?', re.ASCII | re.IGNORECASE)
+IS_DIE = re.compile(r'(\d+)d(\d+)', re.IGNORECASE)
+IS_FATEDIE = re.compile(r'(\d+)df', re.IGNORECASE)
+IS_PREDICATE = re.compile(r'(>)?(<)?(\d+)')
 
 
-def determine_predicate(partial, max_roll):
+def determine_predicate(line, max_roll):
     """
-    Return a predicate based on partial string that will either:
+    Return the next predicate based on line string that will either:
         - Determine when dice value == a_value (4)
         - Determine when dice value >= a_value (>4)
         - Determine when dice value <= a_value (<4)
@@ -54,7 +57,7 @@ def determine_predicate(partial, max_roll):
     The predicate will work on a Die object or else a simple int.
 
     Args:
-        partial: A substring of a dice spec.
+        line: A substring of a dice spec.
         max_roll: The greatest roll possible of given dice.
                   If mixing different variants (i.e. d20, d8, d6 ...) the LOWEST max_roll.
 
@@ -64,22 +67,124 @@ def determine_predicate(partial, max_roll):
     Returns:
         The predicate.
     """
-    match = re.match(r'(>)?(<)?(\d+$)', partial)
+    match = IS_PREDICATE.match(line)
     if not match:
         raise ValueError("Unable to determine predicate.")
     val = int(match.group(3))
 
     if match.group(1):
-        if val == 1:
+        if val <= 1:
             raise ValueError("Predicate always true on rolled dice.")
         return lambda d: getattr(d, 'value', d) >= val
 
     if match.group(2):
-        if val == max_roll:
+        if val >= max_roll:
             raise ValueError("Predicate always true on rolled dice.")
         return lambda d: getattr(d, 'value', d) <= val
 
     return lambda d: getattr(d, 'value', d) == val
+
+
+def parse_diceset(line):
+    """
+    Attempt to parse a dice set from the line.
+    """
+    match = IS_DIE.match(line)
+    if not match:
+        raise ValueError("No match for dice.")
+
+    dset = DiceSet()
+    dset.add_dice(int(match.group(1)), int(match.group(2)))
+
+    return line[match.end():], dset
+
+
+def parse_fate_diceset(line):
+    """
+    Attempt to parse a dice set from the line.
+    """
+    match = IS_FATEDIE.match(line)
+    if not match:
+        raise ValueError("No match for dice.")
+
+    dset = DiceSet()
+    dset.add_fatedice(int(match.group(1)))
+
+    return line[match.end():], dset
+
+
+def parse_trailing_mods(line, max_roll):
+    """
+    Parse the trailing modifiers that might follow a dice spec.
+
+    Returns:
+        The remainder of the line unprocessed, the list of ModifyDice objects to apply.
+    """
+    try:
+        index = min(line.index(' '), line.index('}'))
+        substr, line = line[:index], line[index:]
+    except ValueError:
+        substr = line
+
+    mods = []
+    while substr:
+        if substr[0] in ['k', 'd']:
+            substr, mod = KeepOrDrop.parse(substr, max_roll)
+        elif substr[:2] == '!!':
+            substr, mod = CompoundingDice.parse(substr, max_roll)
+        elif substr[0] == '!':
+            substr, mod = ExplodingDice.parse(substr, max_roll)
+        elif substr[0] == 'r':
+            substr, mod = RerollDice.parse(substr, max_roll)
+            if 'r' in substr:
+                raise ValueError("All reroll predicates must be together.")
+        else:
+            substr, mod = SuccessFail.parse(substr, max_roll)
+
+        mods += [mod]
+
+    if substr and substr[0] not in [' ', '}']:
+        raise ValueError("Unable to parse all parts of modifer spec.")
+
+    return substr, mods
+
+
+def parse_literal(spec):
+    """
+    Ensure only allowed literals continue.
+    """
+    match = re.match(r'([+-])?([-0-9]+)?', spec)
+    if not match:
+        raise ValueError("There is no valid literal to parse.")
+
+    if match.group(1):
+        return spec[2:], spec[0]
+
+    return spec[match.end() + 1:], match.group(2)
+
+
+def parse_dice_line(spec):
+    """
+    Returns a list of parsed Die with modifiers attached.
+    """
+    throw = AThrow()
+    for part in re.split(r'\s+', spec):
+        dset = None
+
+        for func in [parse_diceset, parse_fate_diceset, parse_literal]:
+            try:
+                part, dset = func(part)
+                throw.add(dset)
+
+                if dset and issubclass(type(dset), DiceSet):
+                    part, mods = parse_trailing_mods(part, dset.max_roll)
+                    for mod in mods:
+                        dset.add_mod(mod)
+                break
+            except ValueError:
+                pass
+
+    return throw
 
 
 @functools.total_ordering
@@ -91,8 +196,9 @@ class Die():
     KEEP = 1 << 0
     DROP = 1 << 1
     EXPLODE = 1 << 2
-    FAIL = 1 << 3
-    SUCCESS = 1 << 4
+    REROLL = 1 << 3
+    FAIL = 1 << 4
+    SUCCESS = 1 << 5
 
     def __init__(self, *, sides=1, value=1, flags=1):
         self.sides = sides
@@ -100,7 +206,9 @@ class Die():
         self.flags = flags
 
     def __repr__(self):
-        return "{}(sides={!r}, value={!r}, flags={!r})".format(self.__class__.__name__, self.sides, self.value, self.flags)
+        keys = ['sides', 'value', 'flags']
+        kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
+        return "{}({})".format(self.__class__.__name__, ', '.join(kwargs))
 
     def __str__(self):
         return self.fmt_string().format(self.value)
@@ -129,6 +237,11 @@ class Die():
             raise ValueError
 
         self._value = new_value
+
+    @property
+    def max_roll(self):
+        """ Maximum roll is the total number of sides. """
+        return self.sides
 
     def fmt_string(self):
         fmt = "{}"
@@ -169,6 +282,10 @@ class Die():
         """ True if this dice has exploded at least once. """
         return self.flags & Die.EXPLODE
 
+    def is_rerolled(self):
+        """ True if this dice has been rerolled and should be ignored. """
+        return self.flags & Die.REROLL
+
     def is_success(self):
         """ True if this dice passed a required threshold. """
         return self.flags & Die.SUCCESS
@@ -181,6 +298,10 @@ class Die():
         """ Ensure this dice is dropped and no longer counted. """
         self.flags = self.flags & (~Die.KEEP & Die.MASK)
         self.flags = self.flags | Die.DROP
+
+    def set_reroll(self):
+        """ The dice has been rerolled, ignore it. """
+        self.flags = self.flags | Die.REROLL
 
     def set_success(self):
         """ Set success to display for this roll. """
@@ -248,10 +369,11 @@ class FateDie(Die):
 
 class DiceSet():
     """
-    Contain a group of dice to roll together.
+    A diset set is simply a collection of dice. It can contain:
+        - A group of die or fate die.
     Allow modifiers to be popped onto the set and applied after rolling.
     """
-    def __init__(self, all_die=None, mods=None):
+    def __init__(self, *, all_die=None, mods=None):
         self.all_die = all_die if all_die else []
         self.mods = mods if mods else []
 
@@ -259,7 +381,28 @@ class DiceSet():
         return "DiceSet(all_die={!r}, mods={!r})".format(self.all_die, self.mods)
 
     def __str__(self):
-        return " + ".join([str(d) for d in self.all_die])
+        if not self.all_die:
+            return ""
+
+        msg = str(self.all_die[0])
+        for prev_die, die in zip(self.all_die[:-1], self.all_die[1:]):
+            if not prev_die.is_rerolled():
+                msg += " + "
+            else:
+                msg += " >> "
+            msg += str(die)
+
+        return msg
+
+    @property
+    def value(self):
+        """ The value of this grouping is the sum of all non-dropped rolls. """
+        return sum([x.value for x in self.all_die if x.is_kept()])
+
+    @property
+    def max_roll(self):
+        """ The lowest maximum roll within this dice set. """
+        return min([x.max_roll for x in self.all_die])
 
     def add_dice(self, number, sides):
         """
@@ -283,10 +426,26 @@ class DiceSet():
         self.all_die += [FateDie() for _ in range(0, number)]
 
     def add_mod(self, mod):
+        """
+        Add a modifier to this dice set.
+        Enforces internal ordering of application.
+
+        Order:
+            Reroll all required rolls first.
+            Explode any dice that require explosions.
+            Apply KeeporDrop/SuccessFail in order applied.
+        """
         if not issubclass(type(mod), ModifyDice):
             raise ValueError("Not a subclass of ModifyDice.")
 
-        self.mods += [mod]
+        if isinstance(mod, RerollDice):
+            self.mods = [mod] + self.mods
+
+        elif issubclass(type(mod), ExplodingDice) and self.mods and isinstance(self.mods[0], RerollDice):
+            self.mods.insert(1, mod)
+
+        else:
+            self.mods += [mod]
 
     def roll(self):
         """
@@ -301,7 +460,69 @@ class DiceSet():
         Apply the modifers to the current roll of die.
         """
         for mod in self.mods:
-            mod.modify_dice(self)
+            mod.modify(self)
+
+
+class AThrow():
+    """
+    A container that represents an entire throw line.
+    Composes the following elements:
+        - DiceSets (made of Die and FateDie + modifiers)
+        - Constants
+        - Operators
+
+    Attributes:
+        parts: The list of all parts of AThrow.
+    """
+    def __init__(self, parts=None):
+        self.parts = parts if parts else []
+
+    def __repr__(self):
+        return "AThrow(parts={!r})".format(self.parts)
+
+    def __str__(self):
+        return " ".join([str(x) for x in self.parts])
+
+    def add(self, part):
+        """
+        Add one part to the container.
+
+        Args:
+            part: A Die subclass or a string that is an operator or a number.
+        """
+        self.parts += [part]
+
+    def next(self):
+        """
+        Throw all_dice and return the formatted rolls as a string that shows the
+        individual components of the rolls.
+
+        Raises:
+            InvalidCommandArgs - Requested an excessive amount of dice rolls, refuse
+                                 to waste cycles on the server.
+
+        Returns:
+            A string that shows the user how he rolled.
+        """
+        value = 0
+        next_coeff = 1
+
+        for part in self.parts:
+            if part == "-":
+                next_coeff = -1
+
+            elif part == "+":
+                next_coeff = 1
+
+            elif issubclass(type(part), DiceSet):
+                part.roll()
+                part.apply_mods()
+                value = value + next_coeff * part.value
+
+            else:
+                value = value + next_coeff * int(part)
+
+        return "{} = {}".format(str(self), value)
 
 
 class ModifyDice(abc.ABC):
@@ -311,11 +532,32 @@ class ModifyDice(abc.ABC):
     Consider them like friend functions that modify an existing roll set.
     """
     @abc.abstractstaticmethod
-    def parse(partial, max_roll):
+    def parse(line, max_roll):
+        """
+        A method to parse a line and return the associated ModifyDice subclass
+        if and only if enough information is present.
+        The max_roll is used to check if any predicates would be invalid that may be required.
+
+        Args:
+            line: A substring of the dice spec that conforms to the modifier's spec.
+            max_roll: The maximum roll of the dice in the collection. For example, d6 = 6.
+
+        Returns:
+            The line minus parsed text, A ModifyDice subclass.
+        """
         raise NotImplementedError
 
     @abc.abstractmethod
-    def modify_dice(self, dice_set):
+    def modify(self, dice_set):
+        """
+        Apply the modifier to the dice and make marks/selections as required.
+
+        Args:
+            dice_set: A collection of dice.
+
+        Returns:
+            The dice_set passed in, it will have been modified.
+        """
         raise NotImplementedError
 
 
@@ -328,12 +570,15 @@ class KeepOrDrop(ModifyDice):
         self.high = high
         self.num = num
 
+    def __repr__(self):
+        return "KeepOrDrop(keep={!r}, high={!r}, num={!r})".format(
+            self.keep, self.high, self.num)
+
     @staticmethod
-    def parse(partial, _):
+    def parse(line, _):
         """
-        Parse the partial string for an object.
-        Supports: kh4, kl3, dh4, dl2, k2
-            N. B. k2 == kh2
+        Parse the line string for an object.
+        Supports: kh4, kl3, dh4, dl2
 
         Raises:
             ValueError: Could not understand specification.
@@ -341,20 +586,18 @@ class KeepOrDrop(ModifyDice):
         Returns:
             KeepOrDrop object on successful parsing.
         """
-        if len(partial) < 3:
-            raise ValueError("Partial string too short.")
+        if len(line) < 3:
+            raise ValueError("line string too short.")
 
-        if partial[0] not in ('k', 'd'):
-            raise ValueError("First letter must be 'k' or 'd'.")
-        keep = True if partial[0] == 'k' else False
+        match = re.match(r'(k|d)(h|l)(\d+)', line, re.ASCII | re.IGNORECASE)
+        if not match:
+            raise ValueError("Invalid spec for.")
 
-        if partial[0] == 'd' and partial[1] not in ('h', 'l'):
-            raise ValueError("No default with drop, specify high or low.")
-        high = True if partial[1] == 'h' else False
+        keep = line[0] == 'k'
+        high = line[1] == 'h'
+        return line[match.end():], KeepOrDrop(keep=keep, high=high, num=int(match.group(3)))
 
-        return KeepOrDrop(keep=keep, high=high, num=int(partial[2:]))
-
-    def modify_dice(self, dice_set):
+    def modify(self, dice_set):
         """
         Depending on arguements can, keep or drop the num highest or lowest dice values.
         Will not modify dice that have already been dropped.
@@ -362,7 +605,7 @@ class KeepOrDrop(ModifyDice):
         Returns:
             The original DiceSet.
         """
-        all_die = sorted([d for d in dice_set.all_die.copy() if d.is_kept()])
+        all_die = sorted([d for d in dice_set.all_die if not d.is_rerolled() and not d.is_dropped()])
         if not self.keep:
             all_die = list(reversed(all_die))
 
@@ -383,13 +626,16 @@ class ExplodingDice(ModifyDice):
         def pred(die):
             return True IFF should explode this dice.
     """
-    def __init__(self, pred):
+    def __init__(self, *, pred):
         self.pred = pred
 
+    def __repr__(self):
+        return "{}(pred={!r})".format(self.__class__.__name__, self.pred)
+
     @staticmethod
-    def parse(partial, max_roll):
+    def parse(line, max_roll):
         """
-        Parse the partial string for an object.
+        Parse the line string for an object.
         Supports format: !6, !>6, !<6
 
         Raises:
@@ -398,23 +644,23 @@ class ExplodingDice(ModifyDice):
         Returns:
             ExplodingDice object on successful parsing.
         """
-        if len(partial) < 2:
-            raise ValueError("Partial string too short.")
+        if len(line) < 2:
+            raise ValueError("line string too short.")
 
-        match = re.match(r'![><]?\d+', partial)
+        match = re.match(r'![><]?\d+', line)
         if not match:
             raise ValueError("ExplodingDice spec invalid.")
 
-        return ExplodingDice(determine_predicate(partial[1:], max_roll))
+        return line[match.end():], ExplodingDice(pred=determine_predicate(line[1:], max_roll))
 
-    def modify_dice(self, dice_set):
+    def modify(self, dice_set):
         """
         Modifies the actual dice in the dice set.
 
         Returns:
             The original DiceSet.
         """
-        to_explode = [d for d in dice_set.all_die if self.pred(d)]
+        to_explode = [d for d in dice_set.all_die if not d.is_rerolled() and self.pred(d)]
 
         while to_explode:
             explosions = [d.explode() for d in to_explode]
@@ -430,9 +676,9 @@ class CompoundingDice(ExplodingDice):
     A specialized variant of exploding dice.
     """
     @staticmethod
-    def parse(partial, max_roll):
+    def parse(line, max_roll):
         """
-        Parse the partial string for an object.
+        Parse the line string for an object.
         Supports format: !!6, !!>6, !!<6
 
         Raises:
@@ -441,21 +687,21 @@ class CompoundingDice(ExplodingDice):
         Returns:
             CompoundingDice object on successful parsing.
         """
-        if len(partial) < 3:
-            raise ValueError("Partial string too short.")
+        if len(line) < 3:
+            raise ValueError("line string too short.")
 
-        match = re.match(r'!![><]?\d+', partial)
+        match = re.match(r'!![><]?\d+', line)
         if not match:
             raise ValueError("CompoundingDice spec invalid.")
 
-        return CompoundingDice(determine_predicate(partial[2:], max_roll))
+        return line[match.end():], CompoundingDice(pred=determine_predicate(line[2:], max_roll))
 
-    def modify_dice(self, dice_set):
+    def modify(self, dice_set):
         """
         Keep exploding the dice until predicate failes.
         All rolls are simply added to first explosion.
         """
-        for die in dice_set.all_die:
+        for die in [d for d in dice_set.all_die if not d.is_rerolled()]:
             new_explode = die
             while self.pred(new_explode):
                 new_explode = die.explode()
@@ -469,13 +715,16 @@ class RerollDice(ModifyDice):
     Set predicates to trigger a reroll of dice.
     Dice that failed the predicate will be dropped.
     """
-    def __init__(self, invalid_rolls=None):
+    def __init__(self, *, invalid_rolls=None):
         self.invalid_rolls = invalid_rolls if invalid_rolls else []
 
+    def __repr__(self):
+        return "RerollDice(invalid_rolls={!r})".format(self.invalid_rolls)
+
     @staticmethod
-    def parse(partial, max_roll):
+    def parse(line, max_roll):
         """
-        Parse the partial string for an object.
+        Parse the line string for an object.
         Supports format: r6, r<2, r>5
         When multiple rerolls declared, flatten down to single list of invalids.
 
@@ -485,29 +734,40 @@ class RerollDice(ModifyDice):
         Returns:
             RerollDice object on successful parsing.
         """
-        if len(partial) < 2:
-            raise ValueError("Partial string too short.")
-
-        matches = re.findall(r'(r[><0-9]+)', partial)
-        if not matches:
-            raise ValueError("RerollDice spec invalid.")
+        if len(line) < 2:
+            raise ValueError("line string too short.")
 
         possible = list(range(1, max_roll + 1))
         invalid = []
-        for match in matches:
-            pred = determine_predicate(match[1:], max_roll)
-            invalid += [x for x in possible if pred(x)]
+        while line:
+            if not line[0] == 'r':
+                break
+
+            match = IS_PREDICATE.match(line[1:])
+            if not match:
+                break
+
+            try:
+                pred = determine_predicate(line[1:], max_roll)
+                invalid += [x for x in possible if pred(x)]
+            except ValueError:
+                break
+
+            line = line[1 + match.end():]
+
+        if not invalid:
+            raise ValueError("Invalid RerollDice spec.")
+
         invalid = sorted(set(invalid))
-
         if not set(possible) - set(invalid):
-            raise ValueError("Impossible set of predicates. Try again.")
+            raise ValueError("Impossible set of predicates. Would always reroll!")
 
-        return RerollDice(invalid)
+        return line, RerollDice(invalid_rolls=invalid)
 
-    def modify_dice(self, dice_set):
+    def modify(self, dice_set):
         for die in dice_set.all_die.copy():
             while die.value in self.invalid_rolls:
-                die.set_drop()
+                die.set_reroll()
                 die = die.dupe()
                 dice_set.all_die += [die]
 
@@ -517,18 +777,20 @@ class SuccessFail(ModifyDice):
     Set predicates to trigger the success or fail of a die.
     Dice that failed the predicate will be set to fail.
     """
-    def __init__(self, pred, mark_success=True):
+    def __init__(self, *, pred, mark_success=True):
         self.pred = pred
         self.mark = 'set_success' if mark_success else 'set_fail'
 
+    def __repr__(self):
+        return "SuccessFail(pred={!r}, mark={!r})".format(self.pred, self.mark)
+
     @staticmethod
-    def parse(partial, max_roll):
+    def parse(line, max_roll):
         """
-        Parse the success or fail string.
+        Parse a line for success or failure criteria for the associated dice.
         Supports:
             Success: '<2' success on <=2 , '>5' success on >= 5
             Fail: 'f1' fail if == 1, 'f<3' fail on <=3, 'f>4' fail on >=4
-        When multiple rerolls declared, flatten down to single list of invalids.
 
         Raises:
             ValueError: Could not understand specification.
@@ -536,21 +798,23 @@ class SuccessFail(ModifyDice):
         Returns:
             Returns a SuccessFail object ready to mark based on predicate.
         """
-        if len(partial) < 2:
-            raise ValueError("Partial string too short.")
+        if len(line) < 2:
+            raise ValueError("line string too short.")
 
-        mark_success = True if partial[0] != 'f' else False
-        if partial[0] == 'f':
-            partial = partial[1:]
+        mark_success = line[0] != 'f'
+        if line[0] == 'f':
+            line = line[1:]
+        elif line[0] not in ['>', '<']:
+            raise ValueError("Invalid SuccessFail spec.")
 
-        matches = re.findall(r'[><]?\d+', partial)
-        if not matches:
-            raise ValueError("SuccessFail spec invalid.")
+        match = IS_PREDICATE.match(line)
+        if not match:
+            raise ValueError("Invalid SuccessFail spec.")
 
-        return SuccessFail(determine_predicate(partial, max_roll), mark_success)
+        return line[match.end():], SuccessFail(pred=determine_predicate(line, max_roll), mark_success=mark_success)
 
-    def modify_dice(self, dice_set):
-        for die in dice_set.all_die:
+    def modify(self, dice_set):
+        for die in [x for x in dice_set.all_die if not x.is_success() and not x.is_fail() and not x.is_rerolled()]:
             if self.pred(die):
                 getattr(die, self.mark)()
 
