@@ -1397,7 +1397,7 @@ async def make_rolls(spec):
     """
     lines = []
 
-    for line in spec.split(','):
+    for line in re.split(r's*,\s+', spec):
         line = line.strip()
         times = 1
 
@@ -1405,7 +1405,7 @@ async def make_rolls(spec):
             parts = line.split(':')
             times, line = int(parts[0]), parts[1].strip()
 
-        throw = dice.roll.Throw(dice.roll.tokenize_dice_spec(line))
+        throw = dice.roll.parse_dice_line(line)
         with concurrent.futures.ProcessPoolExecutor() as pool:
             for _ in range(times):
                 lines += [line + " = {}".format(await asyncio.get_event_loop().run_in_executor(pool, throw_in_pool, throw))]
