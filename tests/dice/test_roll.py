@@ -5,40 +5,59 @@ from __future__ import absolute_import, print_function
 
 import pytest
 
+import dice.exc
 import dice.roll
 
 
-def test_determine_predicate_raises():
-    with pytest.raises(ValueError):
-        dice.roll.determine_predicate('>1', 6)
+def test_check_parenthesis():
+    assert dice.roll.check_parenthesis('()')
+    assert dice.roll.check_parenthesis('{}')
+    assert dice.roll.check_parenthesis('[]')
 
     with pytest.raises(ValueError):
-        dice.roll.determine_predicate('<6', 6)
+        dice.roll.check_parenthesis('{]')
+
+
+def test_comp__repr__():
+    comp = dice.roll.Comp(left=3, right=5, func='range')
+    assert repr(comp) == "Comp(left=3, right=5, func='range')"
+
+
+def test_parse_predicate_raises():
+    with pytest.raises(ValueError):
+        dice.roll.parse_predicate('>1', 6)
 
     with pytest.raises(ValueError):
-        dice.roll.determine_predicate('[1,4]', 6)
+        dice.roll.parse_predicate('<6', 6)
 
     with pytest.raises(ValueError):
-        dice.roll.determine_predicate('[2,6]', 6)
+        dice.roll.parse_predicate('[1,6]', 6)
 
     with pytest.raises(ValueError):
-        dice.roll.determine_predicate('[1,6]', 6)
+        dice.roll.parse_predicate('[5,1]', 6)
 
     with pytest.raises(ValueError):
-        dice.roll.determine_predicate('[5,1]', 6)
+        dice.roll.parse_predicate('r>2', 6)
 
 
-def test_determine_predicate_equal():
-    pred = dice.roll.determine_predicate('6', 6)
+def test_parse_predicate_equal():
+    rest, pred = dice.roll.parse_predicate('6r>2', 6)
+    assert rest == 'r>2'
     assert pred(6)
     assert not pred(1)
 
     assert pred(dice.roll.Die(value=6))
     assert not pred(dice.roll.Die(value=1))
 
+    rest, pred = dice.roll.parse_predicate('=6r>1', 6)
+    assert rest == 'r>1'
+    assert pred(6)
+    assert not pred(1)
 
-def test_determine_predicate_greater_than():
-    pred = dice.roll.determine_predicate('>3', 6)
+
+def test_parse_predicate_greater_than():
+    rest, pred = dice.roll.parse_predicate('>3f<2', 6)
+    assert rest == 'f<2'
     assert pred(6)
     assert pred(3)
     assert not pred(2)
@@ -48,8 +67,9 @@ def test_determine_predicate_greater_than():
     assert not pred(dice.roll.Die(value=2))
 
 
-def test_determine_predicate_less_than():
-    pred = dice.roll.determine_predicate('<3', 6)
+def test_parse_predicate_less_than():
+    rest, pred = dice.roll.parse_predicate('<3>2', 6)
+    assert rest == '>2'
     assert not pred(6)
     assert pred(3)
     assert pred(2)
@@ -59,8 +79,9 @@ def test_determine_predicate_less_than():
     assert pred(dice.roll.Die(value=2))
 
 
-def test_determine_predicate_range():
-    pred = dice.roll.determine_predicate('[2,4]', 6)
+def test_parse_predicate_range():
+    rest, pred = dice.roll.parse_predicate('[2,4]f<3', 6)
+    assert rest == 'f<3'
     assert not pred(6)
     assert pred(4)
     assert pred(3)
@@ -70,6 +91,124 @@ def test_determine_predicate_range():
     assert pred(dice.roll.Die(value=4))
     assert pred(dice.roll.Die(value=3))
     assert pred(dice.roll.Die(value=2))
+
+
+def test_parse_diceset():
+    nspec, dset = dice.roll.parse_diceset('4d20kh1')
+    assert nspec == 'kh1'
+    assert len(dset.all_die) == 4
+
+    nspec, dset = dice.roll.parse_diceset('20d100!!<6 + 4d10 - 2')
+    assert nspec == '!!<6 + 4d10 - 2'
+    assert len(dset.all_die) == 20
+
+    with pytest.raises(ValueError):
+        dice.roll.parse_diceset(' 4d20')
+
+    with pytest.raises(ValueError):
+        dice.roll.parse_diceset('4df')
+
+    with pytest.raises(ValueError):
+        dice.roll.parse_diceset('>34d8')
+
+
+def test_parse_fate_diceset():
+    nspec, dset = dice.roll.parse_fate_diceset('4df')
+    assert nspec == ''
+    assert len(dset.all_die) == 4
+
+    nspec, dset = dice.roll.parse_fate_diceset('10dfkh1')
+    assert nspec == 'kh1'
+    assert len(dset.all_die) == 10
+
+    with pytest.raises(ValueError):
+        dice.roll.parse_fate_diceset(' 4df')
+
+    with pytest.raises(ValueError):
+        dice.roll.parse_fate_diceset('4d6')
+
+    with pytest.raises(ValueError):
+        dice.roll.parse_fate_diceset('>34d8')
+
+
+def test_parse_literal():
+    line, lit = dice.roll.parse_literal("+ 42")
+    assert line == "42"
+    assert lit == "+"
+
+    line, lit = dice.roll.parse_literal("- 42")
+    assert line == "42"
+    assert lit == "-"
+
+    line, lit = dice.roll.parse_literal("42 + 1")
+    assert line == "+ 1"
+    assert lit == "42"
+
+    line, lit = dice.roll.parse_literal("42 + 4d6")
+    assert line == "+ 4d6"
+    assert lit == "42"
+
+
+def test_parse_trailing_mods_good_combinations():
+    line, all_mods = dice.roll.parse_trailing_mods('kh3dl2', 6)
+    assert line == ''
+
+    line, all_mods = dice.roll.parse_trailing_mods('kl2dh1', 6)
+    assert line == ''
+
+    line, all_mods = dice.roll.parse_trailing_mods('kl2kl1', 6)
+    assert line == ''
+
+    line, all_mods = dice.roll.parse_trailing_mods('kl2!>5r4r>4', 6)
+    print(all_mods)
+    assert line == ''
+
+    line, all_mods = dice.roll.parse_trailing_mods('kl2!>5r4r>4f<2', 6)
+    print(all_mods)
+    assert line == ''
+
+    line, all_mods = dice.roll.parse_trailing_mods('kl2!>5r4r>4f<2>5', 6)
+    print(all_mods)
+    assert line == ''
+
+
+def test_parse_trailing_mods_bad_combinations():
+    with pytest.raises(ValueError):
+        dice.roll.parse_trailing_mods('r4r>5f2r6', 6)
+
+
+def test_parse_dice_line_fails():
+    with pytest.raises(ValueError):
+        dice.roll.parse_dice_line('8d10k')
+
+    with pytest.raises(ValueError):
+        dice.roll.parse_dice_line('8d10r<aaa')
+
+    with pytest.raises(ValueError):
+        dice.roll.parse_dice_line('8d10f[a,3]')
+
+    with pytest.raises(ValueError):
+        dice.roll.parse_dice_line('8d10f[1,3] + aaaa')
+
+
+def test_parse_dice_line():
+    throw = dice.roll.parse_dice_line('4d20kh2r<4 + 6')
+    print(throw.next())
+
+    throw = dice.roll.parse_dice_line('4d20f[4,8] + 6')
+    print(throw.next())
+
+    throw = dice.roll.parse_dice_line('4d100>30')
+    print(throw.next())
+
+    throw = dice.roll.parse_dice_line('4d100f<30>40')
+    print(throw.next())
+
+    throw = dice.roll.parse_dice_line('8d10!!>8')
+    print(throw.next())
+
+    throw = dice.roll.parse_dice_line('8d10!>8')
+    print(throw.next())
 
 
 def test_die__init__():
@@ -98,10 +237,10 @@ def test_die__str__():
 
     die.reset_flags()
     die.set_fail()
-    assert str(die) == "**1**:x:"
+    assert str(die) == "1"
 
     die.set_success()
-    assert str(die) == "**1**:white_check_mark:"
+    assert str(die) == "**1**"
 
 
 def test_die__hash__():
@@ -160,10 +299,10 @@ def test_die_fmt_string():
 
     die.reset_flags()
     die.set_success()
-    assert die.fmt_string() == '**{}**:white_check_mark:'
+    assert die.fmt_string() == '**{}**'
 
     die.set_fail()
-    assert die.fmt_string() == '**{}**:x:'
+    assert die.fmt_string() == '{}'
 
 
 def test_die_fmt_string_combinations():
@@ -458,6 +597,15 @@ def test_keep_high_parse():
     assert line == 'dl1'
 
 
+def test_keep_high_parse_default():
+    line, keep = dice.roll.KeepOrDrop.parse('k10dl1', 6)
+    assert keep.keep
+    assert keep.high
+    assert keep.num == 10
+
+    assert line == 'dl1'
+
+
 def test_keep_low_parse():
     line, keep = dice.roll.KeepOrDrop.parse('kl10dl1', 6)
     assert keep.keep
@@ -483,6 +631,15 @@ def test_drop_low_parse():
     assert keep.num == 10
 
     assert line == ''
+
+
+def test_drop_low_parse_default():
+    line, keep = dice.roll.KeepOrDrop.parse('d10kh1', 6)
+    assert not keep.keep
+    assert not keep.high
+    assert keep.num == 10
+
+    assert line == 'kh1'
 
 
 def test_keep_high_modify():
@@ -576,6 +733,7 @@ def test_exploding_dice_parse():
     assert dice.roll.ExplodingDice.parse('!>4', 6)
     assert dice.roll.ExplodingDice.parse('!<4', 6)
     assert dice.roll.ExplodingDice.parse('!4', 6)
+    assert dice.roll.ExplodingDice.parse('![4,6]', 6)
 
 
 def test_exploding_dice_parse_impossible():
@@ -618,6 +776,7 @@ def test_compounding_dice_parse():
     assert dice.roll.CompoundingDice.parse('!!>4', 6)
     assert dice.roll.CompoundingDice.parse('!!<4', 6)
     assert dice.roll.CompoundingDice.parse('!!4', 6)
+    assert dice.roll.CompoundingDice.parse('!![4,6]', 6)
 
 
 def test_compounding_dice_parse_impossible():
@@ -716,97 +875,3 @@ def test_success_fail_modify():
     assert dset.all_die[1].flags == 1
     assert dset.all_die[2].is_success()
     assert dset.all_die[3].flags == 1
-
-
-def test_parse_diceset():
-    nspec, dset = dice.roll.parse_diceset('4d20kh1')
-    assert nspec == 'kh1'
-    assert len(dset.all_die) == 4
-
-    nspec, dset = dice.roll.parse_diceset('20d100!!<6 + 4d10 - 2')
-    assert nspec == '!!<6 + 4d10 - 2'
-    assert len(dset.all_die) == 20
-
-    with pytest.raises(ValueError):
-        dice.roll.parse_diceset(' 4d20')
-
-    with pytest.raises(ValueError):
-        dice.roll.parse_diceset('4df')
-
-    with pytest.raises(ValueError):
-        dice.roll.parse_diceset('>34d8')
-
-
-def test_parse_fate_diceset():
-    nspec, dset = dice.roll.parse_fate_diceset('4df')
-    assert nspec == ''
-    assert len(dset.all_die) == 4
-
-    nspec, dset = dice.roll.parse_fate_diceset('10dfkh1')
-    assert nspec == 'kh1'
-    assert len(dset.all_die) == 10
-
-    with pytest.raises(ValueError):
-        dice.roll.parse_fate_diceset(' 4df')
-
-    with pytest.raises(ValueError):
-        dice.roll.parse_fate_diceset('4d6')
-
-    with pytest.raises(ValueError):
-        dice.roll.parse_fate_diceset('>34d8')
-
-
-def test_parse_trailing_mods_good_combinations():
-    line, all_mods = dice.roll.parse_trailing_mods('kh3dl2', 6)
-    assert line == ''
-
-    line, all_mods = dice.roll.parse_trailing_mods('kl2dh1', 6)
-    assert line == ''
-
-    line, all_mods = dice.roll.parse_trailing_mods('kl2kl1', 6)
-    assert line == ''
-
-    line, all_mods = dice.roll.parse_trailing_mods('kl2!>5r4r>4', 6)
-    print(all_mods)
-    assert line == ''
-
-    line, all_mods = dice.roll.parse_trailing_mods('kl2!>5r4r>4f<2', 6)
-    print(all_mods)
-    assert line == ''
-
-    line, all_mods = dice.roll.parse_trailing_mods('kl2!>5r4r>4f<2>5', 6)
-    print(all_mods)
-    assert line == ''
-
-
-def test_parse_literal():
-    line, lit = dice.roll.parse_literal("+ 42")
-    assert line == "42"
-    assert lit == "+"
-
-    line, lit = dice.roll.parse_literal("- 42")
-    assert line == "42"
-    assert lit == "-"
-
-    line, lit = dice.roll.parse_literal("42 + 1")
-    assert line == "+ 1"
-    assert lit == "42"
-
-
-def test_parse_trailing_mods_bad_combinations():
-    with pytest.raises(ValueError):
-        dice.roll.parse_trailing_mods('r4r>5f2r6', 6)
-
-
-def test_parse_dice_line():
-    throw = dice.roll.parse_dice_line('4d20kh2r<4 + 6')
-    print(throw.next())
-
-    throw = dice.roll.parse_dice_line('4d20f[4,8] + 6')
-    print(throw.next())
-
-    throw = dice.roll.parse_dice_line('4d100>30')
-    print(throw.next())
-
-    throw = dice.roll.parse_dice_line('4d100f<30>40')
-    print(throw.next())

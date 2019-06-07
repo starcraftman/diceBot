@@ -260,7 +260,7 @@ async def test_cmd_roll(f_bot):
     assert len(act) == 5
     assert act[0:2] == ["__Dice Rolls__", ""]
     for line in act[2:]:
-        assert line.startswith("2d6 + 3 = (")
+        assert line.startswith("2d6 + 3 = ")
 
 
 @pytest.mark.asyncio
@@ -276,7 +276,7 @@ async def test_cmd_roll_alias(f_bot):
     assert len(act) == 5
     assert act[0:2] == ["__Dice Rolls__", ""]
     for line in act[2:]:
-        assert line.startswith("2d6 + 3 = (")
+        assert line.startswith("2d6 + 3 = ")
 
 
 @pytest.mark.asyncio

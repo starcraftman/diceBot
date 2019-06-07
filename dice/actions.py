@@ -26,6 +26,7 @@ from dice.music import GuildPlayer
 import dicedb
 import dicedb.query
 
+ROLL_TIMEOUT = 10
 CHECK_TIMER_GAP = 5
 TIMERS = {}
 TIMER_OFFSETS = ["60:00", "15:00", "5:00", "1:00"]
@@ -1395,19 +1396,27 @@ async def make_rolls(spec):
     """
     Take a specification of dice rolls and return a string.
     """
-    lines = []
+    loop = asyncio.get_event_loop()
+    jobs = []
+    with concurrent.futures.ProcessPoolExecutor() as pool:
+        for line in re.split(r's*,\s+', spec):
+            line = line.strip()
+            times = 1
 
-    for line in re.split(r's*,\s+', spec):
-        line = line.strip()
-        times = 1
+            if ':' in line:
+                parts = line.split(':')
+                times, line = int(parts[0]), parts[1].strip()
+                if times > 100:
+                    raise dice.exc.InvalidCommandArgs("Please run <= 100 times a dice roll.")
 
-        if ':' in line:
-            parts = line.split(':')
-            times, line = int(parts[0]), parts[1].strip()
+            throw = dice.roll.parse_dice_line(line)
+            jobs += [loop.run_in_executor(pool, throw_in_pool, throw) for _ in range(times)]
 
-        throw = dice.roll.parse_dice_line(line)
-        with concurrent.futures.ProcessPoolExecutor() as pool:
-            for _ in range(times):
-                lines += [line + " = {}".format(await asyncio.get_event_loop().run_in_executor(pool, throw_in_pool, throw))]
+        try:
+            lines = await asyncio.wait_for(asyncio.gather(*jobs), ROLL_TIMEOUT)
+        except concurrent.futures.TimeoutError:
+            lines = ["Timeout! One or more of the dice took too long computing."]
+        except ValueError as exc:
+            raise dice.exc.InvalidCommandArgs(str(exc))
 
     return lines

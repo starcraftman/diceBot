@@ -211,11 +211,7 @@ class DiceBot(discord.Client):
 
         except dice.exc.UserException as exc:
             exc.write_log(log, content=content, author=author, channel=channel)
-            await self.send(channel, exc.reply(), ttl=True)
-            try:
-                await message.delete()
-            except discord.DiscordException:
-                pass
+            await self.send(channel, exc.reply())
 
         except dice.exc.InternalException as exc:
             exc.write_log(log, content=content, author=author, channel=channel)
