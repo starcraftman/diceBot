@@ -36,7 +36,7 @@ DICE_WARN = """**Error**: {}
         {}
 Please see reference below and correct the roll.
 
-Quick Reference:
+__Quick Reference__
 
     6**:** 4d6             Roll __4__ times 4 d6 dice and sum results. Then separately roll 2d20 + 4.
     4d6**kh2**           Roll 4d6 and keep __2__ highest results
@@ -290,7 +290,7 @@ def parse_trailing_mods(line, max_roll):
         mods += [mod]
 
     if substr and substr[0] not in [' ', '}']:
-        raise ValueError(DICE_WARN.format("Part of the modifiers seems invalid.", line))
+        raise ValueError(DICE_WARN.format("Spec does not seem to conform.", line))
 
     return substr, mods
 
@@ -840,7 +840,8 @@ class KeepDrop(ModifyDice):
         Returns:
             The original DiceSet.
         """
-        all_die = sorted([d for d in dice_set.all_die if not d.flags & (Die.REROLL & Die.DROP)])
+        f_mask = ~(Die.REROLL | Die.DROP) & Die.MASK
+        all_die = sorted([d for d in dice_set.all_die if d.flags & f_mask])
         if not self.keep:
             all_die = list(reversed(all_die))
 
@@ -896,7 +897,8 @@ class ExplodeDice(ModifyDice):
             The original DiceSet.
         """
         all_die = []
-        for die in dice_set.all_die:
+        f_mask = ~(Die.EXPLODE | Die.REROLL) & Die.MASK
+        for die in [d for d in dice_set.all_die if d.flags & f_mask]:
             all_die += [die]
             if die.flags & (Die.REROLL | Die.EXPLODE) or not self.pred(die):
                 continue
@@ -939,7 +941,8 @@ class CompoundDice(ExplodeDice):
         Keep exploding the dice until predicate failes.
         All rolls are simply added to first explosion.
         """
-        for die in [d for d in dice_set.all_die if not d.flags & (Die.REROLL | Die.EXPLODE)]:
+        f_mask = ~(Die.EXPLODE | Die.REROLL) & Die.MASK
+        for die in [d for d in dice_set.all_die if d.flags & f_mask]:
             new_explode = die
             while self.pred(new_explode):
                 new_explode = die.explode()
@@ -1050,7 +1053,8 @@ class SuccessFail(ModifyDice):
         return rest, SuccessFail(pred=pred, mark_success=mark_success)
 
     def modify(self, dice_set):
-        for die in [x for x in dice_set.all_die if not x.flags & (Die.DROP | Die.REROLL | Die.FAIL | Die.SUCCESS)]:
+        f_mask = ~(Die.REROLL | Die.DROP | Die.FAIL | Die.SUCCESS) & Die.MASK
+        for die in [x for x in dice_set.all_die if x.flags & f_mask]:
             if self.pred(die):
                 getattr(die, self.mark)()
 
