@@ -202,23 +202,6 @@ def test_guild_player_reset_iterator_last(f_songs):
     assert player.cur_vid == f_songs[-1]
 
 
-def test_guild_player_toggle_pause(f_songs, f_vclient):
-    player = dice.music.GuildPlayer(vids=f_songs, client=f_vclient)
-
-    assert not f_vclient.pause.called
-    assert not f_vclient.resume.called
-
-    f_vclient.is_connected.return_value = True
-    f_vclient.is_playing.return_value = True
-    player.toggle_pause()
-    assert f_vclient.pause.called
-
-    f_vclient.is_playing.return_value = False
-    f_vclient.is_paused.return_value = True
-    player.toggle_pause()
-    assert f_vclient.resume.called
-
-
 @mock.patch('dice.music.get_yt_video', lambda x, y, z: x)
 def test_guild_player_play_no_connect(f_songs, f_vclient):
     player = dice.music.GuildPlayer(vids=f_songs, client=f_vclient)
@@ -252,6 +235,7 @@ def test_guild_player_play_no_vids(f_songs, f_vclient):
 
 
 def test_guild_player_after_play(f_songs, f_vclient):
+    f_vclient.is_connected.return_value = True
     player = dice.music.GuildPlayer(vids=f_songs, client=f_vclient)
     player.play = aiomock.Mock()
 
@@ -337,12 +321,7 @@ def test_parse_search_label():
 
 @pytest.mark.asyncio
 async def test_yt_search():
-    expect = {
-        'url': "https://youtu.be/IrbCrwtDIUA",
-        'title': 'no more kings - critical hit',
-        'duration': '0:03:51',
-        'views': 52949
-    }
+    expect_url = "https://youtu.be/IrbCrwtDIUA"
     results = await dice.music.yt_search(['critical', 'hit'])
-    assert expect in results
+    assert [x for x in results if x['url'] == expect_url]
     assert len(results) > 10

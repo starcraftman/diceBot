@@ -94,7 +94,9 @@ def subs_music(subs, prefix):
 {prefix}music clear
         Stop playing the music and clear the queue.
 {prefix}music pause
-        Pause or resume playing the music.
+        Pause the playing the music.
+{prefix}music resume
+        Resume playing from pause or stopped if there are any songs in queue left.
 {prefix}music stop
         Stop playing the music.
 {prefix}music restart
@@ -128,6 +130,7 @@ def subs_music(subs, prefix):
     subsub.add_parser('next', description="Play next song in queue.")
     subsub.add_parser('prev', description="Play previous song in queue.")
     subsub.add_parser('pause', description="Puase the player.")
+    subsub.add_parser('resume', description="Resume the player.")
     subsub.add_parser('repeat', description="Repeat current song until next called.")
     subsub.add_parser('repeatqueue', description="When queue finished, start over again.")
     subsub.add_parser('shuffle', description="Enable shuffle mode, songs will be randomly selected from queue.")

@@ -39,7 +39,7 @@ PAGING_STOP_WORDS = ['done', 'exit', 'stop']
 PAGING_FOOTER = """
 
 Type __done__ or __exit__ or __stop__ to cancel menu
-Type __next__ to display the next page of entries
+Type __next__ or __prev__ to change pages.
 Type **1** to select entry (1)
 """
 
@@ -137,8 +137,13 @@ class PagingMenu(abc.ABC):
         self.msgs = []
         self.entries = entries
         self.limit = limit
-        self.page = 1
+        self._page = 0
         self.total_pages = math.ceil(len(entries) / self.limit)
+
+    @property
+    def page(self):
+        """ Display page starts at 1 not 0. """
+        return self._page + 1
 
     @property
     def msg(self):
@@ -148,7 +153,8 @@ class PagingMenu(abc.ABC):
     @property
     def cur_entries(self):
         """ The entries to display on current page. """
-        return self.entries[:self.limit]
+        front = self._page * self.limit
+        return self.entries[front:front + self.limit]
 
     async def reply(self, msg, **kwargs):
         """
@@ -168,7 +174,7 @@ class PagingMenu(abc.ABC):
         Returns:
             Anything that was returned by handle_msg that evualuated to True.
         """
-        while self.entries:
+        while True:
             try:
                 self.msgs += await self.reply(self.menu())
                 user_select = await self.act.bot.wait_for(
@@ -182,9 +188,10 @@ class PagingMenu(abc.ABC):
                     await self.reply('Paging menu terminated. Goodbye human!.')
                     break
 
-                elif user_select.content == 'next':
-                    self.entries = self.entries[self.limit:]
-                    self.page += 1
+                elif user_select.content in ['next', 'prev']:
+                    offset = 1 if user_select.content == 'next' else -1
+                    self._page = (self._page + offset) % self.total_pages
+                    continue
 
                 ret = await self.handle_msg(user_select)
                 if ret:

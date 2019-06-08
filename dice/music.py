@@ -213,7 +213,7 @@ async def gplayer_monitor(players, activity, gap=3):
         except (AttributeError, IndexError):
             continue
 
-        if player.is_playing():
+        if player.is_playing() or player.is_paused():
             activity[pid] = cur_date
 
         real_users = [x for x in player.voice_channel.members if not x.bot]
@@ -452,7 +452,10 @@ __Video List__:{vids}
                 raise ValueError("Must add Songs to the GuildPlayer.")
 
         self.vids = list(new_vids)
-        self.reset_iterator()
+        self.cur_vid = None
+        self.itr = None
+        if new_vids:
+            self.reset_iterator()
 
     def append_vids(self, new_vids):
         """
@@ -466,10 +469,12 @@ __Video List__:{vids}
         self.vids += new_vids
         if self.shuffle:
             rand.shuffle(new_vids)
-        try:
-            self.itr.items += new_vids
-        except AttributeError:
+
+        if not self.itr or self.itr.is_finished():
             self.reset_iterator()
+        else:
+            self.itr.items += new_vids
+
         asyncio.ensure_future(dice.music.prefetch_in_order(new_vids))
 
     def ensure_removed(self, vid):
@@ -516,7 +521,10 @@ __Video List__:{vids}
             timeout: Maximum time to wait for download.
         """
         if not vid:
-            vid = self.cur_vid
+            if self.cur_vid:
+                vid = self.cur_vid
+            else:
+                return  # Silently stop if nothing there.
 
         start = datetime.datetime.now()
         while not vid.ready:
@@ -538,7 +546,7 @@ __Video List__:{vids}
         if error:
             logging.getLogger('dice.music').error(str(error))
 
-        if self.is_playing() or self.is_done():
+        if not self.is_connected() or self.is_playing() or self.is_done():
             return
 
         if self.itr.is_finished() and self.repeat_all:
@@ -546,14 +554,6 @@ __Video List__:{vids}
         elif not self.cur_vid.repeat:
             self.next()
         self.play()
-
-    def toggle_pause(self):
-        """ Toggle pausing the player. """
-        if self.is_connected():
-            if self.is_playing():
-                self.pause()
-            elif self.is_paused():
-                self.resume()
 
     def toggle_shuffle(self):
         """ Toggle shuffling the playlist. Updates the iterator for consistency. """

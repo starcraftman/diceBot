@@ -190,8 +190,9 @@ class Music(Action):
         return new_vids
 
     async def clear(self, mplayer):
-        mplayer.stop()
+        await mplayer.disconnect()
         mplayer.set_vids([])
+        return "Player has stopped and the queue is clear.\n\nPlay something new or browse songs."
 
     async def restart(self, mplayer):
         """ Restart the player at the beginning. """
@@ -206,8 +207,29 @@ class Music(Action):
 
     async def pause(self, mplayer):
         """ Pause the player. """
-        mplayer.toggle_pause()
-        return "Player is now: " + mplayer.state
+        if mplayer.is_paused():
+            msg = "The player is already paused."
+        elif mplayer.is_playing():
+            mplayer.pause()
+            msg = """To resume playing: `!music resume`
+To stop playing entirely: `!music stop`"""
+        else:
+            msg = "The bot cannot be paused at this time."
+
+        return "Player is: {}\n\n{}".format(mplayer.state, msg)
+
+    async def resume(self, mplayer):
+        """ Resume the player from stopped or paused. """
+        if mplayer.is_paused():
+            mplayer.resume()
+            msg = str(mplayer)
+        elif not mplayer.itr.is_finished():
+            await mplayer.play_when_ready()
+            msg = str(mplayer)
+        else:
+            msg = "The bot cannot resume at this time.\nIf queue is finished restart it or choose new songs."
+
+        return "Player is: **{}**\n\n{}".format(mplayer.state, msg)
 
     async def next(self, mplayer):
         """ Play the next video. """
@@ -300,7 +322,7 @@ class Music(Action):
         if msg:
             await self.reply(msg)
 
-        if mplayer.cur_vid.id and self.args.sub in ['repeat', 'volume']:
+        if mplayer.cur_vid and mplayer.cur_vid.id and self.args.sub in ['repeat', 'volume']:
             song = dicedb.query.get_song_by_id(self.session, mplayer.cur_vid.id)
             song.update(mplayer.cur_vid)
             self.session.add(song)
@@ -366,6 +388,8 @@ Type __list__ to go select by song list"""
             self.msgs += await self.reply('Appending new selection(s) to playlist. Select another or exit.')
             mplayer.append_vids(songs)
             await self.reply(str(mplayer))
+            if not mplayer.is_playing():
+                await mplayer.play_when_ready()
         else:
             await SelectSong(self.act, songs).run()
             return True
@@ -400,7 +424,10 @@ Select a song to play by number [1..{}]:
         selected = self.entries[choice]
 
         self.msgs += await self.reply('Appending new selection(s) to playlist. Select another or exit.')
-        get_guild_player(self.act.guild_id, self.act.msg).append_vids([selected])
+        mplayer = get_guild_player(self.act.guild_id, self.act.msg)
+        mplayer.append_vids([selected])
+        if not mplayer.is_playing():
+            await mplayer.play_when_ready()
 
         return False
 
@@ -476,6 +503,8 @@ class Songs(Action):
         await self.bot.reply(reply)
 
     async def execute(self):
+        await get_guild_player(self.guild_id, self.msg).join_voice_channel()
+
         if self.args.add:
             msg = self.msg.content.replace(self.bot.prefix + 'songs --add', '')
             msg = msg.replace(self.bot.prefix + 'songs -a', '')
