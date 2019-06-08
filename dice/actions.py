@@ -1409,14 +1409,15 @@ async def make_rolls(spec):
                 if times > 100:
                     raise dice.exc.InvalidCommandArgs("Please run <= 100 times a dice roll.")
 
-            throw = dice.roll.parse_dice_line(line)
-            jobs += [loop.run_in_executor(pool, throw_in_pool, throw) for _ in range(times)]
+            try:
+                throw = dice.roll.parse_dice_line(line)
+                jobs += [loop.run_in_executor(pool, throw_in_pool, throw) for _ in range(times)]
+            except ValueError as exc:
+                raise dice.exc.InvalidCommandArgs(str(exc))
 
         try:
             lines = await asyncio.wait_for(asyncio.gather(*jobs), ROLL_TIMEOUT)
         except concurrent.futures.TimeoutError:
             lines = ["Timeout! One or more of the dice took too long computing."]
-        except ValueError as exc:
-            raise dice.exc.InvalidCommandArgs(str(exc))
 
     return lines
