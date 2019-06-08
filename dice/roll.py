@@ -288,7 +288,6 @@ def parse_literal(spec):
             dset: A DiceSet object containing the correct amount of dice.
     """
     match = IS_LITERAL.match(spec)
-    print("|%s| |%s|" % (spec, match))
     if not match:
         raise ValueError("There is no valid literal to parse.")
 
@@ -320,7 +319,6 @@ def parse_dice_line(spec):
         dset = None
         for func in [parse_diceset, parse_fate_diceset, parse_literal]:
             try:
-                print(func)
                 spec, dset = func(spec)
                 throw.add(dset)
 
