@@ -107,6 +107,7 @@ class Help(Action):
             ['{prefix}poni', 'Pony?!?!'],
             ['{prefix}pun', 'Prepare for pain!'],
             ['{prefix}roll', 'Roll a dice like: 2d6 + 5'],
+            ['{prefix}reroll', 'Reroll previous rolls'],
             ['{prefix}r', 'Alias for `!roll`'],
             ['{prefix}songs', 'Create manage song lookup.'],
             ['{prefix}star', 'Search on the Starfinder wiki.'],
@@ -225,7 +226,7 @@ To stop playing entirely: `!music stop`"""
         if mplayer.is_paused():
             mplayer.resume()
             msg = str(mplayer)
-        elif not mplayer.itr.is_finished():
+        elif not mplayer.is_done():
             await mplayer.play_when_ready()
             msg = str(mplayer)
         else:
@@ -1231,7 +1232,7 @@ class Reroll(Action):
             raise dice.exc.InvalidCommandArgs("No rolls stored, make a !roll first.")
 
         if self.args.menu:
-            selected = await RerollMenu(self, list(reversed(rolls))).run()
+            selected = await RerollMenu(self, list(reversed(rolls), 10)).run()
             if not selected:
                 return
         else:

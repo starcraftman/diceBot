@@ -19,8 +19,8 @@ Logic regarding modifiers:
 # TODO: Allow comments post roll, i.e. 3d6 + 20 this comment gets replayed back.
 # TODO: Grouped rolls {2d10,4d20}kh1, take highest total value.
 # TODO: Likely need to implement math ops on Die (__add__, __sub__, so on ...)
-# TODO: Add reroll once, 2d10ro<2 => 2d10 any roll <=2 reroll it __ONCE__
 # TODO: Strong overlap between Die and DiceSet?
+# TODO: Add reroll once, 2d10ro<2 => 2d10 any roll <=2 reroll it __ONCE__
 import abc
 import functools
 import re
@@ -106,7 +106,7 @@ class Comp():
         Returns:
             True IFF other is in range [left, right].
         """
-        return self.left <= getattr(other, 'value', other) <= self.right
+        return self.left <= int(other) <= self.right
 
     def less_equal(self, other):
         """
@@ -116,7 +116,7 @@ class Comp():
         Returns:
             True IFF other is <= left.
         """
-        return getattr(other, 'value', other) <= self.left
+        return int(other) <= self.left
 
     def greater_equal(self, other):
         """
@@ -126,7 +126,7 @@ class Comp():
         Returns:
             True IFF other is <= left.
         """
-        return getattr(other, 'value', other) >= self.left
+        return int(other) >= self.left
 
     def equal(self, other):
         """
@@ -136,7 +136,7 @@ class Comp():
         Returns:
             True IFF other other == left.
         """
-        return getattr(other, 'value', other) == self.left
+        return int(other) == self.left
 
 
 def parse_predicate(line, max_roll):

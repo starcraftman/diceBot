@@ -425,7 +425,7 @@ __Video List__:{vids}
 
     def is_done(self):
         """ True only if reached end of playlist and not set to repeat. """
-        return self.itr.is_finished() and not self.repeat_all
+        return not self.iter or (self.itr.is_finished() and not self.repeat_all)
 
     @property
     def state(self):
@@ -476,7 +476,7 @@ __Video List__:{vids}
         if self.shuffle:
             rand.shuffle(new_vids)
 
-        if not self.itr or self.itr.is_finished():
+        if self.is_done():
             self.reset_iterator()
         else:
             self.itr.items += new_vids
