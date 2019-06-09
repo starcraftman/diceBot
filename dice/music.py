@@ -112,6 +112,10 @@ def get_yt_video(url, name, out_path):
     fname = os.path.join(out_path, name + ".%(ext)s")
     run_cmd_with_retries(shlex.split(YTDL_CMD) + [fname, url])
 
+    # Update timestamp because youtube_dl insists it should be not recent.
+    now = time.time()
+    os.utime(os.path.join(out_path, name + ".opus"), (now, now))
+
     return os.path.join(out_path, name + ".opus")
 
 
@@ -159,7 +163,9 @@ def prune_cache(cache_dir, limit=CACHE_LIMIT, *, prefix=None):
     for song in songs:
         total_size += os.stat(song).st_size
 
+    log = logging.getLogger('dice.music')
     while total_size > limit:
+        log.warning("MONITOR_DEL: %s", songs[0])
         total_size -= os.stat(songs[0]).st_size
         os.remove(songs[0])
         songs = songs[1:]
