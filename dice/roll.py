@@ -32,6 +32,7 @@ import dice.exc
 PARENS_MAP = {'(': 3, '{': 7, '[': 11, ')': -3, '}': -7, ']': -11}
 LIMIT_DIE_NUMBER = 200
 LIMIT_DIE_SIDES = 1000
+LIMIT_DICE_SET_STR = 100
 DICE_WARN = """**Error**: {}
         {}
 Please see reference below and correct the roll.
@@ -482,6 +483,8 @@ class Die(FlaggableMixin):
         """ Return the correct formatting string given the die's current flags. """
         fmt = "{}"
 
+        if self.is_rerolled():
+            fmt = fmt + "r"
         if self.is_exploded():
             fmt = "__" + fmt + "__"
         if self.is_dropped():
@@ -565,15 +568,17 @@ class DiceSet():
 
         msg = str(self.all_die[0])
         for prev_die, die in zip(self.all_die[:-1], self.all_die[1:]):
-            if prev_die.is_rerolled():
-                msg += " > "
-            elif issubclass(type(prev_die), FateDie):
+            if issubclass(type(prev_die), FateDie):
                 msg += ' '
             else:
                 msg += " + "
             msg += str(die)
 
-        return msg
+        if len(msg) > LIMIT_DICE_SET_STR:
+            match = re.match(r'(\d+ \+?\s?\d+)[0-9 +-]*(\s?\+? \d+)', msg)
+            msg = '{} + ... {}'.format(match.group(1), match.group(2))
+
+        return '(' + msg + ')'
 
     def __int__(self):
         """ Value represents the integer value of this roll. """

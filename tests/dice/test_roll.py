@@ -335,6 +335,10 @@ def test_die_fmt_string():
     assert die.fmt_string() == '~~{}~~'
 
     die.reset_flags()
+    die.set_reroll()
+    assert die.fmt_string() == '{}r'
+
+    die.reset_flags()
     die.explode()
     assert die.fmt_string() == '__{}__'
 
@@ -561,7 +565,14 @@ def test_diceset__str__():
     dset = dice.roll.DiceSet()
     dset.add_dice(4, 6)
 
-    assert str(dset) == "1 + 1 + 1 + 1"
+    assert str(dset) == "(1 + 1 + 1 + 1)"
+
+
+def test_diceset__str__truncate():
+    dset = dice.roll.DiceSet()
+    dset.add_dice(200, 100)
+
+    assert str(dset) == "(1 + 1 + ...  1)"
 
 
 def test_diceset_value(f_dset):
@@ -589,9 +600,9 @@ def test_diceset_add_fatedie():
 def test_diceset_roll_no_mod():
     dset = dice.roll.DiceSet()
     dset.add_dice(4, 6)
-    assert str(dset) == "1 + 1 + 1 + 1"
+    assert str(dset) == "(1 + 1 + 1 + 1)"
     dset.roll()
-    assert str(dset) != "1 + 1 + 1 + 1"
+    assert str(dset) != "(1 + 1 + 1 + 1)"
 
 
 def test_athrow__repr__(f_athrow):
@@ -600,17 +611,17 @@ def test_athrow__repr__(f_athrow):
 
 
 def test_athrow__str__(f_athrow):
-    assert str(f_athrow) == "5 + 2 + 6 + 1 + 4"
+    assert str(f_athrow) == "(5 + 2 + 6 + 1) + 4"
 
 
 def test_athrow_add(f_athrow):
     f_athrow.add('+')
-    assert str(f_athrow) == "5 + 2 + 6 + 1 + 4 +"
+    assert str(f_athrow) == "(5 + 2 + 6 + 1) + 4 +"
 
 
 def test_athrow_roll(f_athrow):
     f_athrow.roll()
-    assert str(f_athrow) != "5 + 2 + 6 + 1 + 4"
+    assert str(f_athrow) != "(5 + 2 + 6 + 1) + 4"
 
 
 def test_athrow_numeric_value(f_athrow):
@@ -645,7 +656,7 @@ def test_athrow_string_success_and_fail(f_athrow):
 
 
 def test_athrow_next(f_athrow):
-    assert re.match(r'4d6 \+ 4 = [ 0-9\+=]+', f_athrow.next())
+    assert re.match(r'4d6 \+ 4 = [ 0-9\+=()]+', f_athrow.next())
 
 
 def test_keep_high__repr__():
