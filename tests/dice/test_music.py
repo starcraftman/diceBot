@@ -163,8 +163,8 @@ def test_guild_player_set_vids(f_songs):
     assert player.vids == list(f_songs[1:])
 
 
-def test_guild_player_append_vids(f_songs):
-    player = dice.music.GuildPlayer(vids=f_songs[:1])
+def test_guild_player_append_vids(f_songs, f_vclient):
+    player = dice.music.GuildPlayer(vids=f_songs[:1], client=f_vclient)
 
     player.append_vids(f_songs[1:])
     assert player.itr.items == list(f_songs)

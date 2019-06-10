@@ -106,7 +106,7 @@ class Channel(FakeObject):
     def __init__(self, name, *, guild=None, type=0, id=None):
         super().__init__(name, id)
         self.guild = guild
-        self.type = discord.ChannelType(type)
+        self.type = type
 
     # def __repr__(self):
         # return super().__repr__() + ", guild: {}".format(self.guild.name)
@@ -175,11 +175,12 @@ class Message(FakeObject):
 def fake_guilds():
     """ Generate fake discord guilds for testing. """
     guild = Guild("Gears' Hideout")
+    t = discord.ChannelType.voice
     channels = [
         Channel("general", guild=guild),
         Channel("dev", guild=guild),
         Channel("gaming", guild=guild),
-        Channel("voice1", guild=guild, type=discord.enums.ChannelType.voice),
+        Channel("voice1", guild=guild, type=discord.ChannelType.voice),
     ]
     for cha in channels:
         guild.add(cha)

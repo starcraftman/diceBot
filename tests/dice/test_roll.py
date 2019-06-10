@@ -2,6 +2,7 @@
 Tests for dice rolling in dice.roll
 """
 from __future__ import absolute_import, print_function
+import re
 
 import pytest
 
@@ -20,6 +21,13 @@ def f_dset():
     ]
 
     yield dset
+
+
+@pytest.fixture
+def f_athrow(f_dset):
+    throw = dice.roll.AThrow(spec='4d6 + 4', parts=[f_dset, '+', '4'])
+
+    yield throw
 
 
 def test_check_parentheses():
@@ -115,6 +123,8 @@ def test_parse_diceset():
     assert nspec == '!!<6 + 4d10 - 2'
     assert len(dset.all_die) == 20
 
+
+def test_parse_diceset_raises():
     with pytest.raises(ValueError):
         dice.roll.parse_diceset(' 4d20')
 
@@ -123,6 +133,12 @@ def test_parse_diceset():
 
     with pytest.raises(ValueError):
         dice.roll.parse_diceset('>34d8')
+
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        dice.roll.parse_diceset('4000000000d20')
+
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        dice.roll.parse_diceset('4d2000000000000')
 
 
 def test_parse_fate_diceset():
@@ -134,6 +150,8 @@ def test_parse_fate_diceset():
     assert nspec == 'kh1'
     assert len(dset.all_die) == 10
 
+
+def test_parse_fate_diceset_raises():
     with pytest.raises(ValueError):
         dice.roll.parse_fate_diceset(' 4df')
 
@@ -142,6 +160,9 @@ def test_parse_fate_diceset():
 
     with pytest.raises(ValueError):
         dice.roll.parse_fate_diceset('>34d8')
+
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        dice.roll.parse_fate_diceset('4000000000df')
 
 
 def test_parse_literal():
@@ -162,9 +183,9 @@ def test_parse_literal():
     assert lit == "42"
 
 
-def test_parse_trailing_mods_good_combinations():
-    line, all_mods = dice.roll.parse_trailing_mods('kh3dl2', 6)
-    assert line == ''
+def test_parse_trailing_mods():
+    line, all_mods = dice.roll.parse_trailing_mods('kh3dl2 + 4d20 + 20', 6)
+    assert line == ' + 4d20 + 20'
 
     line, all_mods = dice.roll.parse_trailing_mods('kl2dh1', 6)
     assert line == ''
@@ -184,10 +205,17 @@ def test_parse_trailing_mods_good_combinations():
     print(all_mods)
     assert line == ''
 
+    line, all_mods = dice.roll.parse_trailing_mods('kl2!>5r4r>4f<2>5s', 6)
+    print(all_mods)
+    assert line == ''
 
-def test_parse_trailing_mods_bad_combinations():
+
+def test_parse_trailing_mods_raises():
     with pytest.raises(ValueError):
         dice.roll.parse_trailing_mods('r4r>5f2r6', 6)
+
+    with pytest.raises(ValueError):
+        dice.roll.parse_trailing_mods('khr<dl', 6)
 
 
 def test_parse_dice_line_fails():
@@ -566,10 +594,58 @@ def test_diceset_roll_no_mod():
     assert str(dset) != "1 + 1 + 1 + 1"
 
 
-def test_diceset_apply_mods(f_dset):
-    f_dset.add_mod(dice.roll.KeepDrop())
-    f_dset.apply_mods()
-    assert str(f_dset) == "~~5~~ + ~~2~~ + 6 + ~~1~~"
+def test_athrow__repr__(f_athrow):
+    expect = "AThrow(spec='4d6 + 4', parts=[DiceSet(all_die=[Die(sides=6, value=5, flags=1), Die(sides=6, value=2, flags=1), Die(sides=6, value=6, flags=1), Die(sides=6, value=1, flags=1)], mods=[]), '+', '4'])"
+    assert repr(f_athrow) == expect
+
+
+def test_athrow__str__(f_athrow):
+    assert str(f_athrow) == "5 + 2 + 6 + 1 + 4"
+
+
+def test_athrow_add(f_athrow):
+    f_athrow.add('+')
+    assert str(f_athrow) == "5 + 2 + 6 + 1 + 4 +"
+
+
+def test_athrow_roll(f_athrow):
+    f_athrow.roll()
+    assert str(f_athrow) != "5 + 2 + 6 + 1 + 4"
+
+
+def test_athrow_numeric_value(f_athrow):
+    assert f_athrow.numeric_value() == 18
+
+
+def test_athrow_string_success(f_athrow):
+    f_dset = f_athrow.parts[0]
+    pred = dice.roll.Comp(left=5, func='greater_equal')
+    f_dset.mods = [dice.roll.SuccessFail(mark_success=True, pred=pred)]
+    f_athrow.parts[0].apply_mods()
+    assert f_athrow.success_string() == "(+2) **0** Failure(s), **2** Success(es)"
+
+
+def test_athrow_string_fail(f_athrow):
+    f_dset = f_athrow.parts[0]
+    pred = dice.roll.Comp(left=2, func='less_equal')
+    f_dset.mods = [dice.roll.SuccessFail(mark_success=False, pred=pred)]
+    f_athrow.parts[0].apply_mods()
+    assert f_athrow.success_string() == "(-2) **2** Failure(s), **0** Success(es)"
+
+
+def test_athrow_string_success_and_fail(f_athrow):
+    f_dset = f_athrow.parts[0]
+    pred = dice.roll.Comp(left=5, func='greater_equal')
+    pred2 = dice.roll.Comp(left=2, func='less_equal')
+    f_dset.mods = [dice.roll.SuccessFail(mark_success=True, pred=pred),
+                   dice.roll.SuccessFail(mark_success=False, pred=pred2)]
+
+    f_athrow.parts[0].apply_mods()
+    assert f_athrow.success_string() == "(+0) **2** Failure(s), **2** Success(es)"
+
+
+def test_athrow_next(f_athrow):
+    assert re.match(r'4d6 \+ 4 = [ 0-9\+=]+', f_athrow.next())
 
 
 def test_keep_high__repr__():
@@ -698,6 +774,9 @@ def test_compound_dice_parse():
 
 def test_compound_dice_parse_raises():
     with pytest.raises(ValueError):
+        assert dice.roll.ExplodeDice.parse('r', 6)
+
+    with pytest.raises(ValueError):
         assert dice.roll.ExplodeDice.parse('4d6', 6)
 
     with pytest.raises(ValueError):
@@ -729,6 +808,9 @@ def test_reroll_dice_parse():
 
 def test_reroll_dice_parse_raises():
     with pytest.raises(ValueError):
+        dice.roll.RerollDice.parse('s', 6)
+
+    with pytest.raises(ValueError):
         dice.roll.RerollDice.parse('r>1', 6)
 
     with pytest.raises(ValueError):
@@ -759,6 +841,9 @@ def test_success_fail_parse():
 
 def test_success_fail_parse_raises():
     with pytest.raises(ValueError):
+        dice.roll.SuccessFail.parse('r', 6)
+
+    with pytest.raises(ValueError):
         dice.roll.SuccessFail.parse('kh2', 6)
 
     with pytest.raises(ValueError):
@@ -787,6 +872,11 @@ def test_sort_dice_parse():
     line, mod = dice.roll.SortDice.parse('sd', 6)
     assert not mod.ascending
     assert line == ''
+
+
+def test_sort_dice_parse_raises():
+    with pytest.raises(ValueError):
+        dice.roll.SortDice.parse('rrr', 6)
 
 
 def test_sort_dice_modify(f_dset):

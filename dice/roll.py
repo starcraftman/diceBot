@@ -90,6 +90,10 @@ class Comp():
     def __init__(self, *, left=2, right=5, func=None):
         self.left = left
         self.right = right
+
+        choices = ['range', 'less_equal', 'greater_equal', 'equal']
+        if func and func not in choices:
+            raise ValueError("Func must be one of:\n" + "\n".join(choices))
         self.func = func
 
     def __repr__(self):
@@ -605,21 +609,6 @@ class DiceSet():
             number: The number of FateDie to add.
         """
         self.all_die += [FateDie() for _ in range(0, number)]
-
-    def add_mod(self, mod):
-        """
-        Add a modifier to this dice set.
-        Enforces internal ordering of application.
-
-        Order:
-            Reroll all required rolls first.
-            Explode any dice that require explosions.
-            Apply KeeporDrop/SuccessFail in order applied.
-        """
-        if not issubclass(type(mod), ModifyDice):
-            raise ValueError("Not a subclass of ModifyDice.")
-
-        self.mods += [mod]
 
     def roll(self):
         """
