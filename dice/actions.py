@@ -1232,7 +1232,7 @@ class Reroll(Action):
             raise dice.exc.InvalidCommandArgs("No rolls stored, make a !roll first.")
 
         if self.args.menu:
-            selected = await RerollMenu(self, list(reversed(rolls), 10)).run()
+            selected = await RerollMenu(self, list(reversed(rolls)), 10).run()
             if not selected:
                 return
         else:
