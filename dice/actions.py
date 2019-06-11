@@ -349,9 +349,9 @@ Select a song to remove by number [1..{}]:
         if choice < 0 or choice >= len(self.cur_entries):
             raise ValueError
 
-        dicedb.query.remove_song_with_tags(self.act.session, self.entries[choice].name)
-        del self.entries[choice]
-        await self.reply("**Song Deleted**\n\n    {}".format(self.entries[choice].name))
+        dicedb.query.remove_song_with_tags(self.act.session, self.cur_entries[choice].name)
+        del self.cur_entries[choice]
+        await self.reply("**Song Deleted**\n\n    {}".format(self.cur_entries[choice].name))
 
         return False
 
@@ -424,7 +424,7 @@ Select a song to play by number [1..{}]:
         choice = int(user_select.content) - 1
         if choice < 0 or choice >= len(self.cur_entries):
             raise ValueError
-        selected = self.entries[choice]
+        selected = self.cur_entries[choice]
 
         self.msgs += await self.reply('Appending new selection(s) to playlist. Select another or exit.')
         mplayer = get_guild_player(self.act.guild_id, self.act.msg)
@@ -801,8 +801,8 @@ Select a timer to cancel from [1..{}]:
             raise ValueError
 
         try:
-            del TIMERS[self.entries[choice]]
-            del self.entries[choice]
+            del TIMERS[self.cur_entries[choice]]
+            del self.cur_entries[choice]
         except (KeyError, ValueError):
             pass
 
@@ -1078,15 +1078,15 @@ Select a pun to remove by number [1..{}]:
 
 
 """.format(self.page, self.total_pages, len(self.cur_entries))
-        return format_pun_list(header, self.entries[:LIMIT_SONGS], dice.util.PAGING_FOOTER, cnt=1)
+        return format_pun_list(header, self.cur_entries, dice.util.PAGING_FOOTER, cnt=1)
 
     async def handle_msg(self, user_select):
         choice = int(user_select.content) - 1
         if choice < 0 or choice >= len(self.cur_entries):
             raise ValueError
 
-        dicedb.query.remove_pun(self.act.session, self.entries[choice])
-        del self.entries[choice]
+        dicedb.query.remove_pun(self.act.session, self.cur_entries[choice])
+        del self.cur_entries[choice]
 
         return True
 
@@ -1146,7 +1146,7 @@ Select a song to play by number [1..{}]:
         if choice < 0 or choice >= len(self.cur_entries):
             raise ValueError
 
-        selected = self.entries[choice]
+        selected = self.cur_entries[choice]
         videos = dicedb.query.validate_videos([selected['url']])
         videos[0].name = selected['title'][:30]
 
@@ -1219,7 +1219,7 @@ Select a roll by number [1..{}]:
         if choice < 0 or choice >= len(self.cur_entries):
             raise ValueError
 
-        return self.entries[choice]
+        return self.cur_entries[choice]
 
 
 class Reroll(Action):

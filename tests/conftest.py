@@ -175,7 +175,6 @@ class Message(FakeObject):
 def fake_guilds():
     """ Generate fake discord guilds for testing. """
     guild = Guild("Gears' Hideout")
-    t = discord.ChannelType.voice
     channels = [
         Channel("general", guild=guild),
         Channel("dev", guild=guild),

@@ -423,9 +423,30 @@ __Video List__:{vids}
 
         return "GuildPlayer({})".format(', '.join(kwargs))
 
+    def is_connected(self):
+        """ True IFF the bot is connected. """
+        try:
+            return self.__client.is_connected()
+        except AttributeError:
+            return False
+
+    def is_playing(self):
+        """ Implies is__connected and the stream is playing. """
+        try:
+            return self.__client.is_playing()
+        except AttributeError:
+            return False
+
+    def is_paused(self):
+        """ Implies is__connected and the stream is paused. """
+        try:
+            return self.__client.is_paused()
+        except AttributeError:
+            return False
+
     def is_done(self):
         """ True only if reached end of playlist and not set to repeat. """
-        return not self.iter or (self.itr.is_finished() and not self.repeat_all)
+        return not self.itr or (self.itr.is_finished() and not self.repeat_all)
 
     @property
     def state(self):
@@ -513,6 +534,10 @@ __Video List__:{vids}
 
         vid = next_vid if next_vid else self.cur_vid
         self.__client.play(make_stream(vid), after=self.after_play)
+        try:
+            dice.util.BOT.status = vid.name
+        except AttributeError:
+            pass
 
     async def play_when_ready(self, vid=None, timeout=20):
         """
@@ -558,7 +583,11 @@ __Video List__:{vids}
         if self.itr.is_finished() and self.repeat_all:
             self.reset_iterator(to_last=(self.itr.index == -1))
         elif not self.cur_vid.repeat:
-            self.next()
+            try:
+                self.next()
+            except StopIteration:
+                dice.util.BOT.status = 'Queue finished'
+                raise
         self.play()
 
     def toggle_shuffle(self):

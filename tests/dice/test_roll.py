@@ -232,6 +232,11 @@ def test_parse_dice_line_fails():
         dice.roll.parse_dice_line('8d10f[1,3] + aaaa')
 
 
+def test_parse_dice_line_comment():
+    throw = dice.roll.parse_dice_line("4 + 4 # a comment here")
+    assert throw.next() == "4 + 4 = 4 + 4 = 8\n        Note: a comment here"
+
+
 def test_parse_dice_line():
     throw = dice.roll.parse_dice_line('4d20kh2r<4 + 6')
     print(throw.next())
@@ -299,6 +304,78 @@ def test_die__lt__():
     die = dice.roll.Die(sides=6, value=1)
     assert die < dice.roll.Die(sides=6, value=2)
     assert die >= dice.roll.Die(sides=6, value=1)
+
+
+def test_die__add__():
+    die = dice.roll.Die(sides=6, value=1)
+    assert die + 4 == 5
+    assert die + dice.roll.Die(sides=4, value=1) == 2
+
+
+def test_die__sub__():
+    die = dice.roll.Die(sides=6, value=5)
+    assert die - 4 == 1
+    assert die - dice.roll.Die(sides=4, value=4) == 1
+
+
+def test_die__mul__():
+    die = dice.roll.Die(sides=6, value=2)
+    assert die * 4 == 8
+    assert die * dice.roll.Die(sides=4, value=4) == 8
+
+
+def test_die__floordiv__():
+    die = dice.roll.Die(sides=6, value=8)
+    assert die // 4 == 2
+    assert die // dice.roll.Die(sides=4, value=4) == 2
+
+
+def test_die__radd__():
+    die = dice.roll.Die(sides=6, value=1)
+    assert 4 + die == 5
+    assert dice.roll.Die(sides=4, value=1) + die == 2
+
+
+def test_die__rsub__():
+    die = dice.roll.Die(sides=6, value=5)
+    assert 4 - die == -1
+    assert dice.roll.Die(sides=4, value=4) - die == -1
+
+
+def test_die__rmul__():
+    die = dice.roll.Die(sides=6, value=2)
+    assert 4 * die == 8
+    assert dice.roll.Die(sides=4, value=4) * die == 8
+
+
+def test_die__rfloordiv__():
+    die = dice.roll.Die(sides=6, value=4)
+    assert 8 // die == 2
+    assert dice.roll.Die(sides=4, value=8) // die == 2
+
+
+def test_die__iadd__():
+    die = dice.roll.Die(sides=6, value=1)
+    die += 4
+    assert die.value == 5
+
+
+def test_die__isub__():
+    die = dice.roll.Die(sides=6, value=5)
+    die -= 4
+    assert die.value == 1
+
+
+def test_die__imul__():
+    die = dice.roll.Die(sides=6, value=2)
+    die *= 4
+    assert die.value == 8
+
+
+def test_die__ifloordiv__():
+    die = dice.roll.Die(sides=6, value=8)
+    die //= 4
+    assert die.value == 2
 
 
 def test_die_value_get():
@@ -572,7 +649,7 @@ def test_diceset__str__truncate():
     dset = dice.roll.DiceSet()
     dset.add_dice(200, 100)
 
-    assert str(dset) == "(1 + 1 + ...  1)"
+    assert str(dset) == "(1 + 1 + ... 1)"
 
 
 def test_diceset_value(f_dset):

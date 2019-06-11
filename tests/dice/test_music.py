@@ -156,6 +156,43 @@ def test_guild_player_state(f_songs, f_vclient):
     assert player.state == 'paused'
 
 
+def test_guild_player_is_done(f_songs):
+    player = dice.music.GuildPlayer(vids=f_songs)
+    assert not player.is_done()
+
+    player = dice.music.GuildPlayer(vids=[])
+    assert player.is_done()
+
+
+def test_guild_player_is_connected(f_songs, f_vclient):
+    player = dice.music.GuildPlayer(vids=f_songs)
+    assert not player.is_connected()
+
+    f_vclient.is_connected.return_value = True
+    player = dice.music.GuildPlayer(vids=f_songs, client=f_vclient)
+    assert player.is_connected()
+
+
+def test_guild_player_is_playing(f_songs, f_vclient):
+    player = dice.music.GuildPlayer(vids=f_songs)
+    assert not player.is_playing()
+
+    f_vclient.is_connected.return_value = True
+    f_vclient.is_playing.return_value = True
+    player = dice.music.GuildPlayer(vids=f_songs, client=f_vclient)
+    assert player.is_playing()
+
+
+def test_guild_player_is_paused(f_songs, f_vclient):
+    player = dice.music.GuildPlayer(vids=f_songs)
+    assert not player.is_paused()
+
+    f_vclient.is_connected.return_value = True
+    f_vclient.is_paused.return_value = True
+    player = dice.music.GuildPlayer(vids=f_songs, client=f_vclient)
+    assert player.is_paused()
+
+
 def test_guild_player_set_vids(f_songs):
     player = dice.music.GuildPlayer(vids=f_songs[:1])
 

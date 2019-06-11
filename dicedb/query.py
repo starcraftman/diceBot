@@ -81,7 +81,7 @@ def find_saved_roll(session, user_id, name):
     try:
         return session.query(SavedRoll).filter(SavedRoll.user_id == user_id).\
             filter(SavedRoll.name.like('%{}%'.format(name))).one()
-    except sqla_oexc.NoResultFound:
+    except (sqla_oexc.NoResultFound, sqla_oexc.MultipleResultsFound):
         raise dice.exc.NoMatch(user_id, 'SavedRoll')
 
 

@@ -16,11 +16,10 @@ Logic regarding modifiers:
     Sort will always occur last and just orders by value all rolls regardless of state.
 """
 # Few ideas remaining
-# TODO: Allow comments post roll, i.e. 3d6 + 20 this comment gets replayed back.
-# TODO: Grouped rolls {2d10,4d20}kh1, take highest total value.
-# TODO: Likely need to implement math ops on Die (__add__, __sub__, so on ...)
 # TODO: Strong overlap between Die and DiceSet?
+# TODO: Grouped rolls {2d10,4d20}kh1, take highest total value.
 # TODO: Add reroll once, 2d10ro<2 => 2d10 any roll <=2 reroll it __ONCE__
+# TODO: Add penetrating dice (!p) to explosions.
 import abc
 import functools
 import re
@@ -30,23 +29,24 @@ import numpy.random as rand
 import dice.exc
 
 PARENS_MAP = {'(': 3, '{': 7, '[': 11, ')': -3, '}': -7, ']': -11}
-LIMIT_DIE_NUMBER = 200
+LIMIT_DIE_NUMBER = 1000
 LIMIT_DIE_SIDES = 1000
-LIMIT_DICE_SET_STR = 100
+LIMIT_DICE_SET_STR = 200
 DICE_WARN = """**Error**: {}
         {}
 Please see reference below and correct the roll.
 
 __Quick Reference__
 
-    6**:** 4d6             Roll __4__ times 4 d6 dice and sum results. Then separately roll 2d20 + 4.
-    4d6**kh2**           Roll 4d6 and keep __2__ highest results
-    4d6**dl2**            Roll 4d6 and drop the __2__ lowest results
-    4d6**r1r[5,6]**   Roll 4d6 and reroll if dice lands on 1, 5 or 6
-    4d6**!!6**             Roll 4d6 and compound explode on a roll of 6
-    4d6**!>5**            Roll 4d6 and explode on a roll of 5 or 6
-    4d6**f<10**         Roll 4d6 and fail on a roll <= 10, ignore others.
-    4d6**[3,5]**        Roll 4d6 and succeed on rolls 3, 4 or 5. Others ignored.
+    6**:** 4d6                          Roll __4__ times 4 d6 dice and sum results. Then separately roll 2d20 + 4.
+    4d6**kh2**                        Roll 4d6 and keep __2__ highest results
+    4d6**dl2**                         Roll 4d6 and drop the __2__ lowest results
+    4d6**r1r[5,6]**                Roll 4d6 and reroll if dice lands on 1, 5 or 6
+    4d6**!!6**                           Roll 4d6 and compound explode on a roll of 6
+    4d6**!>5**                          Roll 4d6 and explode on a roll of 5 or 6
+    4d6**f<10**                        Roll 4d6 and fail on a roll <= 10, ignore others.
+    4d6**[3,5]**                       Roll 4d6 and succeed on rolls 3, 4 or 5. Others ignored.
+    4d6 **#** For Gordon       Roll 4d6, comment after '#' replayed with roll result.
 
 See `!roll --help` for more complete documentation.
 """
@@ -87,14 +87,16 @@ class Comp():
         left: The left bound of the comparison (default used if not a range).
         right: The right bound of the comparison.
         func: The function to invoke to compare when __call__ is used.
+              See Comp.CHOICES .
     """
+    CHOICES = ['equal', 'greater_equal', 'less_equal', 'range']
+
     def __init__(self, *, left=2, right=5, func=None):
         self.left = left
         self.right = right
 
-        choices = ['range', 'less_equal', 'greater_equal', 'equal']
-        if func and func not in choices:
-            raise ValueError("Func must be one of:\n" + "\n".join(choices))
+        if func and func not in Comp.CHOICES:
+            raise ValueError("Func must be one of:\n" + "\n".join(Comp.CHOICES))
         self.func = func
 
     def __repr__(self):
@@ -333,7 +335,12 @@ def parse_dice_line(spec):
     Returns:
         AThrow object with the required parts.
     """
-    throw = AThrow(spec=check_parentheses(spec))
+    try:
+        ind = spec.index('#')
+        note, spec = spec[ind + 1:], spec[:ind]
+    except ValueError:
+        note = ''
+    throw = AThrow(spec=check_parentheses(spec).rstrip(), note=note.strip())
 
     while spec:
         if spec[0].isspace():
@@ -461,6 +468,46 @@ class Die(FlaggableMixin):
     def __int__(self):
         return self.value
 
+    def __add__(self, other):
+        return self.value + getattr(other, 'value', other)
+
+    def __sub__(self, other):
+        return self.value - getattr(other, 'value', other)
+
+    def __mul__(self, other):
+        return self.value * getattr(other, 'value', other)
+
+    def __floordiv__(self, other):
+        return self.value // getattr(other, 'value', other)
+
+    def __radd__(self, other):
+        return self + other
+
+    def __rsub__(self, other):
+        return getattr(other, 'value', other) - self.value
+
+    def __rmul__(self, other):
+        return self * other
+
+    def __rfloordiv__(self, other):
+        return getattr(other, 'value', other) // self.value
+
+    def __iadd__(self, other):
+        self.value += getattr(other, 'value', other)
+        return self
+
+    def __isub__(self, other):
+        self.value -= getattr(other, 'value', other)
+        return self
+
+    def __imul__(self, other):
+        self.value *= getattr(other, 'value', other)
+        return self
+
+    def __ifloordiv__(self, other):
+        self.value //= getattr(other, 'value', other)
+        return self
+
     @property
     def value(self):
         """ The value of this die. """
@@ -575,8 +622,8 @@ class DiceSet():
             msg += str(die)
 
         if len(msg) > LIMIT_DICE_SET_STR:
-            match = re.match(r'(\d+ \+?\s?\d+)[0-9 +-]*(\s?\+? \d+)', msg)
-            msg = '{} + ... {}'.format(match.group(1), match.group(2))
+            parts = msg.split(' + ')
+            msg = '{} + {} + ... {}'.format(parts[0], parts[1], parts[-1])
 
         return '(' + msg + ')'
 
@@ -642,9 +689,10 @@ class AThrow():
     Attributes:
         parts: The list of all parts of AThrow.
     """
-    def __init__(self, *, spec=None, parts=None):
+    def __init__(self, *, spec=None, parts=None, note=None):
         self.spec = spec
         self.parts = parts if parts else []
+        self.note = note
 
     def __repr__(self):
         return "AThrow(spec={!r}, parts={!r})".format(self.spec, self.parts)
@@ -733,10 +781,15 @@ class AThrow():
             A string that shows the user how he rolled.
         """
         self.roll()
-        success = self.success_string()
 
-        return "{} = {} = {}{}".format(self.spec, str(self), self.numeric_value(),
-                                       "\n        " + success if success else "")
+        success = self.success_string()
+        trail = ""
+        if success:
+            trail += "\n        " + success
+        if self.note:
+            trail += "\n        Note: " + self.note
+
+        return "{} = {} = {}{}".format(self.spec, str(self), self.numeric_value(), trail)
 
 
 @functools.total_ordering

@@ -24,7 +24,6 @@ import signal
 import sys
 
 import discord
-import websockets.exceptions
 try:
     import uvloop
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
@@ -88,6 +87,7 @@ class DiceBot(discord.Client):
     """
     def __init__(self, prefix, **kwargs):
         super().__init__(**kwargs)
+        self.status = ''
         self.prefix = prefix
         self.emoji = EmojiResolver()
         self.parser = dice.parse.make_parser(prefix)
@@ -301,23 +301,18 @@ class DiceBot(discord.Client):
         await asyncio.gather(*messages)
 
 
-async def presence_task(bot, delay=180):
+async def presence_task(bot, delay=3):
     """
-    Manage the ultra important task of bot's played game.
+    Update the bot's activity at regular intervals.
     """
     print('Presence task started')
-    lines = [
-        'Invoking the nameless one.',
-        'Loading the dice for 1',
-    ]
-    ind = 0
     while True:
         try:
-            await bot.change_presence(game=discord.Game(name=lines[ind]))
-        except websockets.exceptions.ConnectionClosed:
+            activity = discord.Activity(name=bot.status, type=discord.ActivityType.streaming)
+            await bot.change_presence(activity=activity)
+        except discord.DiscordException:
             pass
 
-        ind = (ind + 1) % len(lines)
         await asyncio.sleep(delay)
 
 
@@ -334,6 +329,7 @@ def main():  # pragma: no cover
         logging.getLogger('dice.bot').warning('Seeding numpy/random with: %s', str(seeded))
         print('Seeding numpy/random with: {:,}'.format(seeded))
         bot = DiceBot("!")
+        dice.util.BOT = bot
 
         loop = asyncio.get_event_loop()
         loop.add_signal_handler(signal.SIGTERM, sig_handle)
