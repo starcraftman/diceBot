@@ -37,6 +37,8 @@ PONI_URL = "https://derpibooru.org/search.json?q="
 LIMIT_SONGS = 8
 LIMIT_TAGS = 16
 LIMIT_REROLLS = dice.util.get_config('reroll_limit', default=20)
+LIMIT_REROLLS_PER_PAGE = 10
+LIMIT_ROLL_TIMES = 20
 PLAYERS = {}
 
 
@@ -1232,7 +1234,7 @@ class Reroll(Action):
             raise dice.exc.InvalidCommandArgs("No rolls stored, make a !roll first.")
 
         if self.args.menu:
-            selected = await RerollMenu(self, list(reversed(rolls)), 10).run()
+            selected = await RerollMenu(self, list(reversed(rolls)), LIMIT_REROLLS_PER_PAGE).run()
             if not selected:
                 return
         else:
@@ -1407,8 +1409,8 @@ async def make_rolls(spec):
             if ':' in line:
                 parts = line.split(':')
                 times, line = int(parts[0]), parts[1].strip()
-                if times > 100:
-                    raise dice.exc.InvalidCommandArgs("Please run <= 100 times a dice roll.")
+                if times > LIMIT_ROLL_TIMES:
+                    raise dice.exc.InvalidCommandArgs("Please run <= {} times a dice roll.".format(LIMIT_ROLL_TIMES))
 
             try:
                 throw = dice.roll.parse_dice_line(line)
