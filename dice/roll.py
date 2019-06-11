@@ -38,15 +38,29 @@ Please see reference below and correct the roll.
 
 __Quick Reference__
 
-    6**:** 4d6                          Roll __4__ times 4 d6 dice and sum results. Then separately roll 2d20 + 4.
+    5**:** 4d6 + 2                    Roll __5__ times, 4d6 + 2
+    d20 + 5**,** d8 + 3           Roll d20 + 5, then separately d8 + 3.
     4d6**kh2**                        Roll 4d6 and keep __2__ highest results
     4d6**dl2**                         Roll 4d6 and drop the __2__ lowest results
     4d6**r1r[5,6]**                Roll 4d6 and reroll if dice lands on 1, 5 or 6
-    4d6**!!6**                           Roll 4d6 and compound explode on a roll of 6
-    4d6**!>5**                          Roll 4d6 and explode on a roll of 5 or 6
-    4d6**f<10**                        Roll 4d6 and fail on a roll <= 10, ignore others.
-    4d6**[3,5]**                       Roll 4d6 and succeed on rolls 3, 4 or 5. Others ignored.
-    4d6 **#** For Gordon       Roll 4d6, comment after '#' replayed with roll result.
+    4d6**!!6**                          Roll 4d6 and compound explode on a roll of 6
+    4d6**!>5**                         Roll 4d6 and explode on a roll of 5 or 6
+    4d6**f<10**                       Roll 4d6 and fail on a roll <= 10, ignore others
+    4d6**>5**                          Roll 4d6 and succeed on rolls 3, 4 or 5. Others ignored
+    4d6**s**                             Roll 4d6 and sort the output by ascending values
+    4d6**sd**                           Roll 4d6 and sort the output by descending values
+    4d6 **#** For Gordon      Roll 4d6, comment after '#' replayed with roll result
+
+__Comparisons__
+
+    [3,5]                           Apply modifier when roll is >=3 and <= 5.
+    <4                               Apply modifer when <= 4
+    >4                               Apply modifier when >= 4
+    4 (or =4)                   Apply modifer when == 4.
+                                N.B. The '=' is optional unless no letter separates the number.
+
+All modifiers except kh/dl support comparisons to determine when they apply.
+Mix and match as you like.
 
 See `!roll --help` for more complete documentation.
 """
