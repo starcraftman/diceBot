@@ -280,40 +280,31 @@ def parse_trailing_mods(line, max_roll):
     Returns:
         (substr, dset)
             substr: The remainder of line after processing.
-            dset: A DiceSet object containing the correct amount of dice.
+            mods: A list of ModifyDice modifiers to apply to last DiceSet.
     """
-    try:
-        index = min(line.index(' '), line.index('}'))
-        substr, line = line[:index], line[index:]
-    except ValueError:
-        substr = line
-
     mods = []
-    while substr:
-        if substr[0].isspace():
+    while line:
+        if line[0] in [' ', '}', ',']:
             break
 
-        if substr[0] in ['k', 'd']:
-            substr, mod = KeepDrop.parse(substr, max_roll)
-        elif substr[:2] == '!!':
-            substr, mod = CompoundDice.parse(substr, max_roll)
-        elif substr[0] == '!':
-            substr, mod = ExplodeDice.parse(substr, max_roll)
-        elif substr[0] == 'r':
-            substr, mod = RerollDice.parse(substr, max_roll)
-            if 'r' in substr:
+        if line[0] in ['k', 'd']:
+            line, mod = KeepDrop.parse(line, max_roll)
+        elif line[:2] == '!!':
+            line, mod = CompoundDice.parse(line, max_roll)
+        elif line[0] == '!':
+            line, mod = ExplodeDice.parse(line, max_roll)
+        elif line[0] == 'r':
+            line, mod = RerollDice.parse(line, max_roll)
+            if 'r' in line:
                 raise ValueError(DICE_WARN.format("Reroll predicates must be together.", line))
-        elif substr[0] == 's':
-            substr, mod = SortDice.parse(substr, max_roll)
+        elif line[0] == 's':
+            line, mod = SortDice.parse(line, max_roll)
         else:
-            substr, mod = SuccessFail.parse(substr, max_roll)
+            line, mod = SuccessFail.parse(line, max_roll)
 
         mods += [mod]
 
-    if substr and substr[0] not in [' ', '}']:
-        raise ValueError(DICE_WARN.format("Spec does not seem to conform.", line))
-
-    return substr, mods
+    return line, mods
 
 
 def parse_literal(spec):
