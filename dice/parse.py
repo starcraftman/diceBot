@@ -151,10 +151,12 @@ these include (r)eroll, (!)explosive dice, (!!)compounding dice and (f)ail and s
     r>5: reroll on rolls >=2
     r[1,3]: reroll on inclusive range indicated that is rolls 1, 2, 3
 
+{prefix}roll 5: 4d6 + 2
+        Roll 4d6 + 2, __5__ times separately.
 {prefix}roll 2d6 + 5, d20 + 4
-        Perform the rolls 2d6 + 5 and separately, d20 + 4.
-{prefix}roll 6: 4d6 + 5,
-        Roll 4d6 + 5, __6__ times separately.
+        Perform the rolls 2d6 + 5 and then d20 + 4.
+{prefix}roll 4d6 # For Gordon
+        Perform the rolls 4d6, the note For Gordon will be replayed with the result.
 {prefix}roll 4d6kh3
 {prefix}roll 4d6k3
         Roll 4d6, keep the 3 __highest__ rolls.
@@ -167,10 +169,10 @@ these include (r)eroll, (!)explosive dice, (!!)compounding dice and (f)ail and s
         Roll 4d6, drop the 2 __highest__ rolls.
 {prefix}roll 4d6r1r>5
         Roll 4d6, reroll any time dice lands on 1, 5 or 6. All reroll specs must be in series.
-{prefix}roll 4d6![5,6]
-        Roll 4d6, explode the dice on 5 and 6.
 {prefix}roll 4d6!!6
         Roll 4d6, compounding explode the dice when roll is 6.
+{prefix}roll 4d6![5,6]
+        Roll 4d6, explode the dice on 5 and 6.
 {prefix}roll 4d6f<2
         Roll 4d6, count the number of dice <= 2 as failures.
 {prefix}roll 4d6>5
@@ -178,6 +180,10 @@ these include (r)eroll, (!)explosive dice, (!!)compounding dice and (f)ail and s
 {prefix}roll 4d6=5
         Roll 4d6, count the number of dice == 5 as success.
         N.B. Equality requires = sign for success.
+{prefix}roll 4d6s
+        Roll 4d6, sort the output in ascending order.
+{prefix}roll 4d6sd
+        Roll 4d6, sort the output in descending order.
 {prefix}roll -s NameNoSpace 3d6 + 20
         Save to name 'NameNoSpace' the roll: 3d6 + 20. Any valid roll can be saved.
 {prefix}roll -r NameNoSpace

@@ -184,6 +184,12 @@ def test_parse_literal():
 
 
 def test_parse_trailing_mods():
+    line, all_mods = dice.roll.parse_trailing_mods('k1 + 4', 6)
+    assert line == ' + 4'
+
+    line, all_mods = dice.roll.parse_trailing_mods('d1 + 4', 6)
+    assert line == ' + 4'
+
     line, all_mods = dice.roll.parse_trailing_mods('kh3dl2 + 4d20 + 20', 6)
     assert line == ' + 4d20 + 20'
 

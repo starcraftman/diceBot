@@ -40,6 +40,7 @@ __Quick Reference__
 
     5**:** 4d6 + 2                    Roll __5__ times, 4d6 + 2
     d20 + 5**,** d8 + 3           Roll d20 + 5, then separately d8 + 3.
+    4d6 **#** For Gordon      Roll 4d6, comment after '#' replayed with roll result
     4d6**kh2**                        Roll 4d6 and keep __2__ highest results
     4d6**dl2**                         Roll 4d6 and drop the __2__ lowest results
     4d6**r1r[5,6]**                Roll 4d6 and reroll if dice lands on 1, 5 or 6
@@ -49,7 +50,6 @@ __Quick Reference__
     4d6**>5**                          Roll 4d6 and succeed on rolls 3, 4 or 5. Others ignored
     4d6**s**                             Roll 4d6 and sort the output by ascending values
     4d6**sd**                           Roll 4d6 and sort the output by descending values
-    4d6 **#** For Gordon      Roll 4d6, comment after '#' replayed with roll result
 
 __Comparisons__
 
@@ -878,9 +878,6 @@ class KeepDrop(ModifyDice):
         Returns:
             KeepDrop object on successful parsing.
         """
-        if len(line) < 3:
-            raise ValueError("Keep or Drop spec is invalid.")
-
         match = re.match(r'(k|d)(h|l)?(\d+)', line, re.ASCII | re.IGNORECASE)
         if not match:
             raise ValueError("Keep or Drop spec is invalid.")
