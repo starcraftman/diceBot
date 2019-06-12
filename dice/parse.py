@@ -171,6 +171,8 @@ these include (r)eroll, (!)explosive dice, (!!)compounding dice and (f)ail and s
         Roll 4d6, reroll any time dice lands on 1, 5 or 6. All reroll specs must be in series.
 {prefix}roll 4d6!!6
         Roll 4d6, compounding explode the dice when roll is 6.
+{prefix}roll 4d6!p[5,6]
+        Roll 4d6 and explode on a roll of 5 or 6, value - 1 for each new exploded die
 {prefix}roll 4d6![5,6]
         Roll 4d6, explode the dice on 5 and 6.
 {prefix}roll 4d6f<2

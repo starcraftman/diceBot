@@ -19,7 +19,6 @@ Logic regarding modifiers:
 # TODO: Strong overlap between Die and DiceSet?
 # TODO: Grouped rolls {2d10,4d20}kh1, take highest total value.
 # TODO: Add reroll once, 2d10ro<2 => 2d10 any roll <=2 reroll it __ONCE__
-# TODO: Add penetrating dice (!p) to explosions.
 import abc
 import functools
 import re
@@ -45,6 +44,7 @@ __Quick Reference__
     4d6**dl2**                         Roll 4d6 and drop the __2__ lowest results
     4d6**r1r[5,6]**                Roll 4d6 and reroll if dice lands on 1, 5 or 6
     4d6**!!6**                          Roll 4d6 and compound explode on a roll of 6
+    4d6**!p>5**                       Roll 4d6 and explode on a roll of 5 or 6, value - 1 for each new exploded die
     4d6**!>5**                         Roll 4d6 and explode on a roll of 5 or 6
     4d6**f<10**                       Roll 4d6 and fail on a roll <= 10, ignore others
     4d6**>5**                          Roll 4d6 and succeed on rolls 3, 4 or 5. Others ignored
@@ -387,13 +387,14 @@ class FlaggableMixin():
     Attributes:
         flags: A bit field that stores the flags.
     """
-    MASK = 0x1F
+    MASK = 0x3F
     KEEP = 1 << 0
     EXPLODE = 1 << 1
-    DROP = 1 << 2
-    REROLL = 1 << 3
-    FAIL = 1 << 4
-    SUCCESS = 1 << 5
+    PENETRATE = 1 << 2
+    DROP = 1 << 3
+    REROLL = 1 << 4
+    FAIL = 1 << 5
+    SUCCESS = 1 << 6
 
     def __init__(self):
         super().__init__()
@@ -415,6 +416,10 @@ class FlaggableMixin():
         """ True if this dice has exploded at least once. """
         return self.flags & Die.EXPLODE
 
+    def is_penetrated(self):
+        """ True if this dice has exploded and was a penetrated roll. """
+        return self.flags & Die.PENETRATE
+
     def is_rerolled(self):
         """ True if this dice has been rerolled and should be ignored. """
         return self.flags & Die.REROLL
@@ -435,6 +440,10 @@ class FlaggableMixin():
     def set_explode(self):
         """ The dice has been exploded. """
         self.flags = self.flags | Die.EXPLODE
+
+    def set_penetrate(self):
+        """ The dice has been exploded. """
+        self.flags = self.flags | Die.PENETRATE
 
     def set_reroll(self):
         """ The dice has been rerolled, ignore it. """
@@ -530,8 +539,9 @@ class Die(FlaggableMixin):
     @value.setter
     def value(self, new_value):
         """ The set value of this die. """
-        if new_value < 1:
-            raise ValueError("Dice value must be > 0.")
+        min_val = 0 if self.is_penetrated() else 1
+        if new_value < min_val:
+            raise ValueError("Dice value must be >= {}.".format(min_val))
 
         self._value = new_value
 
@@ -605,7 +615,7 @@ class FateDie(Die):
     @value.setter
     def value(self, new_value):
         if new_value not in range(-1, 2):
-            raise ValueError("FATE?FUDGE dice value must be in [-1, 1].")
+            raise ValueError("FATE/FUDGE dice value must be in [-1, 1].")
 
         self._value = new_value + 2
 
@@ -922,8 +932,9 @@ class ExplodeDice(ModifyDice):
     """
     WEIGHT = 2
 
-    def __init__(self, *, pred):
+    def __init__(self, *, pred, penetrate=False):
         self.pred = pred
+        self.penetrate = penetrate
 
     def __repr__(self):
         return "{}(pred={!r})".format(self.__class__.__name__, self.pred)
@@ -940,12 +951,17 @@ class ExplodeDice(ModifyDice):
         Returns:
             ExplodeDice object on successful parsing.
         """
-        if len(line) < 2 or line[0] != '!' or line[1] == '!':
+        if line[0] != '!' or line[1] == '!':
             raise ValueError("Exploding spec is invalid.")
+
+        penetrate = False
+        if line[1] == 'p':
+            penetrate = True
+            line = line[1:]
 
         rest, pred = parse_predicate(line[1:], max_roll)
 
-        return rest, ExplodeDice(pred=pred)
+        return rest, ExplodeDice(pred=pred, penetrate=penetrate)
 
     def modify(self, dice_set):
         """
@@ -958,12 +974,15 @@ class ExplodeDice(ModifyDice):
         f_mask = ~(Die.EXPLODE | Die.REROLL) & Die.MASK
         for die in [d for d in dice_set.all_die if d.flags & f_mask]:
             all_die += [die]
-            if die.flags & (Die.REROLL | Die.EXPLODE) or not self.pred(die):
-                continue
 
             while self.pred(die):
                 die = die.explode()
+                if self.penetrate:
+                    die.set_penetrate()
                 all_die += [die]
+
+        for die in [d for d in all_die if d.is_penetrated()]:
+            die.value -= 1
 
         dice_set.all_die = all_die
         return dice_set
@@ -987,7 +1006,7 @@ class CompoundDice(ExplodeDice):
         Returns:
             CompoundDice object on successful parsing.
         """
-        if len(line) < 3 or line[0:2] != '!!':
+        if line[0:2] != '!!':
             raise ValueError("Compounding spec is invalid.")
 
         rest, pred = parse_predicate(line[2:], max_roll)
@@ -1035,7 +1054,7 @@ class RerollDice(ModifyDice):
         Returns:
             RerollDice object on successful parsing.
         """
-        if len(line) < 2:
+        if line[0] != 'r':
             raise ValueError("Reroll spec is invalid.")
 
         possible = list(range(1, max_roll + 1))
@@ -1096,9 +1115,6 @@ class SuccessFail(ModifyDice):
         Returns:
             Returns a SuccessFail object ready to mark based on predicate.
         """
-        if len(line) < 2:
-            raise ValueError("line string too short.")
-
         mark_success = True
         if line[0] == 'f':
             mark_success = False

@@ -491,6 +491,15 @@ def test_die_is_exploded():
     assert die.is_exploded()
 
 
+def test_die_is_penetrated():
+    die = dice.roll.Die(sides=6, value=1)
+    die.explode()
+    die.set_penetrate()
+    assert die.is_kept()
+    assert die.is_exploded()
+    assert die.is_penetrated()
+
+
 def test_die_is_fail():
     die = dice.roll.Die(sides=6, value=1)
     die.set_fail()
@@ -542,6 +551,14 @@ def test_die_explode():
     new_die = die.explode()
     assert die.is_exploded()
     assert issubclass(type(new_die), dice.roll.Die)
+
+
+def test_die_set_penetrate():
+    die = dice.roll.Die(sides=6, value=1)
+    die.set_penetrate()
+    assert die.is_kept()
+    assert not die.is_exploded()
+    assert die.is_penetrated()
 
 
 def test_die_flag_orthogonality():
@@ -852,10 +869,29 @@ def test_explode_dice_parse_raises():
         assert dice.roll.ExplodeDice.parse('!<6', 6)
 
 
-def test_explode_dice(f_dset):
-    mod = dice.roll.ExplodeDice(pred=lambda x: x.value == 6)
+def test_explode_dice_modify(f_dset):
+    mod = dice.roll.ExplodeDice(pred=dice.roll.Comp(left=6, func='equal'))
     mod.modify(f_dset)
     assert [x for x in f_dset.all_die if x.is_exploded()]
+    assert len(f_dset.all_die) >= 5
+
+
+def test_penetrate_dice_parse():
+    assert dice.roll.ExplodeDice.parse('!p>4', 6)[1].penetrate
+
+
+def test_penetrate_dice_parse_raises():
+    with pytest.raises(ValueError):
+        dice.roll.ExplodeDice.parse('!p', 6)
+
+    with pytest.raises(ValueError):
+        dice.roll.ExplodeDice.parse('!p>', 6)
+
+
+def test_penetrate_dice_modify(f_dset):
+    mod = dice.roll.ExplodeDice(pred=dice.roll.Comp(left=6, func='equal'), penetrate=True)
+    mod.modify(f_dset)
+    assert [x for x in f_dset.all_die if x.is_penetrated()]
     assert len(f_dset.all_die) >= 5
 
 
@@ -883,7 +919,7 @@ def test_compound_dice_parse_raises():
         assert dice.roll.ExplodeDice.parse('!!<6', 6)
 
 
-def test_compound_dice(f_dset):
+def test_compound_dice_modify(f_dset):
     mod = dice.roll.CompoundDice(pred=lambda x: x.value == 6)
     mod.modify(f_dset)
     assert [x for x in f_dset.all_die if x.is_exploded()]
