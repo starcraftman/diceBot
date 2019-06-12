@@ -105,7 +105,7 @@ class Comp():
     """
     CHOICES = ['equal', 'greater_equal', 'less_equal', 'range']
 
-    def __init__(self, *, left=2, right=5, func=None):
+    def __init__(self, *, left=0, right=0, func=None):
         self.left = left
         self.right = right
 
@@ -235,7 +235,7 @@ def parse_diceset(line):
     number = int(match.group(1)) if match.group(1) else 1
     sides = int(match.group(2))
     if sides > LIMIT_DIE_SIDES or number > LIMIT_DIE_NUMBER:
-        raise dice.exc.InvalidCommandArgs("Roll request is unreasonable. Please roll a lower number of dice or sides.")
+        raise dice.exc.InvalidCommandArgs("Please roll a lower number of dice or sides.")
 
     dset = DiceSet()
     dset.add_dice(number, sides)
@@ -262,7 +262,7 @@ def parse_fate_diceset(line):
 
     number = int(match.group(1)) if match.group(1) else 1
     if number > LIMIT_DIE_NUMBER:
-        raise dice.exc.InvalidCommandArgs("Roll request is unreasonable. Please roll a lower number of dice.")
+        raise dice.exc.InvalidCommandArgs("Please roll a lower number of dice.")
 
     dset = DiceSet()
     dset.add_fatedice(number)
@@ -463,9 +463,7 @@ class Die(FlaggableMixin):
         self.flags = flags
 
     def __repr__(self):
-        keys = ['sides', 'value', 'flags']
-        kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
-        return "{}({})".format(self.__class__.__name__, ', '.join(kwargs))
+        return "Die(sides={!r}, value={!r}, flags={!r})".format(self.sides, self._value, self.flags)
 
     def __str__(self):
         return self.fmt_string().format(self.value)
@@ -585,10 +583,13 @@ class FateDie(Die):
     """
     def __init__(self, **kwargs):
         kwargs['sides'] = 3
+        if 'value' not in kwargs:
+            kwargs['value'] = 2
+
         super().__init__(**kwargs)
 
-        if 'value' not in kwargs:
-            self.value = 0
+    def __repr__(self):
+        return "FateDie(sides={!r}, value={!r}, flags={!r})".format(self.sides, self._value, self.flags)
 
     def __str__(self):
         value = self.value
@@ -617,19 +618,19 @@ class DiceSet():
         - A group of die or fate die.
     Allow modifiers to be popped onto the set and applied after rolling.
     """
-    def __init__(self, *, all_die=None, mods=None):
-        self.all_die = all_die if all_die else []
+    def __init__(self, *, parts=None, mods=None):
+        self.parts = parts if parts else []
         self.mods = mods if mods else []
 
     def __repr__(self):
-        return "DiceSet(all_die={!r}, mods={!r})".format(self.all_die, self.mods)
+        return "DiceSet(parts={!r}, mods={!r})".format(self.parts, self.mods)
 
     def __str__(self):
-        if not self.all_die:
+        if not self.parts:
             return ""
 
-        msg = str(self.all_die[0])
-        for prev_die, die in zip(self.all_die[:-1], self.all_die[1:]):
+        msg = str(self.parts[0])
+        for prev_die, die in zip(self.parts[:-1], self.parts[1:]):
             if issubclass(type(prev_die), FateDie):
                 msg += ' '
             else:
@@ -642,6 +643,16 @@ class DiceSet():
 
         return '(' + msg + ')'
 
+    def __eq__(self, other):
+        if not isinstance(other, DiceSet) or len(self.parts) != len(other.parts):
+            return False
+
+        for die, o_die in zip(self.parts, other.parts):
+            if die != o_die:
+                return False
+
+        return True
+
     def __int__(self):
         """ Value represents the integer value of this roll. """
         return self.value
@@ -649,12 +660,12 @@ class DiceSet():
     @property
     def value(self):
         """ The value of this grouping is the sum of all non-dropped rolls. """
-        return sum([x.value for x in self.all_die if x.is_kept()])
+        return sum([x.value for x in self.parts if x.is_kept()])
 
     @property
     def max_roll(self):
         """ The lowest maximum roll within this dice set. """
-        return min([x.max_roll for x in self.all_die])
+        return min([x.max_roll for x in self.parts])
 
     def add_dice(self, number, sides):
         """
@@ -665,7 +676,7 @@ class DiceSet():
             number: The number of Die to add.
             sides: The number of sides on the Die.
         """
-        self.all_die += [Die(sides=sides) for _ in range(0, number)]
+        self.parts += [Die(sides=sides) for _ in range(0, number)]
 
     def add_fatedice(self, number):
         """
@@ -675,13 +686,13 @@ class DiceSet():
         Args:
             number: The number of FateDie to add.
         """
-        self.all_die += [FateDie() for _ in range(0, number)]
+        self.parts += [FateDie() for _ in range(0, number)]
 
     def roll(self):
         """
         Roll all the die in this set.
         """
-        for die in self.all_die:
+        for die in self.parts:
             die.roll()
             die.reset_flags()
 
@@ -715,23 +726,18 @@ class AThrow():
     def __str__(self):
         return " ".join([str(x) for x in self.parts])
 
-    def add(self, part):
-        """
-        Add one part to the container.
+    def __eq__(self, other):
+        if not isinstance(other, AThrow) or len(self.parts) != len(other.parts):
+            return False
 
-        Args:
-            part: A Die subclass or a string that is an operator or a number.
-        """
-        self.parts += [part]
+        for parts, o_parts in zip(self.parts, other.parts):
+            if parts != o_parts:
+                return False
 
-    def roll(self):
-        """ Ensure all not fixed parts reroll. """
-        for part in self.parts:
-            if issubclass(type(part), DiceSet):
-                part.roll()
-                part.apply_mods()
+        return True
 
-    def numeric_value(self):
+    @property
+    def value(self):
         """
         Get the numeric value of all rolls summed.
 
@@ -752,6 +758,22 @@ class AThrow():
 
         return value
 
+    def add(self, part):
+        """
+        Add one part to the container.
+
+        Args:
+            part: A Die subclass or a string that is an operator or a number.
+        """
+        self.parts += [part]
+
+    def roll(self):
+        """ Ensure all not fixed parts reroll. """
+        for part in self.parts:
+            if issubclass(type(part), DiceSet):
+                part.roll()
+                part.apply_mods()
+
     def success_string(self):
         """
         Count and print the total number of successes and fails in the complete throw.
@@ -768,7 +790,7 @@ class AThrow():
                 if isinstance(mod, SuccessFail):
                     display_success = True
 
-            for die in part.all_die:
+            for die in part.parts:
                 if die.is_fail():
                     fcnt += 1
                 elif die.is_success():
@@ -804,7 +826,7 @@ class AThrow():
         if self.note:
             trail += "\n        Note: " + self.note
 
-        return "{} = {} = {}{}".format(self.spec, str(self), self.numeric_value(), trail)
+        return "{} = {} = {}{}".format(self.spec, str(self), self.value, trail)
 
 
 @functools.total_ordering
@@ -900,14 +922,14 @@ class KeepDrop(ModifyDice):
             The original DiceSet.
         """
         f_mask = ~(Die.REROLL | Die.DROP) & Die.MASK
-        all_die = sorted([d for d in dice_set.all_die if d.flags & f_mask])
+        parts = sorted([d for d in dice_set.parts if d.flags & f_mask])
         if not self.keep:
-            all_die = list(reversed(all_die))
+            parts = list(reversed(parts))
 
         first, second = ['set_drop', 'NOP'] if self.high else ['NOP', 'set_drop']
-        for die in all_die[:-self.num]:
+        for die in parts[:-self.num]:
             getattr(die, first, lambda: True)()
-        for die in all_die[-self.num:]:
+        for die in parts[-self.num:]:
             getattr(die, second, lambda: True)()
 
         return dice_set
@@ -928,7 +950,7 @@ class ExplodeDice(ModifyDice):
         self.penetrate = penetrate
 
     def __repr__(self):
-        return "{}(pred={!r})".format(self.__class__.__name__, self.pred)
+        return "{}(pred={!r}, penetrate={!r})".format(self.__class__.__name__, self.pred, self.penetrate)
 
     @staticmethod
     def parse(line, max_roll):
@@ -961,21 +983,21 @@ class ExplodeDice(ModifyDice):
         Returns:
             The original DiceSet.
         """
-        all_die = []
+        parts = []
         f_mask = ~(Die.EXPLODE | Die.REROLL) & Die.MASK
-        for die in [d for d in dice_set.all_die if d.flags & f_mask]:
-            all_die += [die]
+        for die in [d for d in dice_set.parts if d.flags & f_mask]:
+            parts += [die]
 
             while self.pred(die):
                 die = die.explode()
                 if self.penetrate:
                     die.set_penetrate()
-                all_die += [die]
+                parts += [die]
 
-        for die in [d for d in all_die if d.is_penetrated()]:
+        for die in [d for d in parts if d.is_penetrated()]:
             die.value -= 1
 
-        dice_set.all_die = all_die
+        dice_set.parts = parts
         return dice_set
 
 
@@ -1010,7 +1032,7 @@ class CompoundDice(ExplodeDice):
         All rolls are simply added to first explosion.
         """
         f_mask = ~(Die.EXPLODE | Die.REROLL) & Die.MASK
-        for die in [d for d in dice_set.all_die if d.flags & f_mask]:
+        for die in [d for d in dice_set.parts if d.flags & f_mask]:
             new_explode = die
             while self.pred(new_explode):
                 new_explode = die.explode()
@@ -1070,12 +1092,12 @@ class RerollDice(ModifyDice):
         return line, RerollDice(invalid_rolls=invalid)
 
     def modify(self, dice_set):
-        for die in dice_set.all_die.copy():
+        for die in dice_set.parts.copy():
             while die.value in self.invalid_rolls:
                 die.set_reroll()
                 die.set_drop()
                 die = die.dupe()
-                dice_set.all_die += [die]
+                dice_set.parts += [die]
 
 
 class SuccessFail(ModifyDice):
@@ -1090,7 +1112,7 @@ class SuccessFail(ModifyDice):
         self.mark = 'set_success' if mark_success else 'set_fail'
 
     def __repr__(self):
-        return "SuccessFail(pred={!r}, mark={!r})".format(self.pred, self.mark)
+        return "SuccessFail(pred={!r}, mark_success={!r})".format(self.pred, self.mark)
 
     @staticmethod
     def parse(line, max_roll):
@@ -1119,7 +1141,7 @@ class SuccessFail(ModifyDice):
 
     def modify(self, dice_set):
         f_mask = ~(Die.REROLL | Die.DROP | Die.FAIL | Die.SUCCESS) & Die.MASK
-        for die in [x for x in dice_set.all_die if x.flags & f_mask]:
+        for die in [x for x in dice_set.parts if x.flags & f_mask]:
             if self.pred(die):
                 getattr(die, self.mark)()
 
@@ -1167,7 +1189,7 @@ class SortDice(ModifyDice):
         return rest, SortDice(ascending=ascending)
 
     def modify(self, dice_set):
-        ordered = sorted(dice_set.all_die)
+        ordered = sorted(dice_set.parts)
         if not self.ascending:
             ordered = list(reversed(ordered))
-        dice_set.all_die = ordered
+        dice_set.parts = ordered
