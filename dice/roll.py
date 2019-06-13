@@ -39,7 +39,7 @@ __Quick Reference__
 
     5**:** 4d6 + 2                    Roll __5__ times, 4d6 + 2
     d20 + 5**,** d8 + 3           Roll d20 + 5, then separately d8 + 3.
-    4d6 **#** For Gordon      Roll 4d6, comment after '#' replayed with roll result
+    4d6 For Gordon          Roll 4d6, non-roll related text following roll is replayed with result.
     4d6**kh2**                        Roll 4d6 and keep __2__ highest results
     4d6**dl2**                         Roll 4d6 and drop the __2__ lowest results
     4d6**r1r[5,6]**                Roll 4d6 and reroll if dice lands on 1, 5 or 6
@@ -68,27 +68,6 @@ IS_DIE = re.compile(r'(\d+)?d(\d+)', re.ASCII | re.IGNORECASE)
 IS_FATEDIE = re.compile(r'(\d+)?df', re.ASCII | re.IGNORECASE)
 IS_LITERAL = re.compile(r'([+-])|([-0-9]+)', re.ASCII)
 IS_PREDICATE = re.compile(r'(>)?(<)?\[?(=?\d+)(,\d+\])?', re.ASCII)
-
-
-def check_parentheses(line):
-    """
-    Go over a string and ensure it has one opening and closing parentheses.
-
-    Raises:
-        ValueError: The parentheses are not balanced.
-
-    Returns:
-        The line if it passed validation.
-    """
-    cnt = 0
-    for char in line:
-        if char in PARENS_MAP:
-            cnt += PARENS_MAP[char]
-
-    if cnt != 0:
-        raise ValueError(DICE_WARN.format("Unbalanced parentheses detected.", line))
-
-    return line
 
 
 class Comp():
@@ -329,7 +308,68 @@ def parse_literal(spec):
     return spec[match.end() + 1:], match.group(2)
 
 
-def parse_dice_line(spec):
+def check_parentheses(line):
+    """
+    Go over a string and ensure it has one opening and closing parentheses.
+
+    Raises:
+        ValueError: The parentheses are not balanced.
+
+    Returns:
+        The line if it passed validation.
+    """
+    cnt = 0
+    for char in line:
+        if char in PARENS_MAP:
+            cnt += PARENS_MAP[char]
+
+    if cnt != 0:
+        raise ValueError(DICE_WARN.format("Unbalanced parentheses detected.", line))
+
+    return line
+
+
+def parse_comments_from_back(line):
+    """
+    Scan for tokens back to front in line.
+    Any token that does not start with a valid dice spec or a literal is a comment.
+    Return separately the line substring without comments and the comments.
+
+    Returns:
+        (substr, comment_line):
+            substr: Remainder of the line that is not a comment.
+            comment_line: The part of the line that is a comment.
+    """
+    token, comment = '', ''
+    word_boundary = False
+
+    pos = len(line) - 1
+    while pos != -1:
+        token = line[pos] + token
+
+        if not line[1:] or (word_boundary and line[pos].isspace()):
+            is_comment, token_copy = True, token.strip()
+            for matcher in [IS_DIE, IS_FATEDIE, IS_LITERAL]:
+                if matcher.match(token_copy):
+                    is_comment = False
+                    break
+
+            if is_comment:
+                comment = token + comment
+            else:
+                line += token[1:]
+                break
+            token, word_boundary = '', False
+
+        elif not line[pos].isspace():
+            word_boundary = True
+
+        pos, line = pos - 1, line[:-1]
+
+    return line, comment.strip()
+
+
+def parse_dice_line(line):
     """
     Take a complete dice specification with optional literals and return
     AThrow object containing all required parts to model the throw.
@@ -340,12 +380,8 @@ def parse_dice_line(spec):
     Returns:
         AThrow object with the required parts.
     """
-    try:
-        ind = spec.index('#')
-        note, spec = spec[ind + 1:], spec[:ind]
-    except ValueError:
-        note = ''
-    throw = AThrow(spec=check_parentheses(spec).rstrip(), note=note.strip())
+    spec, note = parse_comments_from_back(line)
+    throw = AThrow(spec=check_parentheses(spec).rstrip(), note=note)
 
     while spec:
         if spec[0].isspace():
@@ -366,6 +402,9 @@ def parse_dice_line(spec):
 
         if not dset:
             raise ValueError(DICE_WARN.format("Failed to parse part of line.", spec))
+
+    if not throw.parts:
+        raise ValueError(DICE_WARN.format("No dice specification detected.", line))
 
     return throw
 

@@ -155,7 +155,7 @@ these include (r)eroll, (!)explosive dice, (!!)compounding dice and (f)ail and s
         Roll 4d6 + 2, __5__ times separately.
 {prefix}roll 2d6 + 5, d20 + 4
         Perform the rolls 2d6 + 5 and then d20 + 4.
-{prefix}roll 4d6 # For Gordon
+{prefix}roll 4d6 For Gordon
         Perform the rolls 4d6, the note For Gordon will be replayed with the result.
 {prefix}roll 4d6kh3
 {prefix}roll 4d6k3

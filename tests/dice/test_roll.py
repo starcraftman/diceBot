@@ -283,7 +283,7 @@ def test_parse_literal():
 
 
 def test_parse_dice_line_comment():
-    throw = dice.roll.parse_dice_line("4 + 4 # a comment here")
+    throw = dice.roll.parse_dice_line("4 + 4 a comment here")
     assert throw.next() == "4 + 4 = 4 + 4 = 8\n        Note: a comment here"
 
 
@@ -304,7 +304,7 @@ def test_parse_dice_line_raises():
         dice.roll.parse_dice_line('8d10f[a,3]')
 
     with pytest.raises(ValueError):
-        dice.roll.parse_dice_line('8d10f[1,3] + aaaa')
+        dice.roll.parse_dice_line('Just a comment.')
 
 
 def test_die__init__():
@@ -1072,3 +1072,11 @@ def test_sort_dice_modify_descending(f_dset):
     mod.modify(f_dset)
 
     assert [int(x) for x in f_dset.parts] == [6, 5, 2, 1]
+
+
+def test_parse_comments_from_line():
+    assert dice.roll.parse_comments_from_back('4d6 + 10 This is a comment.   ') == ('4d6 + 10', 'This is a comment.')
+    assert dice.roll.parse_comments_from_back('4d6 + 10') == ('4d6 + 10', '')
+    assert dice.roll.parse_comments_from_back('') == ('', '')
+    assert dice.roll.parse_comments_from_back('This is a comment.') == ('', 'This is a comment.')
+    assert dice.roll.parse_comments_from_back('4d6 + 10 This is a comment. + 2d10') == ('4d6 + 10 This is a comment. + 2d10', '')
