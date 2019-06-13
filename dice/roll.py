@@ -494,8 +494,60 @@ class FlaggableMixin():
         self.flags = self.flags | Die.SUCCESS
 
 
+class ValueMixin():
+    """
+    Mixin to allow any object with a value to be manipulated by
+    builtin math operations.
+
+    Value stored in _value, is properties to control access.
+    """
+    def __init__(self, *, value=0):
+        super().__init__()
+        self._value = value
+
+    def __add__(self, other):
+        return self.value + getattr(other, 'value', other)
+
+    def __sub__(self, other):
+        return self.value - getattr(other, 'value', other)
+
+    def __mul__(self, other):
+        return self.value * getattr(other, 'value', other)
+
+    def __floordiv__(self, other):
+        return self.value // getattr(other, 'value', other)
+
+    def __radd__(self, other):
+        return self + other
+
+    def __rsub__(self, other):
+        return getattr(other, 'value', other) - self.value
+
+    def __rmul__(self, other):
+        return self * other
+
+    def __rfloordiv__(self, other):
+        return getattr(other, 'value', other) // self.value
+
+    def __iadd__(self, other):
+        self.value += getattr(other, 'value', other)
+        return self
+
+    def __isub__(self, other):
+        self.value -= getattr(other, 'value', other)
+        return self
+
+    def __imul__(self, other):
+        self.value *= getattr(other, 'value', other)
+        return self
+
+    def __ifloordiv__(self, other):
+        self.value //= getattr(other, 'value', other)
+        return self
+
+
 @functools.total_ordering
-class Die(FlaggableMixin):
+class Die(ValueMixin, FlaggableMixin):
     """
     Model a single dice with n sides, it can:
         - roll itself

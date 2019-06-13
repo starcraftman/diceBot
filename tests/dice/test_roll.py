@@ -363,6 +363,78 @@ def test_die__lt__():
     assert die >= dice.roll.Die(sides=6, value=1)
 
 
+def test_die__add__():
+    die = dice.roll.Die(sides=6, value=1)
+    assert die + 4 == 5
+    assert die + dice.roll.Die(sides=4, value=1) == 2
+
+
+def test_die__sub__():
+    die = dice.roll.Die(sides=6, value=5)
+    assert die - 4 == 1
+    assert die - dice.roll.Die(sides=4, value=4) == 1
+
+
+def test_die__mul__():
+    die = dice.roll.Die(sides=6, value=2)
+    assert die * 4 == 8
+    assert die * dice.roll.Die(sides=4, value=4) == 8
+
+
+def test_die__floordiv__():
+    die = dice.roll.Die(sides=6, value=8)
+    assert die // 4 == 2
+    assert die // dice.roll.Die(sides=4, value=4) == 2
+
+
+def test_die__radd__():
+    die = dice.roll.Die(sides=6, value=1)
+    assert 4 + die == 5
+    assert dice.roll.Die(sides=4, value=1) + die == 2
+
+
+def test_die__rsub__():
+    die = dice.roll.Die(sides=6, value=5)
+    assert 4 - die == -1
+    assert dice.roll.Die(sides=4, value=4) - die == -1
+
+
+def test_die__rmul__():
+    die = dice.roll.Die(sides=6, value=2)
+    assert 4 * die == 8
+    assert dice.roll.Die(sides=4, value=4) * die == 8
+
+
+def test_die__rfloordiv__():
+    die = dice.roll.Die(sides=6, value=4)
+    assert 8 // die == 2
+    assert dice.roll.Die(sides=4, value=8) // die == 2
+
+
+def test_die__iadd__():
+    die = dice.roll.Die(sides=6, value=1)
+    die += 4
+    assert die.value == 5
+
+
+def test_die__isub__():
+    die = dice.roll.Die(sides=6, value=5)
+    die -= 4
+    assert die.value == 1
+
+
+def test_die__imul__():
+    die = dice.roll.Die(sides=6, value=2)
+    die *= 4
+    assert die.value == 8
+
+
+def test_die__ifloordiv__():
+    die = dice.roll.Die(sides=6, value=8)
+    die //= 4
+    assert die.value == 2
+
+
 def test_die_value_get():
     die = dice.roll.Die(sides=6, value=1)
     assert die.value == 1
