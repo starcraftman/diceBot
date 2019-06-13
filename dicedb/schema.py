@@ -18,7 +18,6 @@ import dicedb
 
 LEN_DID = 30
 LEN_NAME = 100
-LEN_ROLL = 50
 LEN_PUN = 600
 LEN_ROLLSTR = 200
 LEN_SONG_NAME = 60
@@ -341,7 +340,7 @@ class LastRoll(Base):
 
     id = sqla.Column(sqla.String(LEN_DID), primary_key=True)
     id_num = sqla.Column(sqla.Integer, primary_key=True)
-    roll_str = sqla.Column(sqla.String(LEN_ROLL), nullable=False)
+    roll_str = sqla.Column(sqla.String(LEN_ROLLSTR), nullable=False)
 
     def __repr__(self):
         keys = ['id', 'id_num', 'roll_str']

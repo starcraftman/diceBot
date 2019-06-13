@@ -78,6 +78,13 @@ def test_update_saved_roll(session, f_saved_rolls):
     assert new_roll.roll_str == 'NewString'
 
 
+def test_update_saved_roll_raises(session, f_saved_rolls):
+    roll = f_saved_rolls[0]
+
+    with pytest.raises(dice.exc.InvalidCommandArgs):
+        dicedb.query.update_saved_roll(session, roll.user_id, roll.name, "test" * 400)
+
+
 def test_all_puns(session, f_puns):
     for ind, pun in enumerate(dicedb.query.all_puns(session)):
         assert pun == f_puns[ind]
@@ -271,3 +278,10 @@ def test_add_last_roll_prune(session, f_lastrolls):
     last_roll = f_lastrolls[2]
     dicedb.query.add_last_roll(session, last_roll.id, last_roll.roll_str + " + 10", 1)
     assert len(dicedb.query.get_last_rolls(session, '1')) == 2
+
+
+def test_add_last_roll_exceeds_length(session, f_lastrolls):
+    last_roll = f_lastrolls[2]
+    assert len(dicedb.query.get_last_rolls(session, '1')) == 3
+    dicedb.query.add_last_roll(session, last_roll.id, "test" * 100)
+    assert len(dicedb.query.get_last_rolls(session, '1')) == 3

@@ -95,6 +95,18 @@ def find_all_saved_rolls(session, user_id):
 
 
 def update_saved_roll(session, user_id, name, roll_str):
+    """
+    Update the saved named roll in the database.
+
+    Raises:
+        dice.exc.InvalidCommandArgs: The roll_str exceeds storage limit.
+
+    Returns:
+        new_roll: The update object in the db.
+    """
+    if len(roll_str) > dicedb.schema.LEN_ROLLSTR:
+        raise dice.exc.InvalidCommandArgs("Roll specification exceeds storage limit.")
+
     try:
         new_roll = find_saved_roll(session, user_id, name)
         new_roll.roll_str = roll_str
@@ -430,12 +442,16 @@ def add_last_roll(session, user_id, roll_str, limit=20):
     """
     A user has made a new roll. Store only if the spec differs from last one.
     Will not store two following rolls that are exactly the same.
+    Rolls that exceed storage limit will be ignored rather than truncated.
 
     Args:
         user_id: A discord user ID.
         roll_str: A dice specification.
         limit: The limit of dice to keep.
     """
+    if len(roll_str) > dicedb.schema.LEN_ROLLSTR:
+        return
+
     rolls = get_last_rolls(session, user_id)
     try:
         last_roll = rolls[-1]
