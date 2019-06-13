@@ -27,10 +27,14 @@ import numpy.random as rand
 
 import dice.exc
 
-PARENS_MAP = {'(': 3, '{': 7, '[': 11, ')': -3, '}': -7, ']': -11}
+IS_DIE = re.compile(r'(\d+)?d(\d+)', re.ASCII | re.IGNORECASE)
+IS_FATEDIE = re.compile(r'(\d+)?df', re.ASCII | re.IGNORECASE)
+IS_LITERAL = re.compile(r'([+-])|([-0-9]+\b)', re.ASCII)
+IS_PREDICATE = re.compile(r'(>)?(<)?\[?(=?\d+)(,\d+\])?', re.ASCII)
 LIMIT_DIE_NUMBER = 1000
 LIMIT_DIE_SIDES = 1000
 LIMIT_DICE_SET_STR = 200
+PARENS_MAP = {'(': 3, '{': 7, '[': 11, ')': -3, '}': -7, ']': -11}
 DICE_WARN = """**Error**: {}
         {}
 Please see reference below and correct the roll.
@@ -59,22 +63,17 @@ __Comparisons__
     4 (or =4)                   Apply modifer when == 4.
                                 N.B. The '=' is optional unless no letter separates the number.
 
-All modifiers except kh/dl support comparisons to determine when they apply.
-Mix and match as you like.
+All modifiers that support comparisons support all available comparisons.
 
 See `!roll --help` for more complete documentation.
 """
-IS_DIE = re.compile(r'(\d+)?d(\d+)', re.ASCII | re.IGNORECASE)
-IS_FATEDIE = re.compile(r'(\d+)?df', re.ASCII | re.IGNORECASE)
-IS_LITERAL = re.compile(r'([+-])|([-0-9]+)', re.ASCII)
-IS_PREDICATE = re.compile(r'(>)?(<)?\[?(=?\d+)(,\d+\])?', re.ASCII)
 
 
 class Comp():
     """
     The only reason this exists is that lambda functions don't automatically
-    pickle like objects do. This is little more than a waste of space otherwise.
-    All comparisons are inclusive, that is ==, <=, >= or [min, max].
+    pickle like objects do.
+    All comparisons are inclusive of bounds.
 
     Attributes:
         left: The left bound of the comparison (default used if not a range).
@@ -203,9 +202,9 @@ def parse_diceset(line):
         InvalidCommandArgs: User specified an amount of dice or sides that is unreasonable.
 
     Returns:
-        (substr, dset)
-            substr: The remainder of line after processing.
-            dset: A DiceSet object containing the correct amount of dice.
+        (line, dset)
+            line: The remainder of line after processing.
+            dset: A DiceSet object containing the dice and any modifiers.
     """
     match = IS_DIE.match(line)
     if not match:
@@ -219,7 +218,10 @@ def parse_diceset(line):
     dset = DiceSet()
     dset.add_dice(number, sides)
 
-    return line[match.end():], dset
+    line, mods = parse_trailing_mods(line[match.end():], dset.max_roll)
+    dset.mods = sorted(mods)
+
+    return line, dset
 
 
 def parse_fate_diceset(line):
@@ -231,9 +233,9 @@ def parse_fate_diceset(line):
         InvalidCommandArgs: User specified an amount of dice that is unreasonable.
 
     Returns:
-        (substr, dset)
-            substr: The remainder of line after processing.
-            dset: A DiceSet object containing the correct amount of dice.
+        (line, dset)
+            line: The remainder of line after processing.
+            dset: A DiceSet object containing the dice and any modifiers.
     """
     match = IS_FATEDIE.match(line)
     if not match:
@@ -246,7 +248,10 @@ def parse_fate_diceset(line):
     dset = DiceSet()
     dset.add_fatedice(number)
 
-    return line[match.end():], dset
+    line, mods = parse_trailing_mods(line[match.end():], dset.max_roll)
+    dset.mods = sorted(mods)
+
+    return line, dset
 
 
 def parse_trailing_mods(line, max_roll):
@@ -257,9 +262,9 @@ def parse_trailing_mods(line, max_roll):
         ValueError: A failure to parse part of the modifiers.
 
     Returns:
-        (substr, dset)
-            substr: The remainder of line after processing.
-            mods: A list of ModifyDice modifiers to apply to last DiceSet.
+        (line, mods)
+            line: The remainder of line after processing.
+            mods: A list of modifiers to apply to a DiceSet.
     """
     mods = []
     while line:
@@ -286,7 +291,7 @@ def parse_trailing_mods(line, max_roll):
     return line, mods
 
 
-def parse_literal(spec):
+def parse_literal(line):
     """
     Parse allowed literals in the dice spec line and return them.
 
@@ -294,18 +299,20 @@ def parse_literal(spec):
         ValueError: Disallowed literals were found.
 
     Returns:
-        (substr, dset)
-            substr: The remainder of line after processing.
-            dset: A DiceSet object containing the correct amount of dice.
+        (line, literal)
+            line: The remainder of line after processing.
+            literal: A literal string that is supported.
     """
-    match = IS_LITERAL.match(spec)
+    match = IS_LITERAL.match(line)
     if not match:
         raise ValueError("There is no valid literal to parse.")
 
-    if match.group(1):
-        return spec[2:], spec[0]
+    if match.group(2):
+        literal = match.group(2)
+    else:
+        literal = line[0]
 
-    return spec[match.end() + 1:], match.group(2)
+    return line[match.end() + 1:], literal
 
 
 def check_parentheses(line):
@@ -316,7 +323,7 @@ def check_parentheses(line):
         ValueError: The parentheses are not balanced.
 
     Returns:
-        The line if it passed validation.
+        The line that was passed in.
     """
     cnt = 0
     for char in line:
@@ -336,9 +343,9 @@ def parse_comments_from_back(line):
     Return separately the line substring without comments and the comments.
 
     Returns:
-        (substr, comment_line):
-            substr: Remainder of the line that is not a comment.
-            comment_line: The part of the line that is a comment.
+        (line, comment):
+            line: Remainder of the line that is not a comment.
+            comment: The part of the line that is a comment.
     """
     token, comment = '', ''
     word_boundary = False
@@ -393,10 +400,6 @@ def parse_dice_line(line):
             try:
                 spec, dset = func(spec)
                 throw.add(dset)
-
-                if dset and issubclass(type(dset), DiceSet):
-                    spec, mods = parse_trailing_mods(spec, dset.max_roll)
-                    dset.mods = sorted(mods)
             except ValueError:
                 pass
 
@@ -411,8 +414,9 @@ def parse_dice_line(line):
 
 class FlaggableMixin():
     """
-    Implement a flaggable interface that can be used to indicate different
-    states for a rolled Dice-like object.
+    Store a series of flags in a bit field that tracks a series of states.
+    States can be toggled by named methods or directly with flag masks.
+    Some flags toggle other flags if they are exclusive.
 
     Attributes:
         flags: A bit field that stores the flags.
@@ -493,7 +497,16 @@ class FlaggableMixin():
 @functools.total_ordering
 class Die(FlaggableMixin):
     """
-    Model a single dice with n sides.
+    Model a single dice with n sides, it can:
+        - roll itself
+        - format itself for user
+        - flag itself to track states
+        - duplicate itself if needed
+
+    Attributes:
+        sides: The die has this many sides.
+        _value: The value of the last roll, always [1, sides].
+        flags: The flags tracking the Die's state.
     """
     def __init__(self, *, sides=1, value=1, flags=1):
         super().__init__()
@@ -518,46 +531,6 @@ class Die(FlaggableMixin):
 
     def __int__(self):
         return self.value
-
-    def __add__(self, other):
-        return self.value + getattr(other, 'value', other)
-
-    def __sub__(self, other):
-        return self.value - getattr(other, 'value', other)
-
-    def __mul__(self, other):
-        return self.value * getattr(other, 'value', other)
-
-    def __floordiv__(self, other):
-        return self.value // getattr(other, 'value', other)
-
-    def __radd__(self, other):
-        return self + other
-
-    def __rsub__(self, other):
-        return getattr(other, 'value', other) - self.value
-
-    def __rmul__(self, other):
-        return self * other
-
-    def __rfloordiv__(self, other):
-        return getattr(other, 'value', other) // self.value
-
-    def __iadd__(self, other):
-        self.value += getattr(other, 'value', other)
-        return self
-
-    def __isub__(self, other):
-        self.value -= getattr(other, 'value', other)
-        return self
-
-    def __imul__(self, other):
-        self.value *= getattr(other, 'value', other)
-        return self
-
-    def __ifloordiv__(self, other):
-        self.value //= getattr(other, 'value', other)
-        return self
 
     @property
     def value(self):
@@ -619,6 +592,7 @@ class Die(FlaggableMixin):
 class FateDie(Die):
     """
     A Fate die is nothing more than a d3 where the value is mapped down -2.
+    Representation is modified to be -, 0 or + due to the possible values.
     """
     def __init__(self, **kwargs):
         kwargs['sides'] = 3
@@ -653,9 +627,12 @@ class FateDie(Die):
 
 class DiceSet():
     """
-    A diset set is simply a collection of dice. It can contain:
-        - A group of die or fate die.
+    A diset set is simply a collection of dice.
     Allow modifiers to be popped onto the set and applied after rolling.
+
+    Attributes:
+        parts: The dice in the set.
+        mods: The modifiers that apply to the parts.
     """
     def __init__(self, *, parts=None, mods=None):
         self.parts = parts if parts else []
@@ -746,13 +723,15 @@ class DiceSet():
 class AThrow():
     """
     A container that represents an entire throw line.
-    Composes the following elements:
+    Composed of the following elements:
         - DiceSets (made of Die and FateDie + modifiers)
         - Constants
         - Operators
 
     Attributes:
+        spec: The original spec that created the line.
         parts: The list of all parts of AThrow.
+        note: Any comment user wanted attached to roll.
     """
     def __init__(self, *, spec=None, parts=None, note=None):
         self.spec = spec
@@ -760,7 +739,7 @@ class AThrow():
         self.note = note
 
     def __repr__(self):
-        return "AThrow(spec={!r}, parts={!r})".format(self.spec, self.parts)
+        return "AThrow(spec={!r}, note={!r}, parts={!r})".format(self.spec, self.note, self.parts)
 
     def __str__(self):
         return " ".join([str(x) for x in self.parts])
@@ -820,9 +799,7 @@ class AThrow():
         Returns:
             The formatted string to print to user.
         """
-        msg = ""
-        fcnt = 0
-        scnt = 0
+        msg, fcnt, scnt = "", 0, 0
         display_success = False
         for part in [x for x in self.parts if issubclass(type(x), DiceSet)]:
             for mod in part.mods:
@@ -872,8 +849,8 @@ class AThrow():
 class ModifyDice(abc.ABC):
     """
     Standard interface to modify a dice set.
-
-    Consider them like friend functions that modify an existing roll set.
+    Class attribute WEIGHT is used in ordering modifiers before applying.
+    Consider them like friend functions they modify the dice rolls once settled.
     """
     WEIGHT = 0
 
@@ -894,8 +871,13 @@ class ModifyDice(abc.ABC):
             line: A substring of the dice spec that conforms to the modifier's spec.
             max_roll: The maximum roll of the dice in the collection. For example, d6 = 6.
 
+        Raises:
+            ValueError: Incomplete or impossible spec, abort processing.
+
         Returns:
-            The line minus parsed text, A ModifyDice subclass.
+            (line, mod)
+                line: The remainder of line after processing.
+                mod: A ModifyDice object ready to be applied to a DiceSet.
         """
         raise NotImplementedError
 
@@ -903,84 +885,22 @@ class ModifyDice(abc.ABC):
     def modify(self, dice_set):
         """
         Apply the modifier to the dice and make marks/selections as required.
+        Modifies the dice_set directly.
 
         Args:
             dice_set: A collection of dice.
-
-        Returns:
-            The dice_set passed in, it will have been modified.
         """
         raise NotImplementedError
 
 
-class KeepDrop(ModifyDice):
-    """
-    Keep or drop N high or low rolls.
-    """
-    WEIGHT = 4
-
-    def __init__(self, *, keep=True, high=True, num=1):
-        self.keep = keep
-        self.high = high
-        self.num = num
-
-    def __repr__(self):
-        return "KeepDrop(keep={!r}, high={!r}, num={!r})".format(
-            self.keep, self.high, self.num)
-
-    @staticmethod
-    def parse(line, _):
-        """
-        Parse the line string for an object.
-        Supports: kh4, kl3, dh4, dl2
-
-        Raises:
-            ValueError: Could not understand specification.
-
-        Returns:
-            KeepDrop object on successful parsing.
-        """
-        match = re.match(r'(k|d)(h|l)?(\d+)', line, re.ASCII | re.IGNORECASE)
-        if not match:
-            raise ValueError("Keep or Drop spec is invalid.")
-
-        keep = high = match.group(1) == 'k'
-        if match.group(2) == 'h':
-            high = True
-        elif match.group(2) == 'l':
-            high = False
-
-        return line[match.end():], KeepDrop(keep=keep, high=high, num=int(match.group(3)))
-
-    def modify(self, dice_set):
-        """
-        Depending on arguements can, keep or drop the num highest or lowest dice values.
-        Will not modify dice that have already been dropped.
-
-        Returns:
-            The original DiceSet.
-        """
-        f_mask = ~(Die.REROLL | Die.DROP) & Die.MASK
-        parts = sorted([d for d in dice_set.parts if d.flags & f_mask])
-        if not self.keep:
-            parts = list(reversed(parts))
-
-        first, second = ['set_drop', 'NOP'] if self.high else ['NOP', 'set_drop']
-        for die in parts[:-self.num]:
-            getattr(die, first, lambda: True)()
-        for die in parts[-self.num:]:
-            getattr(die, second, lambda: True)()
-
-        return dice_set
-
-
 class ExplodeDice(ModifyDice):
     """
-    Explode on some predicate.
+    Explode when the associated predicate is true.
+    Support normal explosion criteria and penetrated die.
 
-    Predicate of form:
-        def pred(die):
-            return True IFF should explode this dice.
+    Attributes:
+        pred: The predicate determining when to explode.
+        penetrate: True if the die will penetrate on roll, else false.
     """
     WEIGHT = 2
 
@@ -993,16 +913,6 @@ class ExplodeDice(ModifyDice):
 
     @staticmethod
     def parse(line, max_roll):
-        """
-        Parse the line string for an object.
-        Supports format: !6, !>6, !<6
-
-        Raises:
-            ValueError: Could not understand specification.
-
-        Returns:
-            ExplodeDice object on successful parsing.
-        """
         if line[0] != '!' or line[1] == '!':
             raise ValueError("Exploding spec is invalid.")
 
@@ -1011,17 +921,11 @@ class ExplodeDice(ModifyDice):
             penetrate = True
             line = line[1:]
 
-        rest, pred = parse_predicate(line[1:], max_roll)
+        line, pred = parse_predicate(line[1:], max_roll)
 
-        return rest, ExplodeDice(pred=pred, penetrate=penetrate)
+        return line, ExplodeDice(pred=pred, penetrate=penetrate)
 
     def modify(self, dice_set):
-        """
-        Modifies the actual dice in the dice set.
-
-        Returns:
-            The original DiceSet.
-        """
         parts = []
         f_mask = ~(Die.EXPLODE | Die.REROLL) & Die.MASK
         for die in [d for d in dice_set.parts if d.flags & f_mask]:
@@ -1037,39 +941,30 @@ class ExplodeDice(ModifyDice):
             die.value -= 1
 
         dice_set.parts = parts
-        return dice_set
 
 
 class CompoundDice(ExplodeDice):
     """
     A specialized variant of exploding dice.
+    When the predicate is true keep exploding until it is false.
+    On each explosion add the new value to the original dice.
+
+    Attributes:
+        pred: The predicate determining when to explode.
+        penetrate: Always false, inherited.
     """
     WEIGHT = 1
 
     @staticmethod
     def parse(line, max_roll):
-        """
-        Parse the line string for an object.
-        Supports format: !!6, !!>6, !!<6
-
-        Raises:
-            ValueError: Could not understand specification.
-
-        Returns:
-            CompoundDice object on successful parsing.
-        """
         if line[0:2] != '!!':
             raise ValueError("Compounding spec is invalid.")
 
-        rest, pred = parse_predicate(line[2:], max_roll)
+        line, pred = parse_predicate(line[2:], max_roll)
 
-        return rest, CompoundDice(pred=pred)
+        return line, CompoundDice(pred=pred)
 
     def modify(self, dice_set):
-        """
-        Keep exploding the dice until predicate failes.
-        All rolls are simply added to first explosion.
-        """
         f_mask = ~(Die.EXPLODE | Die.REROLL) & Die.MASK
         for die in [d for d in dice_set.parts if d.flags & f_mask]:
             new_explode = die
@@ -1077,13 +972,15 @@ class CompoundDice(ExplodeDice):
                 new_explode = die.explode()
                 die.value += new_explode.value
 
-        return dice_set
-
 
 class RerollDice(ModifyDice):
     """
-    Set predicates to trigger a reroll of dice.
-    Dice that failed the predicate will be dropped.
+    Define conditions when dice should be rerolled.
+    All rerolls should be listed in sequence, they are expanded
+    and checked to ensure no impossible setup.
+
+    Attributes:
+        invalid_rolls: The list of values that will trigger a reroll.
     """
     WEIGHT = 3
 
@@ -1095,17 +992,6 @@ class RerollDice(ModifyDice):
 
     @staticmethod
     def parse(line, max_roll):
-        """
-        Parse the line string for an object.
-        Supports format: r6, r<2, r>5
-        When multiple rerolls declared, flatten down to single list of invalids.
-
-        Raises:
-            ValueError: Could not understand specification.
-
-        Returns:
-            RerollDice object on successful parsing.
-        """
         if line[0] != 'r':
             raise ValueError("Reroll spec is invalid.")
 
@@ -1131,7 +1017,7 @@ class RerollDice(ModifyDice):
         return line, RerollDice(invalid_rolls=invalid)
 
     def modify(self, dice_set):
-        for die in dice_set.parts.copy():
+        for die in [d for d in dice_set.parts if not d.is_exploded()]:
             while die.value in self.invalid_rolls:
                 die.set_reroll()
                 die.set_drop()
@@ -1139,10 +1025,61 @@ class RerollDice(ModifyDice):
                 dice_set.parts += [die]
 
 
+class KeepDrop(ModifyDice):
+    """
+    Keep or drop N high or low rolls.
+
+    Attributes:
+        keep: True if we should keep num elements, else will drop num elements.
+        high: When True, select from highest values. When False, select from lowest.
+        num: The number to keep or drop.
+    """
+    WEIGHT = 4
+
+    def __init__(self, *, keep=True, high=True, num=1):
+        self.keep = keep
+        self.high = high
+        self.num = num
+
+    def __repr__(self):
+        return "KeepDrop(keep={!r}, high={!r}, num={!r})".format(
+            self.keep, self.high, self.num)
+
+    @staticmethod
+    def parse(line, _):
+        match = re.match(r'(k|d)(h|l)?(\d+)', line, re.ASCII | re.IGNORECASE)
+        if not match:
+            raise ValueError("Keep or Drop spec is invalid.")
+
+        keep = high = match.group(1) == 'k'
+        if match.group(2) == 'h':
+            high = True
+        elif match.group(2) == 'l':
+            high = False
+
+        return line[match.end():], KeepDrop(keep=keep, high=high, num=int(match.group(3)))
+
+    def modify(self, dice_set):
+        f_mask = ~(Die.REROLL | Die.DROP) & Die.MASK
+        parts = sorted([d for d in dice_set.parts if d.flags & f_mask])
+        if not self.keep:
+            parts = list(reversed(parts))
+
+        first, second = ['set_drop', 'NOP'] if self.high else ['NOP', 'set_drop']
+        for die in parts[:-self.num]:
+            getattr(die, first, lambda: True)()
+        for die in parts[-self.num:]:
+            getattr(die, second, lambda: True)()
+
+
 class SuccessFail(ModifyDice):
     """
-    Set predicates to trigger the success or fail of a die.
-    Dice that failed the predicate will be set to fail.
+    Apply a predicate to all dice and either set failure or success.
+    Success and failure are independent and no assumption of the other is made when one set.
+
+    Attributes:
+        pred: The predicate that determines when to set mark.
+        mark: The method to invoke on the die to set state.
     """
     WEIGHT = 5
 
@@ -1155,18 +1092,6 @@ class SuccessFail(ModifyDice):
 
     @staticmethod
     def parse(line, max_roll):
-        """
-        Parse a line for success or failure criteria for the associated dice.
-        Supports:
-            Success: '=2', success if equal to 2, '<2' success on <=2 , '>5' success on >= 5
-            Fail: 'f1' fail if == 1, 'f<3' fail on <=3, 'f>4' fail on >=4
-
-        Raises:
-            ValueError: Could not understand specification.
-
-        Returns:
-            Returns a SuccessFail object ready to mark based on predicate.
-        """
         mark_success = True
         if line[0] == 'f':
             mark_success = False
@@ -1174,9 +1099,9 @@ class SuccessFail(ModifyDice):
         elif line[0] not in ['>', '<', '=', '[']:
             raise ValueError("Success or Fail spec is invalid.")
 
-        rest, pred = parse_predicate(line, max_roll)
+        line, pred = parse_predicate(line, max_roll)
 
-        return rest, SuccessFail(pred=pred, mark_success=mark_success)
+        return line, SuccessFail(pred=pred, mark_success=mark_success)
 
     def modify(self, dice_set):
         f_mask = ~(Die.REROLL | Die.DROP | Die.FAIL | Die.SUCCESS) & Die.MASK
@@ -1188,7 +1113,9 @@ class SuccessFail(ModifyDice):
 class SortDice(ModifyDice):
     """
     Sort the final dice in ascending or descending order.
-    Importantly, rerolls and dropped dice will be sorted below, remainder to right and sorted.
+
+    Attributes:
+        ascending: Sort will be in order from smallest to largest rolls.
     """
     WEIGHT = 6
 
@@ -1200,35 +1127,24 @@ class SortDice(ModifyDice):
 
     @staticmethod
     def parse(line, max_roll):
-        """
-        Parse a line for success or failure criteria for the associated dice.
-        Supports:
-            Success: '=2', success if equal to 2, '<2' success on <=2 , '>5' success on >= 5
-            Fail: 'f1' fail if == 1, 'f<3' fail on <=3, 'f>4' fail on >=4
-
-        Raises:
-            ValueError: Could not understand specification.
-
-        Returns:
-            Returns a SuccessFail object ready to mark based on predicate.
-        """
         if line[0] != 's':
             raise ValueError("Sort spec is invalid.")
 
         ascending = True
-        rest = line[1:]
+        line = line[1:]
         try:
-            if rest[0] == 'd':
+            if line[0] == 'd':
                 ascending = False
-            if rest[0] in ['a', 'd']:
-                rest = rest[1:]
+            if line[0] in ['a', 'd']:
+                line = line[1:]
         except IndexError:
             pass
 
-        return rest, SortDice(ascending=ascending)
+        return line, SortDice(ascending=ascending)
 
     def modify(self, dice_set):
         ordered = sorted(dice_set.parts)
         if not self.ascending:
             ordered = list(reversed(ordered))
+
         dice_set.parts = ordered

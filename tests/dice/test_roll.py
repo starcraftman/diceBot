@@ -27,7 +27,7 @@ def f_dset():
 
 @pytest.fixture
 def f_athrow(f_dset):
-    throw = dice.roll.AThrow(spec='4d6 + 4', parts=[f_dset, '+', '4'])
+    throw = dice.roll.AThrow(spec='4d6 + 4', note='note', parts=[f_dset, '+', '4'])
 
     yield throw
 
@@ -51,11 +51,15 @@ def test_regex_is_fatedie():
 def test_regex_is_literal():
     assert dice.roll.IS_LITERAL.match('+').groups() == ('+', None)
     assert dice.roll.IS_LITERAL.match('-').groups() == ('-', None)
+    assert dice.roll.IS_LITERAL.match('+ ').groups() == ('+', None)
+    assert dice.roll.IS_LITERAL.match('- ').groups() == ('-', None)
     assert not dice.roll.IS_LITERAL.match('*')
     assert not dice.roll.IS_LITERAL.match('/')
 
     assert dice.roll.IS_LITERAL.match('42').groups() == (None, '42')
     assert not dice.roll.IS_LITERAL.match('aaa')
+    assert not dice.roll.IS_LITERAL.match('4d20kh1')
+    assert not dice.roll.IS_LITERAL.match('4df')
 
 
 def test_check_parentheses():
@@ -145,12 +149,14 @@ def test_parse_predicate_range():
 
 def test_parse_diceset():
     nspec, dset = dice.roll.parse_diceset('4d20kh1')
-    assert nspec == 'kh1'
+    assert nspec == ''
     assert len(dset.parts) == 4
+    assert dset.mods == [KeepDrop(num=1)]
 
     nspec, dset = dice.roll.parse_diceset('20d100!!<6 + 4d10 - 2')
-    assert nspec == '!!<6 + 4d10 - 2'
+    assert nspec == ' + 4d10 - 2'
     assert len(dset.parts) == 20
+    assert dset.mods == [CompoundDice(pred=Comp(left=5, func='less_equal'))]
 
 
 def test_parse_diceset_raises():
@@ -176,8 +182,9 @@ def test_parse_fate_diceset():
     assert len(dset.parts) == 4
 
     nspec, dset = dice.roll.parse_fate_diceset('10dfkh1')
-    assert nspec == 'kh1'
+    assert nspec == ''
     assert len(dset.parts) == 10
+    assert dset.mods == [KeepDrop(num=1)]
 
 
 def test_parse_fate_diceset_raises():
@@ -354,78 +361,6 @@ def test_die__lt__():
     die = dice.roll.Die(sides=6, value=1)
     assert die < dice.roll.Die(sides=6, value=2)
     assert die >= dice.roll.Die(sides=6, value=1)
-
-
-def test_die__add__():
-    die = dice.roll.Die(sides=6, value=1)
-    assert die + 4 == 5
-    assert die + dice.roll.Die(sides=4, value=1) == 2
-
-
-def test_die__sub__():
-    die = dice.roll.Die(sides=6, value=5)
-    assert die - 4 == 1
-    assert die - dice.roll.Die(sides=4, value=4) == 1
-
-
-def test_die__mul__():
-    die = dice.roll.Die(sides=6, value=2)
-    assert die * 4 == 8
-    assert die * dice.roll.Die(sides=4, value=4) == 8
-
-
-def test_die__floordiv__():
-    die = dice.roll.Die(sides=6, value=8)
-    assert die // 4 == 2
-    assert die // dice.roll.Die(sides=4, value=4) == 2
-
-
-def test_die__radd__():
-    die = dice.roll.Die(sides=6, value=1)
-    assert 4 + die == 5
-    assert dice.roll.Die(sides=4, value=1) + die == 2
-
-
-def test_die__rsub__():
-    die = dice.roll.Die(sides=6, value=5)
-    assert 4 - die == -1
-    assert dice.roll.Die(sides=4, value=4) - die == -1
-
-
-def test_die__rmul__():
-    die = dice.roll.Die(sides=6, value=2)
-    assert 4 * die == 8
-    assert dice.roll.Die(sides=4, value=4) * die == 8
-
-
-def test_die__rfloordiv__():
-    die = dice.roll.Die(sides=6, value=4)
-    assert 8 // die == 2
-    assert dice.roll.Die(sides=4, value=8) // die == 2
-
-
-def test_die__iadd__():
-    die = dice.roll.Die(sides=6, value=1)
-    die += 4
-    assert die.value == 5
-
-
-def test_die__isub__():
-    die = dice.roll.Die(sides=6, value=5)
-    die -= 4
-    assert die.value == 1
-
-
-def test_die__imul__():
-    die = dice.roll.Die(sides=6, value=2)
-    die *= 4
-    assert die.value == 8
-
-
-def test_die__ifloordiv__():
-    die = dice.roll.Die(sides=6, value=8)
-    die //= 4
-    assert die.value == 2
 
 
 def test_die_value_get():
@@ -750,7 +685,7 @@ def test_diceset_roll_no_mod():
 
 
 def test_athrow__repr__(f_athrow):
-    expect = "AThrow(spec='4d6 + 4', parts=[DiceSet(parts=[Die(sides=6, value=5, flags=1), Die(sides=6, value=2, flags=1), Die(sides=6, value=6, flags=1), Die(sides=6, value=1, flags=1)], mods=[]), '+', '4'])"
+    expect = "AThrow(spec='4d6 + 4', note='note', parts=[DiceSet(parts=[Die(sides=6, value=5, flags=1), Die(sides=6, value=2, flags=1), Die(sides=6, value=6, flags=1), Die(sides=6, value=1, flags=1)], mods=[]), '+', '4'])"
     assert repr(f_athrow) == expect
 
 
@@ -761,7 +696,7 @@ def test_athrow__str__(f_athrow):
 def test_athrow__eq__(f_athrow):
     assert AThrow(parts=['4']) == AThrow(parts=['4'])
     dset = DiceSet(parts=[Die(sides=6, value=5, flags=1), Die(sides=6, value=2, flags=1), Die(sides=6, value=6, flags=1), Die(sides=6, value=1, flags=1)], mods=[])
-    assert dset == dset
+    assert dset == DiceSet(parts=[Die(sides=6, value=5, flags=1), Die(sides=6, value=2, flags=1), Die(sides=6, value=6, flags=1), Die(sides=6, value=1, flags=1)], mods=[])
     assert dset != AThrow(parts=['4'])
 
 
