@@ -16,7 +16,7 @@ Logic regarding modifiers:
     Sort will always occur last and just orders by value all rolls regardless of state.
 """
 # Few ideas remaining
-# TODO: Strong overlap between Die and DiceSet?
+# TODO: Strong overlap between Die and DiceList?
 # TODO: Grouped rolls {2d10,4d20}kh1, take highest total value.
 # TODO: Add reroll once, 2d10ro<2 => 2d10 any roll <=2 reroll it __ONCE__
 import abc
@@ -33,7 +33,7 @@ IS_LITERAL = re.compile(r'([+-])|([-0-9]+\b)', re.ASCII)
 IS_PREDICATE = re.compile(r'(>)?(<)?\[?(=?\d+)(,\d+\])?', re.ASCII)
 LIMIT_DIE_NUMBER = 1000
 LIMIT_DIE_SIDES = 1000
-LIMIT_DICE_SET_STR = 200
+LIMIT_DICE_LIST_STR = 200
 PARENS_MAP = {'(': 3, '{': 7, '[': 11, ')': -3, '}': -7, ']': -11}
 DICE_WARN = """**Error**: {}
         {}
@@ -157,9 +157,9 @@ def parse_predicate(line, max_roll):
         ValueError: Predicate was impossible to discern or would always be true.
 
     Returns:
-        (substr, dset)
+        (substr, obj)
             substr: The remainder of line after processing.
-            dset: A DiceSet object containing the correct amount of dice.
+            comp: A Comp predicate.
     """
     match = IS_PREDICATE.match(line)
     if not match:
@@ -193,18 +193,18 @@ def parse_predicate(line, max_roll):
     return line[match.end():], comp
 
 
-def parse_diceset(line):
+def parse_dicelist(line):
     """
-    Attempt to parse a dice set from the line.
+    Attempt to parse a dice list from the line.
 
     Raises:
         ValueError: No dice specification could be found at the start of line.
         InvalidCommandArgs: User specified an amount of dice or sides that is unreasonable.
 
     Returns:
-        (line, dset)
+        (line, dlist)
             line: The remainder of line after processing.
-            dset: A DiceSet object containing the dice and any modifiers.
+            dlist: A DiceList object containing the dice and any modifiers.
     """
     match = IS_DIE.match(line)
     if not match:
@@ -215,27 +215,27 @@ def parse_diceset(line):
     if sides > LIMIT_DIE_SIDES or number > LIMIT_DIE_NUMBER:
         raise dice.exc.InvalidCommandArgs("Please roll a lower number of dice or sides.")
 
-    dset = DiceSet()
-    dset.add_dice(number, sides)
+    dlist = DiceList()
+    dlist.add_dice(number, sides)
 
-    line, mods = parse_trailing_mods(line[match.end():], dset.max_roll)
-    dset.mods = sorted(mods)
+    line, mods = parse_trailing_mods(line[match.end():], dlist.max_roll)
+    dlist.mods = sorted(mods)
 
-    return line, dset
+    return line, dlist
 
 
-def parse_fate_diceset(line):
+def parse_fate_dicelist(line):
     """
-    Attempt to parse a fate dice set from the line.
+    Attempt to parse a fate dice list from the line.
 
     Raises:
         ValueError: No dice specification could be found at the start of line.
         InvalidCommandArgs: User specified an amount of dice that is unreasonable.
 
     Returns:
-        (line, dset)
+        (line, dlist)
             line: The remainder of line after processing.
-            dset: A DiceSet object containing the dice and any modifiers.
+            dlist: A DiceList object containing the dice and any modifiers.
     """
     match = IS_FATEDIE.match(line)
     if not match:
@@ -245,18 +245,18 @@ def parse_fate_diceset(line):
     if number > LIMIT_DIE_NUMBER:
         raise dice.exc.InvalidCommandArgs("Please roll a lower number of dice.")
 
-    dset = DiceSet()
-    dset.add_fatedice(number)
+    dlist = DiceList()
+    dlist.add_fatedice(number)
 
-    line, mods = parse_trailing_mods(line[match.end():], dset.max_roll)
-    dset.mods = sorted(mods)
+    line, mods = parse_trailing_mods(line[match.end():], dlist.max_roll)
+    dlist.mods = sorted(mods)
 
-    return line, dset
+    return line, dlist
 
 
 def parse_trailing_mods(line, max_roll):
     """
-    Attempt to parse the remaining modifiers of a dice set.
+    Attempt to parse the remaining modifiers of a dice list.
 
     Raises:
         ValueError: A failure to parse part of the modifiers.
@@ -264,7 +264,7 @@ def parse_trailing_mods(line, max_roll):
     Returns:
         (line, mods)
             line: The remainder of line after processing.
-            mods: A list of modifiers to apply to a DiceSet.
+            mods: A list of modifiers to apply to a DiceList.
     """
     mods = []
     while line:
@@ -395,18 +395,18 @@ def parse_dice_line(line):
             spec = spec[1:]
             continue
 
-        dset = None
-        for func in [parse_diceset, parse_fate_diceset, parse_literal]:
+        obj = None
+        for func in [parse_dicelist, parse_fate_dicelist, parse_literal]:
             try:
-                spec, dset = func(spec)
-                throw.add(dset)
+                spec, obj = func(spec)
+                throw += [obj]
             except ValueError:
                 pass
 
-        if not dset:
+        if not obj:
             raise ValueError(DICE_WARN.format("Failed to parse part of line.", spec))
 
-    if not throw.parts:
+    if not throw[:]:
         raise ValueError(DICE_WARN.format("No dice specification detected.", line))
 
     return throw
@@ -625,45 +625,45 @@ class FateDie(Die):
         self._value = new_value + 2
 
 
-class DiceSet():
+class DiceList(list):
     """
-    A diset set is simply a collection of dice.
-    Allow modifiers to be popped onto the set and applied after rolling.
+    A dice list is simply a collection of dice.
+    Allow modifiers to be added to the list and applied after rolling.
 
     Attributes:
-        parts: The dice in the set.
+        items: The dice in the list, the main list stores them.
         mods: The modifiers that apply to the parts.
     """
-    def __init__(self, *, parts=None, mods=None):
-        self.parts = parts if parts else []
+    def __init__(self, *, items=None, mods=None):
+        super().__init__(items if items else [])
         self.mods = mods if mods else []
 
     def __repr__(self):
-        return "DiceSet(parts={!r}, mods={!r})".format(self.parts, self.mods)
+        return "DiceList(items={!r}, mods={!r})".format(self[:], self.mods)
 
     def __str__(self):
-        if not self.parts:
+        if not self[:]:
             return ""
 
-        msg = str(self.parts[0])
-        for prev_die, die in zip(self.parts[:-1], self.parts[1:]):
+        msg = str(self[0])
+        for prev_die, die in zip(self[:-1], self[1:]):
             if issubclass(type(prev_die), FateDie):
                 msg += ' '
             else:
                 msg += " + "
             msg += str(die)
 
-        if len(msg) > LIMIT_DICE_SET_STR:
-            parts = msg.split(' + ')
-            msg = '{} + {} + ... {}'.format(parts[0], parts[1], parts[-1])
+        if len(msg) > LIMIT_DICE_LIST_STR:
+            parts = msg.split(' ')
+            msg = '{} ... {}'.format(' '.join(parts[:4]), parts[-1])
 
         return '(' + msg + ')'
 
     def __eq__(self, other):
-        if not isinstance(other, DiceSet) or len(self.parts) != len(other.parts):
+        if not isinstance(other, DiceList) or len(self) != len(other):
             return False
 
-        for die, o_die in zip(self.parts, other.parts):
+        for die, o_die in zip(self[:], other[:]):
             if die != o_die:
                 return False
 
@@ -676,39 +676,39 @@ class DiceSet():
     @property
     def value(self):
         """ The value of this grouping is the sum of all non-dropped rolls. """
-        return sum([x.value for x in self.parts if x.is_kept()])
+        return sum([x.value for x in self if x.is_kept()])
 
     @property
     def max_roll(self):
-        """ The lowest maximum roll within this dice set. """
-        return min([x.max_roll for x in self.parts])
+        """ The lowest maximum roll within this dice list. """
+        return min([x.max_roll for x in self])
 
     def add_dice(self, number, sides):
         """
-        Add a number of Die to this set.
+        Add a number of Die to this list.
         All Die default to value of 1 until rolled.
 
         Args:
             number: The number of Die to add.
             sides: The number of sides on the Die.
         """
-        self.parts += [Die(sides=sides) for _ in range(0, number)]
+        self.extend([Die(sides=sides) for _ in range(0, number)])
 
     def add_fatedice(self, number):
         """
-        Add a number of FateDie to this set.
+        Add a number of FateDie to this list.
         All FateDie default to value of 0 until rolled.
 
         Args:
             number: The number of FateDie to add.
         """
-        self.parts += [FateDie() for _ in range(0, number)]
+        self.extend([FateDie() for _ in range(0, number)])
 
     def roll(self):
         """
-        Roll all the die in this set.
+        Roll all the die in this list.
         """
-        for die in self.parts:
+        for die in self:
             die.roll()
             die.reset_flags()
 
@@ -720,35 +720,34 @@ class DiceSet():
             mod.modify(self)
 
 
-class AThrow():
+class AThrow(list):
     """
     A container that represents an entire throw line.
     Composed of the following elements:
-        - DiceSets (made of Die and FateDie + modifiers)
+        - DiceLists (made of Die and FateDie + modifiers)
         - Constants
         - Operators
 
     Attributes:
         spec: The original spec that created the line.
-        parts: The list of all parts of AThrow.
         note: Any comment user wanted attached to roll.
     """
-    def __init__(self, *, spec=None, parts=None, note=None):
+    def __init__(self, *, items=None, spec=None, note=None):
+        super().__init__(items if items else [])
         self.spec = spec
-        self.parts = parts if parts else []
         self.note = note
 
     def __repr__(self):
-        return "AThrow(spec={!r}, note={!r}, parts={!r})".format(self.spec, self.note, self.parts)
+        return "AThrow(spec={!r}, note={!r}, items={!r})".format(self.spec, self.note, self[:])
 
     def __str__(self):
-        return " ".join([str(x) for x in self.parts])
+        return " ".join([str(x) for x in self])
 
     def __eq__(self, other):
-        if not isinstance(other, AThrow) or len(self.parts) != len(other.parts):
+        if not isinstance(other, AThrow) or len(self) != len(other):
             return False
 
-        for parts, o_parts in zip(self.parts, other.parts):
+        for parts, o_parts in zip(self[:], other[:]):
             if parts != o_parts:
                 return False
 
@@ -764,7 +763,7 @@ class AThrow():
         """
         value = 0
         next_coeff = 1
-        for part in self.parts:
+        for part in self:
             if part == "-":
                 next_coeff = -1
 
@@ -776,19 +775,10 @@ class AThrow():
 
         return value
 
-    def add(self, part):
-        """
-        Add one part to the container.
-
-        Args:
-            part: A Die subclass or a string that is an operator or a number.
-        """
-        self.parts += [part]
-
     def roll(self):
         """ Ensure all not fixed parts reroll. """
-        for part in self.parts:
-            if issubclass(type(part), DiceSet):
+        for part in self:
+            if issubclass(type(part), DiceList):
                 part.roll()
                 part.apply_mods()
 
@@ -801,12 +791,12 @@ class AThrow():
         """
         msg, fcnt, scnt = "", 0, 0
         display_success = False
-        for part in [x for x in self.parts if issubclass(type(x), DiceSet)]:
-            for mod in part.mods:
+        for dlist in [d for d in self if issubclass(type(d), DiceList)]:
+            for mod in dlist.mods:
                 if isinstance(mod, SuccessFail):
                     display_success = True
 
-            for die in part.parts:
+            for die in dlist:
                 if die.is_fail():
                     fcnt += 1
                 elif die.is_success():
@@ -848,7 +838,7 @@ class AThrow():
 @functools.total_ordering
 class ModifyDice(abc.ABC):
     """
-    Standard interface to modify a dice set.
+    Standard interface to modify a dice list.
     Class attribute WEIGHT is used in ordering modifiers before applying.
     Consider them like friend functions they modify the dice rolls once settled.
     """
@@ -877,18 +867,18 @@ class ModifyDice(abc.ABC):
         Returns:
             (line, mod)
                 line: The remainder of line after processing.
-                mod: A ModifyDice object ready to be applied to a DiceSet.
+                mod: A ModifyDice object ready to be applied to a DiceList.
         """
         raise NotImplementedError
 
     @abc.abstractmethod
-    def modify(self, dice_set):
+    def modify(self, dice_list):
         """
         Apply the modifier to the dice and make marks/selections as required.
-        Modifies the dice_set directly.
+        Modifies the dice_list directly.
 
         Args:
-            dice_set: A collection of dice.
+            dice_list: A collection of dice.
         """
         raise NotImplementedError
 
@@ -925,10 +915,10 @@ class ExplodeDice(ModifyDice):
 
         return line, ExplodeDice(pred=pred, penetrate=penetrate)
 
-    def modify(self, dice_set):
+    def modify(self, dice_list):
         parts = []
         f_mask = ~(Die.EXPLODE | Die.REROLL) & Die.MASK
-        for die in [d for d in dice_set.parts if d.flags & f_mask]:
+        for die in [d for d in dice_list if d.flags & f_mask]:
             parts += [die]
 
             while self.pred(die):
@@ -940,7 +930,7 @@ class ExplodeDice(ModifyDice):
         for die in [d for d in parts if d.is_penetrated()]:
             die.value -= 1
 
-        dice_set.parts = parts
+        dice_list[:] = parts
 
 
 class CompoundDice(ExplodeDice):
@@ -964,9 +954,9 @@ class CompoundDice(ExplodeDice):
 
         return line, CompoundDice(pred=pred)
 
-    def modify(self, dice_set):
+    def modify(self, dice_list):
         f_mask = ~(Die.EXPLODE | Die.REROLL) & Die.MASK
-        for die in [d for d in dice_set.parts if d.flags & f_mask]:
+        for die in [d for d in dice_list if d.flags & f_mask]:
             new_explode = die
             while self.pred(new_explode):
                 new_explode = die.explode()
@@ -1016,13 +1006,13 @@ class RerollDice(ModifyDice):
 
         return line, RerollDice(invalid_rolls=invalid)
 
-    def modify(self, dice_set):
-        for die in [d for d in dice_set.parts if not d.is_exploded()]:
+    def modify(self, dice_list):
+        for die in [d for d in dice_list if not d.is_exploded()]:
             while die.value in self.invalid_rolls:
                 die.set_reroll()
                 die.set_drop()
                 die = die.dupe()
-                dice_set.parts += [die]
+                dice_list += [die]
 
 
 class KeepDrop(ModifyDice):
@@ -1059,9 +1049,9 @@ class KeepDrop(ModifyDice):
 
         return line[match.end():], KeepDrop(keep=keep, high=high, num=int(match.group(3)))
 
-    def modify(self, dice_set):
+    def modify(self, dice_list):
         f_mask = ~(Die.REROLL | Die.DROP) & Die.MASK
-        parts = sorted([d for d in dice_set.parts if d.flags & f_mask])
+        parts = sorted([d for d in dice_list if d.flags & f_mask])
         if not self.keep:
             parts = list(reversed(parts))
 
@@ -1103,9 +1093,9 @@ class SuccessFail(ModifyDice):
 
         return line, SuccessFail(pred=pred, mark_success=mark_success)
 
-    def modify(self, dice_set):
+    def modify(self, dice_list):
         f_mask = ~(Die.REROLL | Die.DROP | Die.FAIL | Die.SUCCESS) & Die.MASK
-        for die in [x for x in dice_set.parts if x.flags & f_mask]:
+        for die in [d for d in dice_list if d.flags & f_mask]:
             if self.pred(die):
                 getattr(die, self.mark)()
 
@@ -1142,9 +1132,9 @@ class SortDice(ModifyDice):
 
         return line, SortDice(ascending=ascending)
 
-    def modify(self, dice_set):
-        ordered = sorted(dice_set.parts)
+    def modify(self, dice_list):
+        ordered = sorted(dice_list[:])
         if not self.ascending:
             ordered = list(reversed(ordered))
 
-        dice_set.parts = ordered
+        dice_list[:] = ordered

@@ -9,25 +9,25 @@ import pytest
 import dice.exc
 import dice.roll
 from dice.roll import (Comp, RerollDice, ExplodeDice, CompoundDice, KeepDrop,
-                       SuccessFail, SortDice, AThrow, DiceSet, Die, FateDie)
+                       SuccessFail, SortDice, AThrow, DiceList, Die, FateDie)
 
 
 @pytest.fixture
-def f_dset():
-    dset = dice.roll.DiceSet()
-    dset.parts = [
+def f_dlist():
+    dlist = dice.roll.DiceList()
+    dlist += [
         dice.roll.Die(sides=6, value=5),
         dice.roll.Die(sides=6, value=2),
         dice.roll.Die(sides=6, value=6),
         dice.roll.Die(sides=6, value=1),
     ]
 
-    yield dset
+    yield dlist
 
 
 @pytest.fixture
-def f_athrow(f_dset):
-    throw = dice.roll.AThrow(spec='4d6 + 4', note='note', parts=[f_dset, '+', '4'])
+def f_athrow(f_dlist):
+    throw = dice.roll.AThrow(spec='4d6 + 4', note='note', items=[f_dlist, '+', '4'])
 
     yield throw
 
@@ -147,58 +147,58 @@ def test_parse_predicate_range():
     assert pred(dice.roll.Die(value=2))
 
 
-def test_parse_diceset():
-    nspec, dset = dice.roll.parse_diceset('4d20kh1')
+def test_parse_dicelist():
+    nspec, dlist = dice.roll.parse_dicelist('4d20kh1')
     assert nspec == ''
-    assert len(dset.parts) == 4
-    assert dset.mods == [KeepDrop(num=1)]
+    assert len(dlist) == 4
+    assert dlist.mods == [KeepDrop(num=1)]
 
-    nspec, dset = dice.roll.parse_diceset('20d100!!<6 + 4d10 - 2')
+    nspec, dlist = dice.roll.parse_dicelist('20d100!!<6 + 4d10 - 2')
     assert nspec == ' + 4d10 - 2'
-    assert len(dset.parts) == 20
-    assert dset.mods == [CompoundDice(pred=Comp(left=5, func='less_equal'))]
+    assert len(dlist) == 20
+    assert dlist.mods == [CompoundDice(pred=Comp(left=5, func='less_equal'))]
 
 
-def test_parse_diceset_raises():
+def test_parse_dicelist_raises():
     with pytest.raises(ValueError):
-        dice.roll.parse_diceset(' 4d20')
-
-    with pytest.raises(ValueError):
-        dice.roll.parse_diceset('4df')
+        dice.roll.parse_dicelist(' 4d20')
 
     with pytest.raises(ValueError):
-        dice.roll.parse_diceset('>34d8')
+        dice.roll.parse_dicelist('4df')
+
+    with pytest.raises(ValueError):
+        dice.roll.parse_dicelist('>34d8')
 
     with pytest.raises(dice.exc.InvalidCommandArgs):
-        dice.roll.parse_diceset('4000000000d20')
+        dice.roll.parse_dicelist('4000000000d20')
 
     with pytest.raises(dice.exc.InvalidCommandArgs):
-        dice.roll.parse_diceset('4d2000000000000')
+        dice.roll.parse_dicelist('4d2000000000000')
 
 
-def test_parse_fate_diceset():
-    nspec, dset = dice.roll.parse_fate_diceset('4df')
+def test_parse_fate_dicelist():
+    nspec, dlist = dice.roll.parse_fate_dicelist('4df')
     assert nspec == ''
-    assert len(dset.parts) == 4
+    assert len(dlist) == 4
 
-    nspec, dset = dice.roll.parse_fate_diceset('10dfkh1')
+    nspec, dlist = dice.roll.parse_fate_dicelist('10dfkh1')
     assert nspec == ''
-    assert len(dset.parts) == 10
-    assert dset.mods == [KeepDrop(num=1)]
+    assert len(dlist) == 10
+    assert dlist.mods == [KeepDrop(num=1)]
 
 
-def test_parse_fate_diceset_raises():
+def test_parse_fate_dicelist_raises():
     with pytest.raises(ValueError):
-        dice.roll.parse_fate_diceset(' 4df')
-
-    with pytest.raises(ValueError):
-        dice.roll.parse_fate_diceset('4d6')
+        dice.roll.parse_fate_dicelist(' 4df')
 
     with pytest.raises(ValueError):
-        dice.roll.parse_fate_diceset('>34d8')
+        dice.roll.parse_fate_dicelist('4d6')
+
+    with pytest.raises(ValueError):
+        dice.roll.parse_fate_dicelist('>34d8')
 
     with pytest.raises(dice.exc.InvalidCommandArgs):
-        dice.roll.parse_fate_diceset('4000000000df')
+        dice.roll.parse_fate_dicelist('4000000000df')
 
 
 def test_parse_trailing_mods():
@@ -295,7 +295,7 @@ def test_parse_dice_line_comment():
 
 
 def test_parse_dice_line():
-    expect = AThrow(spec='4d8 + 2df + 6', parts=[DiceSet(parts=[Die(sides=8, value=1, flags=1), Die(sides=8, value=1, flags=1), Die(sides=8, value=1, flags=1), Die(sides=8, value=1, flags=1)], mods=[]), '+', DiceSet(parts=[FateDie(sides=3, value=2, flags=1), FateDie(sides=3, value=2, flags=1)], mods=[]), '+', '6'])
+    expect = AThrow(spec='4d8 + 2df + 6', items=[DiceList(items=[Die(sides=8, value=1, flags=1), Die(sides=8, value=1, flags=1), Die(sides=8, value=1, flags=1), Die(sides=8, value=1, flags=1)], mods=[]), '+', DiceList(items=[FateDie(sides=3, value=2, flags=1), FateDie(sides=3, value=2, flags=1)], mods=[]), '+', '6'])
     throw = dice.roll.parse_dice_line('4d8 + 2df + 6')
     assert throw == expect
 
@@ -627,65 +627,65 @@ def test_fatedie_value_set():
     assert die.value == 1
 
 
-def test_diceset__init__():
-    dset = dice.roll.DiceSet()
-    assert str(dset) == ""
+def test_dicelist__init__():
+    dlist = dice.roll.DiceList()
+    assert str(dlist) == ""
 
 
-def test_diceset__repr__():
-    dset = dice.roll.DiceSet()
-    dset.add_dice(4, 6)
+def test_dicelist__repr__():
+    dlist = dice.roll.DiceList()
+    dlist.add_dice(4, 6)
 
-    expect = "DiceSet(parts=[Die(sides=6, value=1, flags=1), Die(sides=6, value=1, flags=1), Die(sides=6, value=1, flags=1), Die(sides=6, value=1, flags=1)], mods=[])"
-    assert repr(dset) == expect
-
-
-def test_diceset__str__():
-    dset = dice.roll.DiceSet()
-    dset.add_dice(4, 6)
-
-    assert str(dset) == "(1 + 1 + 1 + 1)"
+    expect = "DiceList(items=[Die(sides=6, value=1, flags=1), Die(sides=6, value=1, flags=1), Die(sides=6, value=1, flags=1), Die(sides=6, value=1, flags=1)], mods=[])"
+    assert repr(dlist) == expect
 
 
-def test_diceset__str__truncate():
-    dset = dice.roll.DiceSet()
-    dset.add_dice(200, 100)
+def test_dicelist__str__():
+    dlist = dice.roll.DiceList()
+    dlist.add_dice(4, 6)
 
-    assert str(dset) == "(1 + 1 + ... 1)"
-
-
-def test_diceset_value(f_dset):
-    assert f_dset.value == 14
+    assert str(dlist) == "(1 + 1 + 1 + 1)"
 
 
-def test_diceset_max_roll(f_dset):
-    assert f_dset.max_roll == 6
+def test_dicelist__str__truncate():
+    dlist = dice.roll.DiceList()
+    dlist.add_dice(200, 100)
+
+    assert str(dlist) == "(1 + 1 + ... 1)"
 
 
-def test_diceset_add_die():
-    dset = dice.roll.DiceSet()
-    dset.add_dice(4, 6)
-    assert len(dset.parts) == 4
-    assert issubclass(type(dset.parts[0]), dice.roll.Die)
+def test_dicelist_value(f_dlist):
+    assert f_dlist.value == 14
 
 
-def test_diceset_add_fatedie():
-    dset = dice.roll.DiceSet()
-    dset.add_fatedice(4)
-    assert len(dset.parts) == 4
-    assert issubclass(type(dset.parts[0]), dice.roll.FateDie)
+def test_dicelist_max_roll(f_dlist):
+    assert f_dlist.max_roll == 6
 
 
-def test_diceset_roll_no_mod():
-    dset = dice.roll.DiceSet()
-    dset.add_dice(4, 6)
-    assert str(dset) == "(1 + 1 + 1 + 1)"
-    dset.roll()
-    assert str(dset) != "(1 + 1 + 1 + 1)"
+def test_dicelist_add_die():
+    dlist = dice.roll.DiceList()
+    dlist.add_dice(4, 6)
+    assert len(dlist) == 4
+    assert issubclass(type(dlist[0]), dice.roll.Die)
+
+
+def test_dicelist_add_fatedie():
+    dlist = dice.roll.DiceList()
+    dlist.add_fatedice(4)
+    assert len(dlist) == 4
+    assert issubclass(type(dlist[0]), dice.roll.FateDie)
+
+
+def test_dicelist_roll_no_mod():
+    dlist = dice.roll.DiceList()
+    dlist.add_dice(4, 6)
+    assert str(dlist) == "(1 + 1 + 1 + 1)"
+    dlist.roll()
+    assert str(dlist) != "(1 + 1 + 1 + 1)"
 
 
 def test_athrow__repr__(f_athrow):
-    expect = "AThrow(spec='4d6 + 4', note='note', parts=[DiceSet(parts=[Die(sides=6, value=5, flags=1), Die(sides=6, value=2, flags=1), Die(sides=6, value=6, flags=1), Die(sides=6, value=1, flags=1)], mods=[]), '+', '4'])"
+    expect = "AThrow(spec='4d6 + 4', note='note', items=[DiceList(items=[Die(sides=6, value=5, flags=1), Die(sides=6, value=2, flags=1), Die(sides=6, value=6, flags=1), Die(sides=6, value=1, flags=1)], mods=[]), '+', '4'])"
     assert repr(f_athrow) == expect
 
 
@@ -694,10 +694,10 @@ def test_athrow__str__(f_athrow):
 
 
 def test_athrow__eq__(f_athrow):
-    assert AThrow(parts=['4']) == AThrow(parts=['4'])
-    dset = DiceSet(parts=[Die(sides=6, value=5, flags=1), Die(sides=6, value=2, flags=1), Die(sides=6, value=6, flags=1), Die(sides=6, value=1, flags=1)], mods=[])
-    assert dset == DiceSet(parts=[Die(sides=6, value=5, flags=1), Die(sides=6, value=2, flags=1), Die(sides=6, value=6, flags=1), Die(sides=6, value=1, flags=1)], mods=[])
-    assert dset != AThrow(parts=['4'])
+    assert AThrow(items=['4']) == AThrow(items=['4'])
+    dlist = DiceList(items=[Die(sides=6, value=5, flags=1), Die(sides=6, value=2, flags=1), Die(sides=6, value=6, flags=1), Die(sides=6, value=1, flags=1)], mods=[])
+    assert dlist == DiceList(items=[Die(sides=6, value=5, flags=1), Die(sides=6, value=2, flags=1), Die(sides=6, value=6, flags=1), Die(sides=6, value=1, flags=1)], mods=[])
+    assert dlist != AThrow(items=['4'])
 
 
 def test_athrow_value(f_athrow):
@@ -705,7 +705,7 @@ def test_athrow_value(f_athrow):
 
 
 def test_athrow_add(f_athrow):
-    f_athrow.add('+')
+    f_athrow += ['+']
     assert str(f_athrow) == "(5 + 2 + 6 + 1) + 4 +"
 
 
@@ -715,29 +715,29 @@ def test_athrow_roll(f_athrow):
 
 
 def test_athrow_string_success(f_athrow):
-    f_dset = f_athrow.parts[0]
+    f_dlist = f_athrow[0]
     pred = dice.roll.Comp(left=5, func='greater_equal')
-    f_dset.mods = [dice.roll.SuccessFail(mark_success=True, pred=pred)]
-    f_athrow.parts[0].apply_mods()
+    f_dlist.mods = [dice.roll.SuccessFail(mark_success=True, pred=pred)]
+    f_dlist.apply_mods()
     assert f_athrow.success_string() == "(+2) **0** Failure(s), **2** Success(es)"
 
 
 def test_athrow_string_fail(f_athrow):
-    f_dset = f_athrow.parts[0]
+    f_dlist = f_athrow[0]
     pred = dice.roll.Comp(left=2, func='less_equal')
-    f_dset.mods = [dice.roll.SuccessFail(mark_success=False, pred=pred)]
-    f_athrow.parts[0].apply_mods()
+    f_dlist.mods = [dice.roll.SuccessFail(mark_success=False, pred=pred)]
+    f_dlist.apply_mods()
     assert f_athrow.success_string() == "(-2) **2** Failure(s), **0** Success(es)"
 
 
 def test_athrow_string_success_and_fail(f_athrow):
-    f_dset = f_athrow.parts[0]
+    f_dlist = f_athrow[0]
     pred = dice.roll.Comp(left=5, func='greater_equal')
     pred2 = dice.roll.Comp(left=2, func='less_equal')
-    f_dset.mods = [dice.roll.SuccessFail(mark_success=True, pred=pred),
-                   dice.roll.SuccessFail(mark_success=False, pred=pred2)]
+    f_dlist.mods = [dice.roll.SuccessFail(mark_success=True, pred=pred),
+                    dice.roll.SuccessFail(mark_success=False, pred=pred2)]
 
-    f_athrow.parts[0].apply_mods()
+    f_dlist.apply_mods()
     assert f_athrow.success_string() == "(+0) **2** Failure(s), **2** Success(es)"
 
 
@@ -798,40 +798,40 @@ def test_drop_low_parse_default():
     assert line == 'kh1'
 
 
-def test_keep_high_modify(f_dset):
-    dice.roll.KeepDrop(keep=True, high=True, num=2).modify(f_dset)
+def test_keep_high_modify(f_dlist):
+    dice.roll.KeepDrop(keep=True, high=True, num=2).modify(f_dlist)
 
-    assert f_dset.parts[0].is_kept()
-    assert not f_dset.parts[1].is_kept()
-    assert f_dset.parts[2].is_kept()
-    assert not f_dset.parts[3].is_kept()
-
-
-def test_keep_low_modify(f_dset):
-    dice.roll.KeepDrop(keep=True, high=False, num=2).modify(f_dset)
-
-    assert not f_dset.parts[0].is_kept()
-    assert f_dset.parts[1].is_kept()
-    assert not f_dset.parts[2].is_kept()
-    assert f_dset.parts[3].is_kept()
+    assert f_dlist[0].is_kept()
+    assert not f_dlist[1].is_kept()
+    assert f_dlist[2].is_kept()
+    assert not f_dlist[3].is_kept()
 
 
-def test_drop_low_modify(f_dset):
-    dice.roll.KeepDrop(keep=False, high=False, num=2).modify(f_dset)
+def test_keep_low_modify(f_dlist):
+    dice.roll.KeepDrop(keep=True, high=False, num=2).modify(f_dlist)
 
-    assert not f_dset.parts[0].is_dropped()
-    assert f_dset.parts[1].is_dropped()
-    assert not f_dset.parts[2].is_dropped()
-    assert f_dset.parts[3].is_dropped()
+    assert not f_dlist[0].is_kept()
+    assert f_dlist[1].is_kept()
+    assert not f_dlist[2].is_kept()
+    assert f_dlist[3].is_kept()
 
 
-def test_drop_high_modify(f_dset):
-    dice.roll.KeepDrop(keep=False, high=True, num=2).modify(f_dset)
+def test_drop_low_modify(f_dlist):
+    dice.roll.KeepDrop(keep=False, high=False, num=2).modify(f_dlist)
 
-    assert f_dset.parts[0].is_dropped()
-    assert not f_dset.parts[1].is_dropped()
-    assert f_dset.parts[2].is_dropped()
-    assert not f_dset.parts[3].is_dropped()
+    assert not f_dlist[0].is_dropped()
+    assert f_dlist[1].is_dropped()
+    assert not f_dlist[2].is_dropped()
+    assert f_dlist[3].is_dropped()
+
+
+def test_drop_high_modify(f_dlist):
+    dice.roll.KeepDrop(keep=False, high=True, num=2).modify(f_dlist)
+
+    assert f_dlist[0].is_dropped()
+    assert not f_dlist[1].is_dropped()
+    assert f_dlist[2].is_dropped()
+    assert not f_dlist[3].is_dropped()
 
 
 def test_explode_dice_parse():
@@ -855,11 +855,11 @@ def test_explode_dice_parse_raises():
         assert dice.roll.ExplodeDice.parse('!<6', 6)
 
 
-def test_explode_dice_modify(f_dset):
+def test_explode_dice_modify(f_dlist):
     mod = dice.roll.ExplodeDice(pred=dice.roll.Comp(left=6, func='equal'))
-    mod.modify(f_dset)
-    assert [x for x in f_dset.parts if x.is_exploded()]
-    assert len(f_dset.parts) >= 5
+    mod.modify(f_dlist)
+    assert [d for d in f_dlist if d.is_exploded()]
+    assert len(f_dlist) >= 5
 
 
 def test_penetrate_dice_parse():
@@ -874,11 +874,11 @@ def test_penetrate_dice_parse_raises():
         dice.roll.ExplodeDice.parse('!p>', 6)
 
 
-def test_penetrate_dice_modify(f_dset):
+def test_penetrate_dice_modify(f_dlist):
     mod = dice.roll.ExplodeDice(pred=dice.roll.Comp(left=6, func='equal'), penetrate=True)
-    mod.modify(f_dset)
-    assert [x for x in f_dset.parts if x.is_penetrated()]
-    assert len(f_dset.parts) >= 5
+    mod.modify(f_dlist)
+    assert [d for d in f_dlist if d.is_penetrated()]
+    assert len(f_dlist) >= 5
 
 
 def test_compound_dice_parse():
@@ -905,11 +905,11 @@ def test_compound_dice_parse_raises():
         assert dice.roll.ExplodeDice.parse('!!<6', 6)
 
 
-def test_compound_dice_modify(f_dset):
+def test_compound_dice_modify(f_dlist):
     mod = dice.roll.CompoundDice(pred=lambda x: x.value == 6)
-    mod.modify(f_dset)
-    assert [x for x in f_dset.parts if x.is_exploded()]
-    assert len(f_dset.parts) >= 4
+    mod.modify(f_dlist)
+    assert [d for d in f_dlist if d.is_exploded()]
+    assert len(f_dlist) >= 4
 
 
 def test_reroll_dice_parse():
@@ -939,10 +939,10 @@ def test_reroll_dice_parse_raises():
         dice.roll.RerollDice.parse('r1r2r3r4r5r6', 6)
 
 
-def test_reroll_dice_modify(f_dset):
+def test_reroll_dice_modify(f_dlist):
     mod = dice.roll.RerollDice(invalid_rolls=[1, 2, 3])
-    mod.modify(f_dset)
-    assert len(f_dset.parts) >= 6
+    mod.modify(f_dlist)
+    assert len(f_dlist) >= 6
 
 
 def test_success_fail_parse():
@@ -966,14 +966,14 @@ def test_success_fail_parse_raises():
         dice.roll.SuccessFail.parse('>f', 6)
 
 
-def test_success_fail_modify(f_dset):
+def test_success_fail_modify(f_dlist):
     mod = dice.roll.SuccessFail(pred=lambda x: x.value >= 4)
-    mod.modify(f_dset)
+    mod.modify(f_dlist)
 
-    assert f_dset.parts[0].is_success()
-    assert not f_dset.parts[1].is_success()
-    assert f_dset.parts[2].is_success()
-    assert not f_dset.parts[3].is_success()
+    assert f_dlist[0].is_success()
+    assert not f_dlist[1].is_success()
+    assert f_dlist[2].is_success()
+    assert not f_dlist[3].is_success()
 
 
 def test_sort_dice_parse():
@@ -995,18 +995,18 @@ def test_sort_dice_parse_raises():
         dice.roll.SortDice.parse('rrr', 6)
 
 
-def test_sort_dice_modify(f_dset):
+def test_sort_dice_modify(f_dlist):
     mod = dice.roll.SortDice(ascending=True)
-    mod.modify(f_dset)
+    mod.modify(f_dlist)
 
-    assert [int(x) for x in f_dset.parts] == [1, 2, 5, 6]
+    assert [int(x) for x in f_dlist] == [1, 2, 5, 6]
 
 
-def test_sort_dice_modify_descending(f_dset):
+def test_sort_dice_modify_descending(f_dlist):
     mod = dice.roll.SortDice(ascending=False)
-    mod.modify(f_dset)
+    mod.modify(f_dlist)
 
-    assert [int(x) for x in f_dset.parts] == [6, 5, 2, 1]
+    assert [int(x) for x in f_dlist] == [6, 5, 2, 1]
 
 
 def test_parse_comments_from_line():
