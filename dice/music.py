@@ -11,6 +11,7 @@ See related Song/SongTag in dicedb.schema
 """
 import asyncio
 import datetime
+import functools
 import json
 import logging
 import os
@@ -50,6 +51,12 @@ PLAYBACK_WARNING = """Warning! Timeout downloading the following:
 It has been removed from queue. If it was currently playing, trying next one.
 
 If this happens freequently, check server.
+"""
+PLAYBACK_DELETION = """Warning! The following has been deleted to make space on server:
+
+{}
+
+It has been removed from queue. If it was currently playing, trying next one.
 """
 
 # Stupid youtube: https://github.com/Rapptz/discord.py/issues/315
@@ -142,14 +149,19 @@ async def get_yt_info(url):
     return playlist_info
 
 
-def prune_cache(cache_dir, limit=CACHE_LIMIT, *, prefix=None):
+def prune_cache(cache_dir, active_songs=None, delete_cb=None, *, limit=CACHE_LIMIT, prefix=None):
     """
     Scan a folder for all files or if optional prefix provided, only those matching it.
     Total their filesize and keep removing the oldest video until
     total filesize < limit.
+    Prioritize removal of all inactive songs (not in any players queue).
+    If still over, start removing active_songs in order of oldest last play.
+    Notify user of removal via delete_cb when an active song removed.
 
     Args:
         cache_dir: Path to local files to examine.
+        active_songs: Songs currently in the queue.
+        delete_cb: Called on songs currently in players to remove it from players.
         limit: The maximum size of the cache_dir before pruning older files.
         prefix: Optional kwarg prefix, if provided only match files with this prefix.
 
@@ -157,18 +169,49 @@ def prune_cache(cache_dir, limit=CACHE_LIMIT, *, prefix=None):
         OSError: Error during file removal, likely permissions problem.
     """
     path = pathlib.Path(cache_dir)
-    matcher = '{}*'.format(prefix) if prefix else '*'
-    songs = sorted(list(path.glob(matcher)), key=lambda x: x.stat().st_mtime)
+    matcher = '{}*.opus'.format(prefix if prefix else '')
+    local_songs = set(path.glob(matcher))
     total_size = 0
-    for song in songs:
-        total_size += os.stat(song).st_size
+    for song in local_songs:
+        total_size += song.stat().st_size
 
+    if total_size < limit:
+        return
+
+    active_paths = []
+    if active_songs:
+        active_paths = [pathlib.Path(x.fname) for x in active_songs if x.ready]
+        active_paths = sorted(active_paths, key=lambda x: x.stat().st_mtime)
+    inactive_paths = sorted(list(local_songs - set(active_paths)),
+                            key=lambda x: x.stat().st_mtime)
     log = logging.getLogger('dice.music')
-    while total_size > limit:
-        log.warning("MONITOR_DEL: %s", songs[0])
-        total_size -= os.stat(songs[0]).st_size
-        os.remove(songs[0])
-        songs = songs[1:]
+
+    while inactive_paths and total_size > limit:
+        to_remove = inactive_paths.pop(0)
+        log.warning("MONITOR: Inactive deletion %s", to_remove)
+        total_size -= to_remove.stat().st_size
+        os.remove(to_remove)
+
+    while active_paths and total_size > limit:
+        to_remove = active_paths.pop(0)
+        log.warning("MONITOR: Active deletion %s", to_remove)
+        actual_song = [x for x in active_songs if x.fname == to_remove][0]
+        delete_cb(actual_song)
+        total_size -= to_remove.stat().st_size
+        os.remove(to_remove)
+
+
+def prune_cache_cb(players, song):
+    """
+    A callback to notify users that a song has been deleted to free up space.
+
+    Args:
+        guild_players: The active guild players.
+        song: The song that was removed.
+    """
+    for player in players:
+        if player.ensure_removed(song):
+            asyncio.ensure_future(player.text_channel.send(PLAYBACK_DELETION.format(str(song))))
 
 
 def make_stream(vid):
@@ -208,11 +251,12 @@ async def gplayer_monitor(players, activity, gap=3):
     asyncio.ensure_future(gplayer_monitor(players, activity, gap))
 
     log = logging.getLogger('dice.music')
-    prune_cache(dice.util.get_config('paths', 'youtube'))
-
     cur_date = datetime.datetime.utcnow()
     log.debug('GPlayer Monitor: %s %s  %s', cur_date, str(players), str(activity))
+
+    songs = []
     for pid, player in players.items():
+        songs += player.vids
         try:
             if not player.voice_channel or not player.is_connected():
                 raise AttributeError
@@ -227,6 +271,9 @@ async def gplayer_monitor(players, activity, gap=3):
         if not real_users or has_timed_out:
             log.debug('GPlayer Monitor: disconnect %s', player)
             await player.disconnect()
+
+    prune_cache(dice.util.get_config('paths', 'youtube'), set(songs),
+                functools.partial(prune_cache_cb, players))
 
 
 async def prefetch_all(vids):
@@ -507,17 +554,21 @@ __Video List__:{vids}
     def ensure_removed(self, vid):
         """
         Ensure a video is removed from the current vids.
-        """
-        try:
-            self.vids.remove(vid)
-        except ValueError:
-            pass
 
+        Returns:
+            True IFF the video was actually removed.
+        """
+        if vid not in self.vids:
+            return False
+
+        self.vids.remove(vid)
         if self.cur_vid == vid:
             try:
                 self.next()
             except StopIteration:
                 pass
+
+        return True
 
     def play(self, next_vid=None):
         """

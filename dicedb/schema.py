@@ -200,6 +200,9 @@ class Song(Base):
     def __eq__(self, other):
         return isinstance(other, Song) and self.name == other.name
 
+    def __hash__(self):
+        return hash("{}_{}_{}".format(self.folder, self.name, self.url))
+
     def __lt__(self, other):
         return self.name < other.name
 
