@@ -202,7 +202,7 @@ class Music(Action):
     async def restart(self, mplayer):
         """ Restart the player at the beginning. """
         mplayer.reset_iterator()
-        await mplayer.play_when_ready()
+        mplayer.play()
         return "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
 
     async def stop(self, mplayer):
@@ -229,7 +229,7 @@ To stop playing entirely: `!music stop`"""
             mplayer.resume()
             msg = str(mplayer)
         elif not mplayer.is_done():
-            await mplayer.play_when_ready()
+            mplayer.play()
             msg = str(mplayer)
         else:
             msg = "The bot cannot resume at this time.\nIf queue is finished restart it or choose new songs."
@@ -240,7 +240,7 @@ To stop playing entirely: `!music stop`"""
         """ Play the next video. """
         try:
             mplayer.next()
-            await mplayer.play_when_ready()
+            mplayer.play()
             return "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
         except StopIteration:
             return "Queue finished. Stopping."
@@ -249,7 +249,7 @@ To stop playing entirely: `!music stop`"""
         """ Play the previous video. """
         try:
             mplayer.prev()
-            await mplayer.play_when_ready()
+            mplayer.play()
             return "__**Now Playing**__\n\n{}".format(mplayer.cur_vid)
         except StopIteration:
             return "Queue finished. Stopping."
@@ -275,7 +275,7 @@ To stop playing entirely: `!music stop`"""
     async def shuffle(self, mplayer):
         """ Set player to repeat video when it finishes normally. """
         mplayer.toggle_shuffle()
-        await mplayer.play_when_ready()
+        mplayer.play()
         return "Player shuffle is now: **{}abled**".format('En' if mplayer.shuffle else 'Dis')
 
     async def status(self, mplayer):
@@ -297,19 +297,9 @@ To stop playing entirely: `!music stop`"""
     async def play(self, mplayer):
         """ Start playing or replace entire playlist. """
         new_vids = await self.__class__.make_videos(self.args.vids)
-        msgs = await self.reply("Please wait, ensuring first song downloaded. Rest will download in background.")
-
-        gen = mplayer.replace_and_play(new_vids)
-        await gen.__anext__()
-        try:
-            for msg in msgs:
-                await msg.delete()
-        except discord.Forbidden:
-            logging.getLogger("dice.actions").error(
-                "Bot missing manage messages permission. On: %s", str(self.msg.guild))
-
+        mplayer.set_vids(new_vids)
         await self.reply(str(mplayer))
-        await gen.__anext__()
+        mplayer.play()
 
     replace = play
 
@@ -394,7 +384,7 @@ Type __list__ to go select by song list"""
             mplayer.append_vids(songs)
             await self.reply(str(mplayer))
             if not mplayer.is_playing():
-                await mplayer.play_when_ready()
+                mplayer.play()
         else:
             await SelectSong(self.act, songs).run()
             return True
@@ -432,7 +422,7 @@ Select a song to play by number [1..{}]:
         mplayer = get_guild_player(self.act.guild_id, self.act.msg)
         mplayer.append_vids([selected])
         if not mplayer.is_playing():
-            await mplayer.play_when_ready()
+            mplayer.play()
 
         return False
 

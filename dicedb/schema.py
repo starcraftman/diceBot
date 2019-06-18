@@ -5,8 +5,13 @@ N.B. Schema defaults only applied once object commited.
 """
 from __future__ import absolute_import, print_function
 from functools import total_ordering
+import io
 import os
+import subprocess
+import shlex
+import time
 
+import discord
 import sqlalchemy as sqla
 import sqlalchemy.orm as sqla_orm
 import sqlalchemy.ext.declarative
@@ -251,6 +256,32 @@ class Song(Base):
         self.url = other.url
         self.repeat = other.repeat
         self.volume_int = other.volume_int
+
+    def stream(self):
+        """
+        Create a compatible AudioStream to use with the discord.py player.
+
+        If a video is local, the local files timestamp is updated and a simple stream is made.
+        If the video is remote, stream it via a subprocess and pipe it into the player.
+
+        Returns:
+            discord.AudioStream object wrapped in PCMVolumeTransformer to control volume.
+        """
+        pcmd = None
+        if self.url:
+            args = shlex.split("youtube-dl -f bestaudio {} -o -".format(self.url))
+            pcmd = subprocess.Popen(args, stdout=subprocess.PIPE)
+
+            stream = discord.FFmpegPCMAudio(pcmd.stdout, pipe=True)
+        else:
+            now = time.time()
+            os.utime(self.fname, (now, now))
+
+            stream = discord.FFmpegPCMAudio(self.fname)
+
+        trans = discord.PCMVolumeTransformer(stream, self.volume)
+        trans.pcmd = pcmd
+        return trans
 
 
 @total_ordering
