@@ -5,7 +5,6 @@ N.B. Schema defaults only applied once object commited.
 """
 from __future__ import absolute_import, print_function
 from functools import total_ordering
-import io
 import os
 import subprocess
 import shlex

@@ -29,7 +29,7 @@ import dice.exc
 
 IS_DIE = re.compile(r'(\d+)?d(\d+)', re.ASCII | re.IGNORECASE)
 IS_FATEDIE = re.compile(r'(\d+)?df', re.ASCII | re.IGNORECASE)
-IS_LITERAL = re.compile(r'([+-])|([-0-9]+\b)', re.ASCII)
+IS_LITERAL = re.compile(r'([-+])|([-0-9]+\b)', re.ASCII)
 IS_PREDICATE = re.compile(r'(>)?(<)?\[?(=?\d+)(,\d+\])?', re.ASCII)
 LIMIT_DIE_NUMBER = 1000
 LIMIT_DIE_SIDES = 1000
@@ -268,7 +268,7 @@ def parse_trailing_mods(line, max_roll):
     """
     mods = []
     while line:
-        if line[0] in [' ', '}', ',']:
+        if line[0] in [' ', '}', ',', '+', '-', '*', '/']:
             break
 
         if line[0] in ['k', 'd']:
@@ -310,9 +310,9 @@ def parse_literal(line):
     if match.group(2):
         literal = match.group(2)
     else:
-        literal = line[0]
+        literal = match.group(1)
 
-    return line[match.end() + 1:], literal
+    return line[match.end():], literal
 
 
 def check_parentheses(line):
@@ -400,6 +400,7 @@ def parse_dice_line(line):
             try:
                 spec, obj = func(spec)
                 throw += [obj]
+                break
             except ValueError:
                 pass
 
@@ -1142,9 +1143,12 @@ class SortDice(ModifyDice):
 
 def main():
     while True:
-        text = input('> ')
-        throw = parse_dice_line(text)
-        print(throw.next())
+        try:
+            text = input('> ')
+            throw = parse_dice_line(text)
+            print(throw.next())
+        except ValueError as exc:
+            print(exc)
 
 
 if __name__ == "__main__":

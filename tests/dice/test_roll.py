@@ -273,20 +273,24 @@ def test_parse_trailing_mods_raises():
 
 def test_parse_literal():
     line, lit = dice.roll.parse_literal("+ 42")
-    assert line == "42"
+    assert line == " 42"
     assert lit == "+"
 
     line, lit = dice.roll.parse_literal("- 42")
-    assert line == "42"
+    assert line == " 42"
     assert lit == "-"
 
     line, lit = dice.roll.parse_literal("42 + 1")
-    assert line == "+ 1"
+    assert line == " + 1"
     assert lit == "42"
 
     line, lit = dice.roll.parse_literal("42 + 4d6")
-    assert line == "+ 4d6"
+    assert line == " + 4d6"
     assert lit == "42"
+
+    line, lit = dice.roll.parse_literal("+42")
+    assert line == "42"
+    assert lit == "+"
 
 
 def test_parse_dice_line_comment():
