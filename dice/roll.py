@@ -1138,3 +1138,14 @@ class SortDice(ModifyDice):
             ordered = list(reversed(ordered))
 
         dice_list[:] = ordered
+
+
+def main():
+    while True:
+        text = input('> ')
+        throw = parse_dice_line(text)
+        print(throw.next())
+
+
+if __name__ == "__main__":
+    main()

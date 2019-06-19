@@ -34,23 +34,9 @@ VOICE_JOIN_TIMEOUT = dice.util.get_config('music', 'voice_join_timeout', default
 TIMEOUT_MSG = """ Bot joining voice took more than {} seconds.
 
 Try again later or contact bot owner. """.format(VOICE_JOIN_TIMEOUT)
-# Filename goes after o flag, urls at end
-YTDL_CMD = "youtube-dl -x --audio-format opus --audio-quality 0 -o"  # + out_template + url
 YTDL_PLAYLIST = "youtube-dl -j --flat-playlist"  # + url
 YT_SEARCH_REG = re.compile(r'((\d+) hours?)?[, ]*((\d+) minutes?)?[, ]*((\d+) seconds?)?[, ]*(([0-9,]+) views)?', re.ASCII | re.IGNORECASE)
 YT_SEARCH = "https://www.youtube.com/results?search_query="
-PLAYBACK_WARNING = """Warning! Timeout downloading the following:
-
-{}
-
-It has been removed from queue. If it was currently playing, trying next one.
-
-If this happens freequently, check server.
-"""
-
-# Stupid youtube: https://github.com/Rapptz/discord.py/issues/315
-# Archived if go back to streaming youtube
-#  BEFORE_OPTS = '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
 
 
 def run_cmd_with_retries(args, retries=3):
