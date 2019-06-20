@@ -232,32 +232,32 @@ def test_parse_trailing_mods():
     line, all_mods = dice.roll.parse_trailing_mods('kl2!>5r4r>4', 6)
     assert all_mods == [KeepDrop(keep=True, high=False, num=2),
                         ExplodeDice(pred=Comp(left=5, right=0, func='greater_equal'), penetrate=False),
-                        RerollDice(invalid_rolls=[4, 5, 6])]
+                        RerollDice(reroll_always=[4, 5, 6])]
     assert line == ''
 
     line, all_mods = dice.roll.parse_trailing_mods('kl2!p>5r4r>4', 6)
     assert all_mods == [KeepDrop(keep=True, high=False, num=2),
                         ExplodeDice(pred=Comp(left=5, right=0, func='greater_equal'), penetrate=True),
-                        RerollDice(invalid_rolls=[4, 5, 6])]
+                        RerollDice(reroll_always=[4, 5, 6])]
     assert line == ''
 
     line, all_mods = dice.roll.parse_trailing_mods('kl2!!>5r4r>4', 6)
     assert all_mods == [KeepDrop(keep=True, high=False, num=2),
                         CompoundDice(pred=Comp(left=5, right=0, func='greater_equal'), penetrate=False),
-                        RerollDice(invalid_rolls=[4, 5, 6])]
+                        RerollDice(reroll_always=[4, 5, 6])]
     assert line == ''
 
     line, all_mods = dice.roll.parse_trailing_mods('kl2!>5r4r>4f<2', 6)
     assert all_mods == [KeepDrop(keep=True, high=False, num=2),
                         ExplodeDice(pred=Comp(left=5, right=0, func='greater_equal'), penetrate=False),
-                        RerollDice(invalid_rolls=[4, 5, 6]),
+                        RerollDice(reroll_always=[4, 5, 6]),
                         SuccessFail(pred=Comp(left=2, right=0, func='less_equal'), mark_success='set_fail')]
     assert line == ''
 
     line, all_mods = dice.roll.parse_trailing_mods('kl2!>5r4r>4f<2>5', 6)
     assert all_mods == [KeepDrop(keep=True, high=False, num=2),
                         ExplodeDice(pred=Comp(left=5, right=0, func='greater_equal'), penetrate=False),
-                        RerollDice(invalid_rolls=[4, 5, 6]),
+                        RerollDice(reroll_always=[4, 5, 6]),
                         SuccessFail(pred=Comp(left=2, right=0, func='less_equal'), mark_success='set_fail'),
                         SuccessFail(pred=Comp(left=5, right=0, func='greater_equal'), mark_success='set_success')]
     assert line == ''
@@ -265,7 +265,7 @@ def test_parse_trailing_mods():
     line, all_mods = dice.roll.parse_trailing_mods('kl2!>5r4r>4f<2>5s', 6)
     assert all_mods == [KeepDrop(keep=True, high=False, num=2),
                         ExplodeDice(pred=Comp(left=5, right=0, func='greater_equal'), penetrate=False),
-                        RerollDice(invalid_rolls=[4, 5, 6]),
+                        RerollDice(reroll_always=[4, 5, 6]),
                         SuccessFail(pred=Comp(left=2, right=0, func='less_equal'), mark_success='set_fail'),
                         SuccessFail(pred=Comp(left=5, right=0, func='greater_equal'), mark_success='set_success'),
                         SortDice()]
@@ -924,12 +924,33 @@ def test_compound_dice_modify(f_dlist):
 
 def test_reroll_dice_parse():
     line, mod = dice.roll.RerollDice.parse('r>5r2>2', 6)
-    assert mod.invalid_rolls == [2, 5, 6]
+    assert mod.reroll_always == [2, 5, 6]
+    assert not mod.reroll_once
     assert line == '>2'
 
     line, mod = dice.roll.RerollDice.parse('r>5r2f<5', 6)
-    assert mod.invalid_rolls == [2, 5, 6]
+    assert mod.reroll_always == [2, 5, 6]
+    assert not mod.reroll_once
     assert line == 'f<5'
+
+
+def test_reroll__once_dice_parse():
+    line, mod = dice.roll.RerollDice.parse('ro>5ro2>2', 6)
+    assert not mod.reroll_always
+    assert mod.reroll_once == [2, 5, 6]
+    assert line == '>2'
+
+    line, mod = dice.roll.RerollDice.parse('ro>5ro2f<5', 6)
+    assert not mod.reroll_always
+    assert mod.reroll_once == [2, 5, 6]
+    assert line == 'f<5'
+
+
+def test_reroll__both_dice_parse():
+    line, mod = dice.roll.RerollDice.parse('ro>5r2r[1,2]>2', 6)
+    assert mod.reroll_always == [1, 2]
+    assert mod.reroll_once == [5, 6]
+    assert line == '>2'
 
 
 def test_reroll_dice_parse_raises():
@@ -948,11 +969,20 @@ def test_reroll_dice_parse_raises():
     with pytest.raises(ValueError):
         dice.roll.RerollDice.parse('r1r2r3r4r5r6', 6)
 
+    with pytest.raises(ValueError):
+        dice.roll.RerollDice.parse('r1ro1', 6)
+
 
 def test_reroll_dice_modify(f_dlist):
-    mod = dice.roll.RerollDice(invalid_rolls=[1, 2, 3])
+    mod = dice.roll.RerollDice(reroll_always=[1, 2, 3])
     mod.modify(f_dlist)
     assert len(f_dlist) >= 6
+
+
+def test_reroll_once_dice_modify(f_dlist):
+    mod = dice.roll.RerollDice(reroll_once=[1, 2, 3])
+    mod.modify(f_dlist)
+    assert len(f_dlist) == 6
 
 
 def test_success_fail_parse():

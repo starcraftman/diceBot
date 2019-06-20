@@ -18,7 +18,6 @@ Logic regarding modifiers:
 # Few ideas remaining
 # TODO: Strong overlap between Die and DiceList?
 # TODO: Grouped rolls {2d10,4d20}kh1, take highest total value.
-# TODO: Add reroll once, 2d10ro<2 => 2d10 any roll <=2 reroll it __ONCE__
 import abc
 import functools
 import re
@@ -31,7 +30,7 @@ IS_DIE = re.compile(r'(\d+)?d(\d+)', re.ASCII | re.IGNORECASE)
 IS_FATEDIE = re.compile(r'(\d+)?df', re.ASCII | re.IGNORECASE)
 IS_LITERAL = re.compile(r'([-+])|([-0-9]+\b)', re.ASCII)
 IS_PREDICATE = re.compile(r'(>)?(<)?\[?(=?\d+)(,\d+\])?', re.ASCII)
-REROLL_MATCH = re.compile(r'(r\[\d+,\d+\])|(r[><=]\d+)|(r\d+)', re.ASCII | re.IGNORECASE)
+REROLL_MATCH = re.compile(r'(ro?\[\d+,\d+\])|(ro?[><=]\d+)|(ro?\d+)', re.ASCII | re.IGNORECASE)
 LIMIT_DIE_NUMBER = 1000
 LIMIT_DIE_SIDES = 1000
 LIMIT_DICE_LIST_STR = 200
@@ -966,43 +965,65 @@ class CompoundDice(ExplodeDice):
 class RerollDice(ModifyDice):
     """
     Define conditions when dice should be rerolled.
-    All rerolls should be listed in sequence, they are expanded
-    and checked to ensure no impossible setup.
+    Rerolls will be checked for impossible combinations:
+        - Cannot reroll all possible values or no values.
+        - Cannot overlap between normal rerolls and reroll once ranges.
 
     Attributes:
-        invalid_rolls: The list of values that will trigger a reroll.
+        reroll_always: The list of values that will trigger keep triggering reroll.
+        reroll_once: The list of values that will trigger a single reroll.
     """
     WEIGHT = 3
 
-    def __init__(self, *, invalid_rolls=None):
-        self.invalid_rolls = invalid_rolls if invalid_rolls else []
+    def __init__(self, *, reroll_always=None, reroll_once=None):
+        self.reroll_always = reroll_always if reroll_always else []
+        self.reroll_once = reroll_once if reroll_once else []
 
     def __repr__(self):
-        return "RerollDice(invalid_rolls={!r})".format(self.invalid_rolls)
+        return "RerollDice(reroll_always={!r}), reroll_once={!r}".format(self.reroll_always, self.reroll_once)
 
     @staticmethod
     def parse(line, max_roll):
         if line[0] != 'r':
             raise ValueError("Reroll spec is invalid.")
 
-        preds = []
-        line_copy = line[:]
+        reroll_always, reroll_once = [], []
+        line_copy = line[:].lower()
         for part in REROLL_MATCH.finditer(line_copy):
             substr = line_copy[part.start():part.end()]
-            _, pred = parse_predicate(substr[1:], max_roll)
-            preds += [pred]
+            offset = 2 if substr[1] == 'o' else 1
+            _, pred = parse_predicate(substr[offset:], max_roll)
+
+            if substr[1] == 'o':
+                reroll_once += [pred]
+            else:
+                reroll_always += [pred]
             line = line.replace(substr, '', 1)
 
         possible = list(range(1, max_roll + 1))
-        invalid = [x for x in possible if any([pred(x) for pred in preds])]
-        if not invalid or not set(possible) - set(invalid):
+        reroll_always = {x for x in possible if any([pred(x) for pred in reroll_always])}
+        reroll_once = {x for x in possible if any([pred(x) for pred in reroll_once])}
+
+        if (not reroll_always and not reroll_once) or not set(possible) - reroll_always - reroll_once:
             raise ValueError("Reroll predicates are invalid. Combination Would always or never reroll!")
 
-        return line, RerollDice(invalid_rolls=sorted(invalid))
+        if (reroll_always - reroll_once) != reroll_always or \
+           (reroll_once - reroll_always) != reroll_once:
+            raise ValueError("Do not overlap normal reroll and reroll once ranges.")
+
+        return line, RerollDice(reroll_always=sorted(reroll_always),
+                                reroll_once=sorted(reroll_once))
 
     def modify(self, dice_list):
         for die in [d for d in dice_list if not d.is_exploded()]:
-            while die.value in self.invalid_rolls:
+            if die.value in self.reroll_once:
+                die.set_reroll()
+                die.set_drop()
+                die = die.dupe()
+                dice_list += [die]
+                continue
+
+            while die.value in self.reroll_always:
                 die.set_reroll()
                 die.set_drop()
                 die = die.dupe()
