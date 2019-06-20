@@ -62,6 +62,15 @@ def test_regex_is_literal():
     assert not dice.roll.IS_LITERAL.match('4df')
 
 
+def test_regex_reroll_match():
+    assert dice.roll.REROLL_MATCH.match('r4')
+    assert dice.roll.REROLL_MATCH.match('r=4')
+    assert dice.roll.REROLL_MATCH.match('r<4')
+    assert dice.roll.REROLL_MATCH.match('r>4')
+    assert dice.roll.REROLL_MATCH.match('r[3,5]')
+    print(dice.roll.REROLL_MATCH.findall('kl2!>5r4r>4'))
+
+
 def test_check_parentheses():
     assert dice.roll.check_parentheses('()')
     assert dice.roll.check_parentheses('{}')
@@ -264,9 +273,6 @@ def test_parse_trailing_mods():
 
 
 def test_parse_trailing_mods_raises():
-    with pytest.raises(ValueError):
-        dice.roll.parse_trailing_mods('r4r>5f2r6', 6)
-
     with pytest.raises(ValueError):
         dice.roll.parse_trailing_mods('khr<dl', 6)
 

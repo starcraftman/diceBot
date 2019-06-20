@@ -31,6 +31,7 @@ IS_DIE = re.compile(r'(\d+)?d(\d+)', re.ASCII | re.IGNORECASE)
 IS_FATEDIE = re.compile(r'(\d+)?df', re.ASCII | re.IGNORECASE)
 IS_LITERAL = re.compile(r'([-+])|([-0-9]+\b)', re.ASCII)
 IS_PREDICATE = re.compile(r'(>)?(<)?\[?(=?\d+)(,\d+\])?', re.ASCII)
+REROLL_MATCH = re.compile(r'(r\[\d+,\d+\])|(r[><=]\d+)|(r\d+)', re.ASCII | re.IGNORECASE)
 LIMIT_DIE_NUMBER = 1000
 LIMIT_DIE_SIDES = 1000
 LIMIT_DICE_LIST_STR = 200
@@ -279,8 +280,6 @@ def parse_trailing_mods(line, max_roll):
             line, mod = ExplodeDice.parse(line, max_roll)
         elif line[0] == 'r':
             line, mod = RerollDice.parse(line, max_roll)
-            if 'r' in line:
-                raise ValueError(DICE_WARN.format("Reroll predicates must be together.", line))
         elif line[0] == 's':
             line, mod = SortDice.parse(line, max_roll)
         else:
@@ -986,26 +985,20 @@ class RerollDice(ModifyDice):
         if line[0] != 'r':
             raise ValueError("Reroll spec is invalid.")
 
+        preds = []
+        line_copy = line[:]
+        for part in REROLL_MATCH.finditer(line_copy):
+            substr = line_copy[part.start():part.end()]
+            _, pred = parse_predicate(substr[1:], max_roll)
+            preds += [pred]
+            line = line.replace(substr, '', 1)
+
         possible = list(range(1, max_roll + 1))
-        invalid = []
-        while line:
-            if not line[0] == 'r':
-                break
+        invalid = [x for x in possible if any([pred(x) for pred in preds])]
+        if not invalid or not set(possible) - set(invalid):
+            raise ValueError("Reroll predicates are invalid. Combination Would always or never reroll!")
 
-            try:
-                line, pred = parse_predicate(line[1:], max_roll)
-                invalid += [x for x in possible if pred(x)]
-            except ValueError:
-                break
-
-        if not invalid:
-            raise ValueError("Reroll spec is invalid.")
-
-        invalid = sorted(set(invalid))
-        if not set(possible) - set(invalid):
-            raise ValueError("Reroll predicates are impossible. Would always reroll!")
-
-        return line, RerollDice(invalid_rolls=invalid)
+        return line, RerollDice(invalid_rolls=sorted(invalid))
 
     def modify(self, dice_list):
         for die in [d for d in dice_list if not d.is_exploded()]:
