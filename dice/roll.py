@@ -47,6 +47,7 @@ __Quick Reference__
     4d6**kh2**                        Roll 4d6 and keep __2__ highest results
     4d6**dl2**                         Roll 4d6 and drop the __2__ lowest results
     4d6**r1r[5,6]**                Roll 4d6 and reroll if dice lands on 1, 5 or 6
+    4d6**ro[5,6]**                  Roll 4d6 and reroll if dice lands on 5 or 6 __exactly once__
     4d6**!!6**                          Roll 4d6 and compound explode on a roll of 6
     4d6**!p>5**                       Roll 4d6 and explode on a roll of 5 or 6, value - 1 for each new exploded die
     4d6**!>5**                         Roll 4d6 and explode on a roll of 5 or 6
@@ -1007,8 +1008,7 @@ class RerollDice(ModifyDice):
         if (not reroll_always and not reroll_once) or not set(possible) - reroll_always - reroll_once:
             raise ValueError("Reroll predicates are invalid. Combination Would always or never reroll!")
 
-        if (reroll_always - reroll_once) != reroll_always or \
-           (reroll_once - reroll_always) != reroll_once:
+        if reroll_always & reroll_once:
             raise ValueError("Do not overlap normal reroll and reroll once ranges.")
 
         return line, RerollDice(reroll_always=sorted(reroll_always),

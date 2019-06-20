@@ -68,7 +68,8 @@ def test_regex_reroll_match():
     assert dice.roll.REROLL_MATCH.match('r<4')
     assert dice.roll.REROLL_MATCH.match('r>4')
     assert dice.roll.REROLL_MATCH.match('r[3,5]')
-    print(dice.roll.REROLL_MATCH.findall('kl2!>5r4r>4'))
+    assert dice.roll.REROLL_MATCH.match('ro[3,5]')
+    assert dice.roll.REROLL_MATCH.findall('r4kl2!>5ro>4') == [('', '', 'r4'), ('', 'ro>4', '')]
 
 
 def test_check_parentheses():

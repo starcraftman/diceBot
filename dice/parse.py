@@ -168,7 +168,9 @@ these include (r)eroll, (!)explosive dice, (!!)compounding dice and (f)ail and s
 {prefix}roll 4d6dh2
         Roll 4d6, drop the 2 __highest__ rolls.
 {prefix}roll 4d6r1r>5
-        Roll 4d6, reroll any time dice lands on 1, 5 or 6. All reroll specs must be in series.
+        Roll 4d6, reroll any time dice lands on 1, 5 or 6.
+{prefix}roll 4d6ro>5
+        Roll 4d6, reroll exactly once any time dice lands on 5 or 6.
 {prefix}roll 4d6!!6
         Roll 4d6, compounding explode the dice when roll is 6.
 {prefix}roll 4d6!p[5,6]
