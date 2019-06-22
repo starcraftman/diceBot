@@ -81,10 +81,52 @@ def test_check_parentheses():
         dice.roll.check_parentheses('{]')
 
 
-# Remainder interface tested implicitly by test_parse_predicate_*
+def test_comp__init__():
+    comp = dice.roll.Comp(left=3, right=5, func='equal')
+    assert comp(3)
+
+    with pytest.raises(ValueError):
+        dice.roll.Comp(left=3, right=5, func='bad_func')
+
+
 def test_comp__repr__():
     comp = dice.roll.Comp(left=3, right=5, func='range')
     assert repr(comp) == "Comp(left=3, right=5, func='range')"
+
+
+def test_comp__call__():
+    comp = dice.roll.Comp(left=3, right=5, func='range')
+    assert comp(3)
+    assert not comp(1)
+
+
+def test_comp_range():
+    comp = dice.roll.Comp(left=3, right=5, func='range')
+    assert comp(3)
+    assert not comp(1)
+    assert comp(5)
+    assert not comp(6)
+
+
+def test_comp_less_equal():
+    comp = dice.roll.Comp(left=3, right=5, func='less_equal')
+    assert comp(3)
+    assert comp(1)
+    assert not comp(6)
+
+
+def test_comp_greater_equal():
+    comp = dice.roll.Comp(left=3, right=5, func='greater_equal')
+    assert comp(3)
+    assert not comp(1)
+    assert comp(6)
+
+
+def test_comp_equal():
+    comp = dice.roll.Comp(left=3, right=5, func='equal')
+    assert comp(3)
+    assert not comp(1)
+    assert not comp(6)
 
 
 def test_parse_predicate_raises():
@@ -300,15 +342,34 @@ def test_parse_literal():
     assert lit == "+"
 
 
-def test_parse_dice_line_comment():
-    throw = dice.roll.parse_dice_line("4 + 4 a comment here")
-    assert throw.next() == "4 + 4 = 4 + 4 = 8\n        Note: a comment here"
+def test_parse_literal_raises():
+    with pytest.raises(ValueError):
+        dice.roll.parse_literal("* 42")
+
+    with pytest.raises(ValueError):
+        dice.roll.parse_literal("/ 42")
+
+    with pytest.raises(ValueError):
+        dice.roll.parse_literal("% 42")
+
+
+def test_parse_comments_from_line():
+    assert dice.roll.parse_comments_from_back('4d6 + 10 This is a comment.   ') == ('4d6 + 10', 'This is a comment.')
+    assert dice.roll.parse_comments_from_back('4d6 + 10') == ('4d6 + 10', '')
+    assert dice.roll.parse_comments_from_back('') == ('', '')
+    assert dice.roll.parse_comments_from_back('This is a comment.') == ('', 'This is a comment.')
+    assert dice.roll.parse_comments_from_back('4d6 + 10 This is a comment. + 2d10') == ('4d6 + 10 This is a comment. + 2d10', '')
 
 
 def test_parse_dice_line():
     expect = AThrow(spec='4d8 + 2df + 6', items=[DiceList(items=[Die(sides=8, value=1, flags=1), Die(sides=8, value=1, flags=1), Die(sides=8, value=1, flags=1), Die(sides=8, value=1, flags=1)], mods=[]), '+', DiceList(items=[FateDie(sides=3, value=2, flags=1), FateDie(sides=3, value=2, flags=1)], mods=[]), '+', '6'])
     throw = dice.roll.parse_dice_line('4d8 + 2df + 6')
     assert throw == expect
+
+
+def test_parse_dice_line_comment():
+    throw = dice.roll.parse_dice_line("4 + 4 a comment here")
+    assert throw.next() == "4 + 4 = 4 + 4 = 8\n        Note: a comment here"
 
 
 def test_parse_dice_line_raises():
@@ -448,6 +509,7 @@ def test_die_dupe():
     assert isinstance(dupe, dice.roll.Die)
 
 
+# Implicitly test FlaggableMixin interface
 def test_die_reset_flags():
     die = dice.roll.Die(sides=6, value=1)
     die.set_drop()
@@ -658,6 +720,19 @@ def test_dicelist__str__():
     assert str(dlist) == "(1 + 1 + 1 + 1)"
 
 
+def test_dicelist__str__fatedie():
+    dlist = dice.roll.DiceList()
+    dlist.add_fatedice(3)
+
+    assert str(dlist) == "(0 0 0)"
+
+
+def test_dicelist__str__empty():
+    dlist = dice.roll.DiceList()
+
+    assert str(dlist) == ""
+
+
 def test_dicelist__str__truncate():
     dlist = dice.roll.DiceList()
     dlist.add_dice(200, 100)
@@ -693,6 +768,16 @@ def test_dicelist_roll_no_mod():
     assert str(dlist) == "(1 + 1 + 1 + 1)"
     dlist.roll()
     assert str(dlist) != "(1 + 1 + 1 + 1)"
+
+
+def test_dicelist_roll_mods():
+    dlist = dice.roll.DiceList()
+    dlist.add_dice(4, 6)
+    dlist.mods += [dice.roll.KeepDrop(num=2)]
+    dlist.roll()
+    dlist.apply_mods()
+
+    assert str(dlist).count("~~") == 4
 
 
 def test_athrow__repr__(f_athrow):
@@ -756,93 +841,11 @@ def test_athrow_next(f_athrow):
     assert re.match(r'4d6 \+ 4 = [ 0-9\+=()]+', f_athrow.next())
 
 
-def test_keep_high__repr__():
-    keep = dice.roll.KeepDrop(num=10)
-    assert repr(keep) == "KeepDrop(keep=True, high=True, num=10)"
-
-
-def test_keep_high_parse():
-    line, keep = dice.roll.KeepDrop.parse('kh10dl1', 6)
-    assert keep.keep
-    assert keep.high
-    assert keep.num == 10
-    assert line == 'dl1'
-
-
-def test_keep_high_parse_default():
-    line, keep = dice.roll.KeepDrop.parse('k10dl1', 6)
-    assert keep.keep
-    assert keep.high
-    assert keep.num == 10
-    assert line == 'dl1'
-
-
-def test_keep_low_parse():
-    line, keep = dice.roll.KeepDrop.parse('kl10dl1', 6)
-    assert keep.keep
-    assert not keep.high
-    assert keep.num == 10
-    assert line == 'dl1'
-
-
-def test_drop_high_parse():
-    line, keep = dice.roll.KeepDrop.parse('dh10kh1', 6)
-    assert not keep.keep
-    assert keep.high
-    assert keep.num == 10
-    assert line == 'kh1'
-
-
-def test_drop_low_parse():
-    line, keep = dice.roll.KeepDrop.parse('dl10', 6)
-    assert not keep.keep
-    assert not keep.high
-    assert keep.num == 10
-    assert line == ''
-
-
-def test_drop_low_parse_default():
-    line, keep = dice.roll.KeepDrop.parse('d10kh1', 6)
-    assert not keep.keep
-    assert not keep.high
-    assert keep.num == 10
-    assert line == 'kh1'
-
-
-def test_keep_high_modify(f_dlist):
-    dice.roll.KeepDrop(keep=True, high=True, num=2).modify(f_dlist)
-
-    assert f_dlist[0].is_kept()
-    assert not f_dlist[1].is_kept()
-    assert f_dlist[2].is_kept()
-    assert not f_dlist[3].is_kept()
-
-
-def test_keep_low_modify(f_dlist):
-    dice.roll.KeepDrop(keep=True, high=False, num=2).modify(f_dlist)
-
-    assert not f_dlist[0].is_kept()
-    assert f_dlist[1].is_kept()
-    assert not f_dlist[2].is_kept()
-    assert f_dlist[3].is_kept()
-
-
-def test_drop_low_modify(f_dlist):
-    dice.roll.KeepDrop(keep=False, high=False, num=2).modify(f_dlist)
-
-    assert not f_dlist[0].is_dropped()
-    assert f_dlist[1].is_dropped()
-    assert not f_dlist[2].is_dropped()
-    assert f_dlist[3].is_dropped()
-
-
-def test_drop_high_modify(f_dlist):
-    dice.roll.KeepDrop(keep=False, high=True, num=2).modify(f_dlist)
-
-    assert f_dlist[0].is_dropped()
-    assert not f_dlist[1].is_dropped()
-    assert f_dlist[2].is_dropped()
-    assert not f_dlist[3].is_dropped()
+def test_athrow_next_note(f_athrow):
+    f_athrow.note = "A note"
+    first, second = f_athrow.next().split('\n')
+    assert re.match(r'4d6 \+ 4 = [ 0-9\+=()]+', first)
+    assert second.lstrip() == "Note: A note"
 
 
 def test_explode_dice_parse():
@@ -986,6 +989,95 @@ def test_reroll_once_dice_modify(f_dlist):
     assert len(f_dlist) == 6
 
 
+def test_keep_high__repr__():
+    keep = dice.roll.KeepDrop(num=10)
+    assert repr(keep) == "KeepDrop(keep=True, high=True, num=10)"
+
+
+def test_keep_high_parse():
+    line, keep = dice.roll.KeepDrop.parse('kh10dl1', 6)
+    assert keep.keep
+    assert keep.high
+    assert keep.num == 10
+    assert line == 'dl1'
+
+
+def test_keep_high_parse_default():
+    line, keep = dice.roll.KeepDrop.parse('k10dl1', 6)
+    assert keep.keep
+    assert keep.high
+    assert keep.num == 10
+    assert line == 'dl1'
+
+
+def test_keep_low_parse():
+    line, keep = dice.roll.KeepDrop.parse('kl10dl1', 6)
+    assert keep.keep
+    assert not keep.high
+    assert keep.num == 10
+    assert line == 'dl1'
+
+
+def test_drop_high_parse():
+    line, keep = dice.roll.KeepDrop.parse('dh10kh1', 6)
+    assert not keep.keep
+    assert keep.high
+    assert keep.num == 10
+    assert line == 'kh1'
+
+
+def test_drop_low_parse():
+    line, keep = dice.roll.KeepDrop.parse('dl10', 6)
+    assert not keep.keep
+    assert not keep.high
+    assert keep.num == 10
+    assert line == ''
+
+
+def test_drop_low_parse_default():
+    line, keep = dice.roll.KeepDrop.parse('d10kh1', 6)
+    assert not keep.keep
+    assert not keep.high
+    assert keep.num == 10
+    assert line == 'kh1'
+
+
+def test_keep_high_modify(f_dlist):
+    dice.roll.KeepDrop(keep=True, high=True, num=2).modify(f_dlist)
+
+    assert f_dlist[0].is_kept()
+    assert not f_dlist[1].is_kept()
+    assert f_dlist[2].is_kept()
+    assert not f_dlist[3].is_kept()
+
+
+def test_keep_low_modify(f_dlist):
+    dice.roll.KeepDrop(keep=True, high=False, num=2).modify(f_dlist)
+
+    assert not f_dlist[0].is_kept()
+    assert f_dlist[1].is_kept()
+    assert not f_dlist[2].is_kept()
+    assert f_dlist[3].is_kept()
+
+
+def test_drop_low_modify(f_dlist):
+    dice.roll.KeepDrop(keep=False, high=False, num=2).modify(f_dlist)
+
+    assert not f_dlist[0].is_dropped()
+    assert f_dlist[1].is_dropped()
+    assert not f_dlist[2].is_dropped()
+    assert f_dlist[3].is_dropped()
+
+
+def test_drop_high_modify(f_dlist):
+    dice.roll.KeepDrop(keep=False, high=True, num=2).modify(f_dlist)
+
+    assert f_dlist[0].is_dropped()
+    assert not f_dlist[1].is_dropped()
+    assert f_dlist[2].is_dropped()
+    assert not f_dlist[3].is_dropped()
+
+
 def test_success_fail_parse():
     line, mod = dice.roll.SuccessFail.parse('>4f<2', 6)
     assert mod.mark == 'set_success'
@@ -1048,11 +1140,3 @@ def test_sort_dice_modify_descending(f_dlist):
     mod.modify(f_dlist)
 
     assert [int(x) for x in f_dlist] == [6, 5, 2, 1]
-
-
-def test_parse_comments_from_line():
-    assert dice.roll.parse_comments_from_back('4d6 + 10 This is a comment.   ') == ('4d6 + 10', 'This is a comment.')
-    assert dice.roll.parse_comments_from_back('4d6 + 10') == ('4d6 + 10', '')
-    assert dice.roll.parse_comments_from_back('') == ('', '')
-    assert dice.roll.parse_comments_from_back('This is a comment.') == ('', 'This is a comment.')
-    assert dice.roll.parse_comments_from_back('4d6 + 10 This is a comment. + 2d10') == ('4d6 + 10 This is a comment. + 2d10', '')

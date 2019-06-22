@@ -75,6 +75,7 @@ class Comp():
     The only reason this exists is that lambda functions don't automatically
     pickle like objects do.
     All comparisons are inclusive of bounds.
+    Any object that can be cast to an integer is supported.
 
     Attributes:
         left: The left bound of the comparison (default used if not a range).
@@ -101,7 +102,6 @@ class Comp():
     def range(self, other):
         """
         Implement a simple range check predicate against other.
-        Supports Die subclasses and Numbers.
 
         Returns:
             True IFF other is in range [left, right].
@@ -111,7 +111,6 @@ class Comp():
     def less_equal(self, other):
         """
         Check other for <= predetermined value (left).
-        Supports Die subclasses and Numbers.
 
         Returns:
             True IFF other is <= left.
@@ -121,7 +120,6 @@ class Comp():
     def greater_equal(self, other):
         """
         Check other for >= predetermined value (left).
-        Supports Die subclasses and Numbers.
 
         Returns:
             True IFF other is <= left.
@@ -131,7 +129,6 @@ class Comp():
     def equal(self, other):
         """
         Check other == predetermined value (left).
-        Supports Die subclasses and Numbers.
 
         Returns:
             True IFF other other == left.
@@ -406,7 +403,7 @@ def parse_dice_line(line):
         if not obj:
             raise ValueError(DICE_WARN.format("Failed to parse part of line.", spec))
 
-    if not throw[:]:
+    if not throw:
         raise ValueError(DICE_WARN.format("No dice specification detected.", line))
 
     return throw
@@ -642,7 +639,7 @@ class DiceList(list):
         return "DiceList(items={!r}, mods={!r})".format(self[:], self.mods)
 
     def __str__(self):
-        if not self[:]:
+        if not self:
             return ""
 
         msg = str(self[0])
@@ -663,7 +660,7 @@ class DiceList(list):
         if not isinstance(other, DiceList) or len(self) != len(other):
             return False
 
-        for die, o_die in zip(self[:], other[:]):
+        for die, o_die in zip(self, other):
             if die != o_die:
                 return False
 
@@ -747,7 +744,7 @@ class AThrow(list):
         if not isinstance(other, AThrow) or len(self) != len(other):
             return False
 
-        for parts, o_parts in zip(self[:], other[:]):
+        for parts, o_parts in zip(self, other):
             if parts != o_parts:
                 return False
 
@@ -1148,7 +1145,7 @@ class SortDice(ModifyDice):
         return line, SortDice(ascending=ascending)
 
     def modify(self, dice_list):
-        ordered = sorted(dice_list[:])
+        ordered = sorted(dice_list)
         if not self.ascending:
             ordered = list(reversed(ordered))
 
@@ -1156,6 +1153,7 @@ class SortDice(ModifyDice):
 
 
 def main():
+    """ Try dice rolls interactively. """
     while True:
         try:
             text = input('> ')
