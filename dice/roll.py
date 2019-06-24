@@ -269,18 +269,15 @@ def parse_trailing_mods(line, max_roll):
         if line[0] in [' ', '}', ',', '+', '-', '*', '/']:
             break
 
-        if line[0] in ['k', 'd']:
-            line, mod = KeepDrop.parse(line, max_roll)
-        elif line[:2] == '!!':
-            line, mod = CompoundDice.parse(line, max_roll)
-        elif line[0] == '!':
-            line, mod = ExplodeDice.parse(line, max_roll)
-        elif line[0] == 'r':
-            line, mod = RerollDice.parse(line, max_roll)
-        elif line[0] == 's':
-            line, mod = SortDice.parse(line, max_roll)
-        else:
-            line, mod = SuccessFail.parse(line, max_roll)
+        mod = None
+        for cls in (CompoundDice, ExplodeDice, RerollDice,
+                    KeepDrop, SuccessFail, SortDice):
+            if cls.should_parse(line):
+                line, mod = cls.parse(line, max_roll)
+                break
+
+        if not mod:
+            raise ValueError("Unable to parse dice spec, stuck at: " + line)
 
         mods += [mod]
 
@@ -848,6 +845,19 @@ class ModifyDice(abc.ABC):
         return self.__class__.WEIGHT < other.__class__.WEIGHT
 
     @abc.abstractstaticmethod
+    def should_parse(line):
+        """
+        Check if this modifier should attempt to parse the upcoming tokens.
+
+        Args:
+            line: A substring of the dice spec that conforms to the modifier's spec.
+
+        Returns:
+            True iff the modification should parse the next tokens.
+        """
+        raise NotImplementedError
+
+    @abc.abstractstaticmethod
     def parse(line, max_roll):
         """
         A method to parse a line and return the associated ModifyDice subclass
@@ -899,6 +909,10 @@ class ExplodeDice(ModifyDice):
         return "{}(pred={!r}, penetrate={!r})".format(self.__class__.__name__, self.pred, self.penetrate)
 
     @staticmethod
+    def should_parse(line):
+        return line.startswith('!')
+
+    @staticmethod
     def parse(line, max_roll):
         if line[0] != '!' or line[1] == '!':
             raise ValueError("Exploding spec is invalid.")
@@ -943,6 +957,10 @@ class CompoundDice(ExplodeDice):
     WEIGHT = 1
 
     @staticmethod
+    def should_parse(line):
+        return line.startswith('!!')
+
+    @staticmethod
     def parse(line, max_roll):
         if line[0:2] != '!!':
             raise ValueError("Compounding spec is invalid.")
@@ -979,6 +997,10 @@ class RerollDice(ModifyDice):
 
     def __repr__(self):
         return "RerollDice(reroll_always={!r}), reroll_once={!r}".format(self.reroll_always, self.reroll_once)
+
+    @staticmethod
+    def should_parse(line):
+        return line.startswith('r')
 
     @staticmethod
     def parse(line, max_roll):
@@ -1048,6 +1070,10 @@ class KeepDrop(ModifyDice):
             self.keep, self.high, self.num)
 
     @staticmethod
+    def should_parse(line):
+        return line and line[0] in ['k', 'd']
+
+    @staticmethod
     def parse(line, _):
         match = re.match(r'(k|d)(h|l)?(\d+)', line, re.ASCII | re.IGNORECASE)
         if not match:
@@ -1093,6 +1119,10 @@ class SuccessFail(ModifyDice):
         return "SuccessFail(pred={!r}, mark_success={!r})".format(self.pred, self.mark)
 
     @staticmethod
+    def should_parse(line):
+        return line and (line[0] == 'f' or IS_PREDICATE.match(line))
+
+    @staticmethod
     def parse(line, max_roll):
         mark_success = True
         if line[0] == 'f':
@@ -1126,6 +1156,10 @@ class SortDice(ModifyDice):
 
     def __repr__(self):
         return "SortDice(ascending={!r})".format(self.ascending)
+
+    @staticmethod
+    def should_parse(line):
+        return line.startswith('s')
 
     @staticmethod
     def parse(line, max_roll):

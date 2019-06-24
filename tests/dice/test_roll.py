@@ -848,6 +848,13 @@ def test_athrow_next_note(f_athrow):
     assert second.lstrip() == "Note: A note"
 
 
+def test_explode_dice_should_parse():
+    assert dice.roll.ExplodeDice.should_parse('!>5')
+    assert dice.roll.ExplodeDice.should_parse('!p>5')
+    assert not dice.roll.ExplodeDice.should_parse('ro<2')
+    assert not dice.roll.ExplodeDice.should_parse('')
+
+
 def test_explode_dice_parse():
     assert dice.roll.ExplodeDice.parse('!>4', 6)
     assert dice.roll.ExplodeDice.parse('!<4', 6)
@@ -895,6 +902,12 @@ def test_penetrate_dice_modify(f_dlist):
     assert len(f_dlist) >= 5
 
 
+def test_compound_dice_should_parse():
+    assert dice.roll.CompoundDice.should_parse('!!>4kh2')
+    assert not dice.roll.CompoundDice.should_parse('ro<2')
+    assert not dice.roll.CompoundDice.should_parse('')
+
+
 def test_compound_dice_parse():
     assert dice.roll.CompoundDice.parse('!!>4', 6)
     assert dice.roll.CompoundDice.parse('!!<4', 6)
@@ -924,6 +937,13 @@ def test_compound_dice_modify(f_dlist):
     mod.modify(f_dlist)
     assert [d for d in f_dlist if d.is_exploded()]
     assert len(f_dlist) >= 4
+
+
+def test_reroll_dice_should_parse():
+    assert dice.roll.RerollDice.should_parse('r>6')
+    assert dice.roll.RerollDice.should_parse('ro<2')
+    assert not dice.roll.RerollDice.should_parse('!!>6')
+    assert not dice.roll.RerollDice.should_parse('')
 
 
 def test_reroll_dice_parse():
@@ -992,6 +1012,13 @@ def test_reroll_once_dice_modify(f_dlist):
 def test_keep_high__repr__():
     keep = dice.roll.KeepDrop(num=10)
     assert repr(keep) == "KeepDrop(keep=True, high=True, num=10)"
+
+
+def test_keep_drop_should_parse():
+    assert dice.roll.KeepDrop.should_parse('kh2')
+    assert dice.roll.KeepDrop.should_parse('d1')
+    assert not dice.roll.KeepDrop.should_parse('!!>6')
+    assert not dice.roll.KeepDrop.should_parse('')
 
 
 def test_keep_high_parse():
@@ -1078,6 +1105,14 @@ def test_drop_high_modify(f_dlist):
     assert not f_dlist[3].is_dropped()
 
 
+def test_success_fail_should_parse():
+    assert dice.roll.SuccessFail.should_parse('f<2')
+    assert dice.roll.SuccessFail.should_parse('<2')
+    assert dice.roll.SuccessFail.should_parse('[4,5]kh2')
+    assert not dice.roll.SuccessFail.should_parse('!!>6')
+    assert not dice.roll.SuccessFail.should_parse('')
+
+
 def test_success_fail_parse():
     line, mod = dice.roll.SuccessFail.parse('>4f<2', 6)
     assert mod.mark == 'set_success'
@@ -1107,6 +1142,12 @@ def test_success_fail_modify(f_dlist):
     assert not f_dlist[1].is_success()
     assert f_dlist[2].is_success()
     assert not f_dlist[3].is_success()
+
+
+def test_sort_dice_should_parse():
+    assert dice.roll.SortDice.should_parse('sd')
+    assert not dice.roll.SortDice.should_parse('!!>6')
+    assert not dice.roll.SortDice.should_parse('')
 
 
 def test_sort_dice_parse():
