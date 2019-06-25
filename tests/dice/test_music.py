@@ -252,6 +252,13 @@ def test_guild_player_prev(f_songs, f_vclient):
     assert f_vclient.stop.called
 
 
+def test_guild_player_dedupe(f_songs, f_vclient):
+    one = list(f_songs[:1])
+    player = dice.music.GuildPlayer(vids=one + one + one + one, client=f_vclient)
+    assert player.dedupe() == 3
+    assert player.vids == one
+
+
 def test_parse_search_label():
     assert dice.music.parse_search_label(None) == ("", 0)
     assert dice.music.parse_search_label("ago ") == ("", 0)

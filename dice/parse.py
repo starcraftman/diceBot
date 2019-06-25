@@ -93,6 +93,8 @@ def subs_music(subs, prefix):
         Append the playlist from start to finish. Only 1 playlist supported.
 {prefix}music clear
         Stop playing the music and clear the queue.
+{prefix}music dedupe
+        Remove all duplicates from the current queue.
 {prefix}music pause
         Pause the playing the music.
 {prefix}music resume
@@ -125,6 +127,7 @@ def subs_music(subs, prefix):
     sub3 = subsub.add_parser('play', aliases=['replace'], description="Play the selected videos.")
     sub3.add_argument('vids', nargs="+", default=[], help='The videos to play.')
     subsub.add_parser('clear', description="Clear the music queue.")
+    subsub.add_parser('dedupe', description="Remove duplicate entries from the queue.")
     subsub.add_parser('restart', description="Restart the music queue.")
     subsub.add_parser('stop', description="Stop the player and disconnect from channel.")
     subsub.add_parser('next', description="Play next song in queue.")

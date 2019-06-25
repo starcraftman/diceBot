@@ -406,11 +406,7 @@ __Video List__:{vids}
         if self.itr.is_finished() and self.repeat_all:
             self.reset_iterator(to_last=(self.itr.index == -1))
         elif not self.cur_vid.repeat:
-            try:
-                self.next()
-            except StopIteration:
-                dice.util.BOT.status = 'Queue finished'
-                raise
+            self.next()
         self.play()
 
         try:
@@ -457,6 +453,10 @@ __Video List__:{vids}
             self.cur_vid = self.itr.next()
             return self.cur_vid
         except StopIteration:
+            try:
+                dice.util.BOT.status = 'Queue finished'
+            except AttributeError:
+                pass
             if self.repeat_all:
                 self.reset_iterator()
                 return self.cur_vid
@@ -481,6 +481,22 @@ __Video List__:{vids}
 
             self.stop()
             raise
+
+    def dedupe(self):
+        """
+        Remove all duplicate entries in the vids list.
+        The iterator is reset and pointing to current playing video.
+        """
+        old_len = len(self.vids)
+        old_cur = self.cur_vid
+        self.vids = list({vid for vid in self.vids})
+        self.reset_iterator()
+        self.cur_vid = old_cur
+
+        while self.cur_vid and self.itr.current != self.cur_vid:
+            next(self.itr)
+
+        return old_len - len(self.vids)
 
     async def disconnect(self):
         """

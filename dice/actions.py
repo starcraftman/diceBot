@@ -199,6 +199,11 @@ class Music(Action):
         mplayer.set_vids([])
         return "Player has stopped and the queue is clear.\n\nPlay something new or browse songs."
 
+    async def dedupe(self, mplayer):
+        """ Clear all Songs from current queue, implies player stopping. """
+        count = mplayer.dedupe()
+        return "{} songs have been removed.\n\n".format(count) + str(mplayer)
+
     async def restart(self, mplayer):
         """ Restart the player at the beginning. """
         mplayer.reset_iterator()
