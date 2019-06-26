@@ -8,7 +8,8 @@ import pytest
 
 import dice.exc
 import dice.roll
-from dice.roll import (Comp, RerollDice, ExplodeDice, CompoundDice, KeepDrop,
+from dice.roll import (Comparison, CompareEqual, CompareRange, CompareLessEqual, CompareGreaterEqual,
+                       RerollDice, ExplodeDice, CompoundDice, KeepDrop,
                        SuccessFail, SortDice, AThrow, DiceList, Die, FateDie)
 
 
@@ -81,27 +82,23 @@ def test_check_parentheses():
         dice.roll.check_parentheses('{]')
 
 
-def test_comp__init__():
-    comp = dice.roll.Comp(left=3, right=5, func='equal')
+def test_comparison__init__():
+    comp = CompareRange(left=3, right=5)
     assert comp(3)
 
-    with pytest.raises(ValueError):
-        dice.roll.Comp(left=3, right=5, func='bad_func')
+
+def test_comparison__repr__():
+    comp = CompareRange(left=3, right=5)
+    assert repr(comp) == "CompareRange(left=3, right=5)"
 
 
-def test_comp__repr__():
-    comp = dice.roll.Comp(left=3, right=5, func='range')
-    assert repr(comp) == "Comp(left=3, right=5, func='range')"
-
-
-def test_comp__call__():
-    comp = dice.roll.Comp(left=3, right=5, func='range')
-    assert comp(3)
-    assert not comp(1)
+def test_comparison__call__():
+    with pytest.raises(TypeError):
+        Comparison(left=3)
 
 
 def test_comp_range():
-    comp = dice.roll.Comp(left=3, right=5, func='range')
+    comp = CompareRange(left=3, right=5)
     assert comp(3)
     assert not comp(1)
     assert comp(5)
@@ -109,21 +106,21 @@ def test_comp_range():
 
 
 def test_comp_less_equal():
-    comp = dice.roll.Comp(left=3, right=5, func='less_equal')
+    comp = CompareLessEqual(left=3)
     assert comp(3)
     assert comp(1)
     assert not comp(6)
 
 
 def test_comp_greater_equal():
-    comp = dice.roll.Comp(left=3, right=5, func='greater_equal')
+    comp = CompareGreaterEqual(left=3)
     assert comp(3)
     assert not comp(1)
     assert comp(6)
 
 
 def test_comp_equal():
-    comp = dice.roll.Comp(left=3, right=5, func='equal')
+    comp = CompareEqual(left=3)
     assert comp(3)
     assert not comp(1)
     assert not comp(6)
@@ -208,7 +205,7 @@ def test_parse_dicelist():
     nspec, dlist = dice.roll.parse_dicelist('20d100!!<6 + 4d10 - 2')
     assert nspec == ' + 4d10 - 2'
     assert len(dlist) == 20
-    assert dlist.mods == [CompoundDice(pred=Comp(left=5, func='less_equal'))]
+    assert dlist.mods == [CompoundDice(pred=CompareLessEqual(left=5))]
 
 
 def test_parse_dicelist_raises():
@@ -274,43 +271,43 @@ def test_parse_trailing_mods():
 
     line, all_mods = dice.roll.parse_trailing_mods('kl2!>5r4r>4', 6)
     assert all_mods == [KeepDrop(keep=True, high=False, num=2),
-                        ExplodeDice(pred=Comp(left=5, right=0, func='greater_equal'), penetrate=False),
+                        ExplodeDice(pred=CompareGreaterEqual(left=5), penetrate=False),
                         RerollDice(reroll_always=[4, 5, 6])]
     assert line == ''
 
     line, all_mods = dice.roll.parse_trailing_mods('kl2!p>5r4r>4', 6)
     assert all_mods == [KeepDrop(keep=True, high=False, num=2),
-                        ExplodeDice(pred=Comp(left=5, right=0, func='greater_equal'), penetrate=True),
+                        ExplodeDice(pred=CompareGreaterEqual(left=5), penetrate=True),
                         RerollDice(reroll_always=[4, 5, 6])]
     assert line == ''
 
     line, all_mods = dice.roll.parse_trailing_mods('kl2!!>5r4r>4', 6)
     assert all_mods == [KeepDrop(keep=True, high=False, num=2),
-                        CompoundDice(pred=Comp(left=5, right=0, func='greater_equal'), penetrate=False),
+                        CompoundDice(pred=CompareGreaterEqual(left=5), penetrate=False),
                         RerollDice(reroll_always=[4, 5, 6])]
     assert line == ''
 
     line, all_mods = dice.roll.parse_trailing_mods('kl2!>5r4r>4f<2', 6)
     assert all_mods == [KeepDrop(keep=True, high=False, num=2),
-                        ExplodeDice(pred=Comp(left=5, right=0, func='greater_equal'), penetrate=False),
+                        ExplodeDice(pred=CompareGreaterEqual(left=5), penetrate=False),
                         RerollDice(reroll_always=[4, 5, 6]),
-                        SuccessFail(pred=Comp(left=2, right=0, func='less_equal'), mark_success='set_fail')]
+                        SuccessFail(pred=CompareLessEqual(left=2), mark_success='set_fail')]
     assert line == ''
 
     line, all_mods = dice.roll.parse_trailing_mods('kl2!>5r4r>4f<2>5', 6)
     assert all_mods == [KeepDrop(keep=True, high=False, num=2),
-                        ExplodeDice(pred=Comp(left=5, right=0, func='greater_equal'), penetrate=False),
+                        ExplodeDice(pred=CompareGreaterEqual(left=5), penetrate=False),
                         RerollDice(reroll_always=[4, 5, 6]),
-                        SuccessFail(pred=Comp(left=2, right=0, func='less_equal'), mark_success='set_fail'),
-                        SuccessFail(pred=Comp(left=5, right=0, func='greater_equal'), mark_success='set_success')]
+                        SuccessFail(pred=CompareLessEqual(left=2), mark_success='set_fail'),
+                        SuccessFail(pred=CompareGreaterEqual(left=5), mark_success='set_success')]
     assert line == ''
 
     line, all_mods = dice.roll.parse_trailing_mods('kl2!>5r4r>4f<2>5s', 6)
     assert all_mods == [KeepDrop(keep=True, high=False, num=2),
-                        ExplodeDice(pred=Comp(left=5, right=0, func='greater_equal'), penetrate=False),
+                        ExplodeDice(pred=CompareGreaterEqual(left=5), penetrate=False),
                         RerollDice(reroll_always=[4, 5, 6]),
-                        SuccessFail(pred=Comp(left=2, right=0, func='less_equal'), mark_success='set_fail'),
-                        SuccessFail(pred=Comp(left=5, right=0, func='greater_equal'), mark_success='set_success'),
+                        SuccessFail(pred=CompareLessEqual(left=2), mark_success='set_fail'),
+                        SuccessFail(pred=CompareGreaterEqual(left=5), mark_success='set_success'),
                         SortDice()]
     assert line == ''
 
@@ -812,7 +809,7 @@ def test_athrow_roll(f_athrow):
 
 def test_athrow_string_success(f_athrow):
     f_dlist = f_athrow[0]
-    pred = dice.roll.Comp(left=5, func='greater_equal')
+    pred = CompareGreaterEqual(left=5)
     f_dlist.mods = [dice.roll.SuccessFail(mark_success=True, pred=pred)]
     f_dlist.apply_mods()
     assert f_athrow.success_string() == "(+2) **0** Failure(s), **2** Success(es)"
@@ -820,7 +817,7 @@ def test_athrow_string_success(f_athrow):
 
 def test_athrow_string_fail(f_athrow):
     f_dlist = f_athrow[0]
-    pred = dice.roll.Comp(left=2, func='less_equal')
+    pred = CompareLessEqual(left=2)
     f_dlist.mods = [dice.roll.SuccessFail(mark_success=False, pred=pred)]
     f_dlist.apply_mods()
     assert f_athrow.success_string() == "(-2) **2** Failure(s), **0** Success(es)"
@@ -828,8 +825,8 @@ def test_athrow_string_fail(f_athrow):
 
 def test_athrow_string_success_and_fail(f_athrow):
     f_dlist = f_athrow[0]
-    pred = dice.roll.Comp(left=5, func='greater_equal')
-    pred2 = dice.roll.Comp(left=2, func='less_equal')
+    pred = CompareGreaterEqual(left=5)
+    pred2 = CompareLessEqual(left=2)
     f_dlist.mods = [dice.roll.SuccessFail(mark_success=True, pred=pred),
                     dice.roll.SuccessFail(mark_success=False, pred=pred2)]
 
@@ -877,7 +874,7 @@ def test_explode_dice_parse_raises():
 
 
 def test_explode_dice_modify(f_dlist):
-    mod = dice.roll.ExplodeDice(pred=dice.roll.Comp(left=6, func='equal'))
+    mod = dice.roll.ExplodeDice(pred=CompareEqual(left=6))
     mod.modify(f_dlist)
     assert [d for d in f_dlist if d.is_exploded()]
     assert len(f_dlist) >= 5
@@ -896,7 +893,7 @@ def test_penetrate_dice_parse_raises():
 
 
 def test_penetrate_dice_modify(f_dlist):
-    mod = dice.roll.ExplodeDice(pred=dice.roll.Comp(left=6, func='equal'), penetrate=True)
+    mod = dice.roll.ExplodeDice(pred=CompareEqual(left=6), penetrate=True)
     mod.modify(f_dlist)
     assert [d for d in f_dlist if d.is_penetrated()]
     assert len(f_dlist) >= 5

@@ -28,7 +28,7 @@ import dice.exc
 
 IS_DIE = re.compile(r'(\d+)?d(\d+)', re.ASCII | re.IGNORECASE)
 IS_FATEDIE = re.compile(r'(\d+)?df', re.ASCII | re.IGNORECASE)
-IS_LITERAL = re.compile(r'([-+])|([-0-9]+\b)', re.ASCII)
+IS_LITERAL = re.compile(r'([-+])|([0-9]+\b)', re.ASCII)
 IS_PREDICATE = re.compile(r'(>)?(<)?\[?(=?\d+)(,\d+\])?', re.ASCII)
 REROLL_MATCH = re.compile(r'(ro?\[\d+,\d+\])|(ro?[><=]\d+)|(ro?\d+)', re.ASCII | re.IGNORECASE)
 LIMIT_DIE_NUMBER = 1000
@@ -70,45 +70,52 @@ See `!roll --help` for more complete documentation.
 """
 
 
-class Comp():
+class Comparison(abc.ABC):
     """
     The only reason this exists is that lambda functions don't automatically
     pickle like objects do.
-    All comparisons are inclusive of bounds.
-    Any object that can be cast to an integer is supported.
+    Subclasses are used as predicates that determine when modifiers apply.
 
     Attributes:
         left: The left bound of the comparison (default used if not a range).
         right: The right bound of the comparison.
-        func: The function to invoke to compare when __call__ is used.
-              See Comp.CHOICES .
     """
-    CHOICES = ['equal', 'greater_equal', 'less_equal', 'range']
-
-    def __init__(self, *, left=0, right=0, func=None):
+    def __init__(self, *, left=0):
         self.left = left
-        self.right = right
-
-        if func and func not in Comp.CHOICES:
-            raise ValueError("Func must be one of:\n" + "\n".join(Comp.CHOICES))
-        self.func = func
 
     def __repr__(self):
-        return "Comp(left={!r}, right={!r}, func={!r})".format(self.left, self.right, self.func)
+        return "{}(left={!r})".format(self.__class__.__name__, self.left)
 
+    @abc.abstractmethod
     def __call__(self, other):
-        return getattr(self, self.func)(other)
-
-    def range(self, other):
         """
-        Implement a simple range check predicate against other.
+        Implement the actual comparison here.
 
         Returns:
-            True IFF other is in range [left, right].
+            True IFF the comparison is true for other (an integer cast supporting object).
         """
-        return self.left <= int(other) <= self.right
+        raise NotImplementedError
 
-    def less_equal(self, other):
+
+class CompareEqual(Comparison):  # pylint: disable=too-few-public-methods
+    """
+    Compare if an object is equal to a value.
+    """
+    def __call__(self, other):
+        """
+        Check other == predetermined value (left).
+
+        Returns:
+            True IFF other other == left.
+        """
+        return int(other) == self.left
+
+
+class CompareLessEqual(Comparison):  # pylint: disable=too-few-public-methods
+    """
+    Compare if an object is less or equal to a value.
+    """
+    def __call__(self, other):
         """
         Check other for <= predetermined value (left).
 
@@ -117,7 +124,12 @@ class Comp():
         """
         return int(other) <= self.left
 
-    def greater_equal(self, other):
+
+class CompareGreaterEqual(Comparison):  # pylint: disable=too-few-public-methods
+    """
+    Compare if an object is greater or equal to a value.
+    """
+    def __call__(self, other):
         """
         Check other for >= predetermined value (left).
 
@@ -126,14 +138,26 @@ class Comp():
         """
         return int(other) >= self.left
 
-    def equal(self, other):
+
+class CompareRange(Comparison):  # pylint: disable=too-few-public-methods
+    """
+    Compare if an object of integer value is in a range.
+    """
+    def __init__(self, *, left=0, right=0):
+        super().__init__(left=left)
+        self.right = right
+
+    def __repr__(self):
+        return "{}(left={!r}, right={!r})".format(self.__class__.__name__, self.left, self.right)
+
+    def __call__(self, other):
         """
-        Check other == predetermined value (left).
+        Implement a simple range check predicate against other.
 
         Returns:
-            True IFF other other == left.
+            True IFF other is in range [left, right].
         """
-        return int(other) == self.left
+        return self.left <= int(other) <= self.right
 
 
 def parse_predicate(line, max_roll):
@@ -172,21 +196,20 @@ def parse_predicate(line, max_roll):
         right = int(match.group(4)[1:-1])
         if right < val or val < 1 or right > max_roll or (val == 1 and right == max_roll):
             raise ValueError(DICE_WARN.format("Predicate range is invalid, check bounds.", line))
-
-        comp = Comp(left=val, right=right, func='range')
+        comp = CompareRange(left=val, right=right)
 
     elif match.group(1):
         if val <= 1:
             raise ValueError(DICE_WARN.format("Predicate will always be true (>=).", line))
-        comp = Comp(left=val, func='greater_equal')
+        comp = CompareGreaterEqual(left=val)
 
     elif match.group(2):
         if val >= max_roll:
             raise ValueError(DICE_WARN.format("Predicate will always be true (<=).", line))
-        comp = Comp(left=val, func='less_equal')
+        comp = CompareLessEqual(left=val)
 
     else:
-        comp = Comp(left=val, func='equal')
+        comp = CompareEqual(left=val)
 
     return line[match.end():], comp
 
@@ -759,7 +782,7 @@ class AThrow(list):
         next_coeff = 1
         for part in self:
             if part == "-":
-                next_coeff = -1
+                next_coeff *= -1
 
             elif part == "+":
                 next_coeff = 1
