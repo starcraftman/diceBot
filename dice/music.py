@@ -35,7 +35,8 @@ TIMEOUT_MSG = """ Bot joining voice took more than {} seconds.
 
 Try again later or contact bot owner. """.format(VOICE_JOIN_TIMEOUT)
 YTDL_PLAYLIST = "youtube-dl -j --flat-playlist"  # + url
-YT_SEARCH_REG = re.compile(r'((\d+) hours?)?[, ]*((\d+) minutes?)?[, ]*((\d+) seconds?)?[, ]*(([0-9,]+) views)?', re.ASCII | re.IGNORECASE)
+YT_SEARCH_REG = re.compile(r'((\d+) hours?)?[, ]*((\d+) minutes?)?[, ]*((\d+) seconds?)?[, ]*(([0-9,]+) views)?',
+                           re.ASCII | re.IGNORECASE)
 YT_SEARCH = "https://www.youtube.com/results?search_query="
 
 

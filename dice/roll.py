@@ -928,8 +928,7 @@ class ExplodeDice(ModifyDice):
 
     def modify(self, dice_list):
         parts = []
-        f_mask = ~(Die.EXPLODE | Die.REROLL) & Die.MASK
-        for die in [d for d in dice_list if d.flags & f_mask]:
+        for die in [d for d in dice_list if d.flags & (Die.EXPLODE | Die.REROLL) == 0]:
             parts += [die]
 
             while self.pred(die):
@@ -970,8 +969,7 @@ class CompoundDice(ExplodeDice):
         return line, CompoundDice(pred=pred)
 
     def modify(self, dice_list):
-        f_mask = ~(Die.EXPLODE | Die.REROLL) & Die.MASK
-        for die in [d for d in dice_list if d.flags & f_mask]:
+        for die in [d for d in dice_list if d.flags & (Die.EXPLODE | Die.REROLL) == 0]:
             new_explode = die
             while self.pred(new_explode):
                 new_explode = die.explode()
@@ -1034,7 +1032,7 @@ class RerollDice(ModifyDice):
                                 reroll_once=sorted(reroll_once))
 
     def modify(self, dice_list):
-        for die in [d for d in dice_list if not d.is_exploded()]:
+        for die in [d for d in dice_list if d.flags & (Die.EXPLODE | Die.REROLL) == 0]:
             if die.value in self.reroll_once:
                 die.set_reroll()
                 die.set_drop()
@@ -1088,8 +1086,7 @@ class KeepDrop(ModifyDice):
         return line[match.end():], KeepDrop(keep=keep, high=high, num=int(match.group(3)))
 
     def modify(self, dice_list):
-        f_mask = ~(Die.REROLL | Die.DROP) & Die.MASK
-        parts = sorted([d for d in dice_list if d.flags & f_mask])
+        parts = sorted([d for d in dice_list if d.flags & (Die.DROP | Die.REROLL) == 0])
         if not self.keep:
             parts = list(reversed(parts))
 
@@ -1136,8 +1133,7 @@ class SuccessFail(ModifyDice):
         return line, SuccessFail(pred=pred, mark_success=mark_success)
 
     def modify(self, dice_list):
-        f_mask = ~(Die.REROLL | Die.DROP | Die.FAIL | Die.SUCCESS) & Die.MASK
-        for die in [d for d in dice_list if d.flags & f_mask]:
+        for die in [d for d in dice_list if d.flags & (Die.DROP | Die.REROLL | Die.FAIL | Die.SUCCESS) == 0]:
             if self.pred(die):
                 getattr(die, self.mark)()
 

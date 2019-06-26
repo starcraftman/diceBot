@@ -771,7 +771,8 @@ class Timer(Action):
                 for msg in self.last_msgs:
                     await msg.delete()
             except discord.Forbidden:
-                logging.getLogger("dice.actions").error("Bot missing manage messages permission. On: %s", str(self.msg.guild))
+                logging.getLogger("dice.actions").error("Bot missing manage messages permission. On: %s",
+                                                        str(self.msg.guild))
 
         self.last_msgs = await self.reply(new_msg)
 
@@ -1238,7 +1239,8 @@ class Reroll(Action):
                     raise IndexError
                 selected = rolls[self.args.offset]
             except IndexError:
-                raise dice.exc.InvalidCommandArgs("Please select a negative offset from : [-1, -{}]".format(LIMIT_REROLLS))
+                raise dice.exc.InvalidCommandArgs("Please select a negative offset from : [-1, -{}]".
+                                                  format(LIMIT_REROLLS))
 
         msg = "**Reroll Result**\n\n" + '\n'.join(await make_rolls(selected.roll_str))
         await self.reply(msg)
