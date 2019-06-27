@@ -256,13 +256,10 @@ def get_config(*keys, default=None):
 
     Raises
         KeyError: No such key in the config.
-        dice.exc.MissingConfigFile: Failed to load the configuration file.
+        FileNotFoundError: Failed to load the configuration file.
     """
-    try:
-        with open(YAML_FILE) as fin:
-            conf = yaml.load(fin, Loader=Loader)
-    except FileNotFoundError:
-        raise dice.exc.MissingConfigFile("Missing config.yml. Expected at: " + YAML_FILE)
+    with open(YAML_FILE) as fin:
+        conf = yaml.load(fin, Loader=Loader)
 
     try:
         for key in keys:
@@ -281,13 +278,13 @@ def init_logging():  # pragma: no cover
 
      - On every start the file logs are rolled over.
      - This must be the first invocation on startup to set up logging.
+
+    Raises:
+        FileNotFoundError: Failed to load the configuration file.
     """
     log_file = rel_to_abs(get_config('paths', 'log_conf'))
-    try:
-        with open(log_file) as fin:
-            lconf = yaml.load(fin, Loader=Loader)
-    except FileNotFoundError:
-        raise dice.exc.MissingConfigFile("Missing log.yml. Expected at: " + log_file)
+    with open(log_file) as fin:
+        lconf = yaml.load(fin, Loader=Loader)
 
     for handler in lconf['handlers']:
         try:

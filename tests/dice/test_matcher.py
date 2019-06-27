@@ -32,12 +32,3 @@ def test_emphasize_match():
     result = dice.matcher.emphasize_match('match', 'A line that should match somewhere')
 
     assert result == 'A line that should __match__ somewhere'
-
-
-def test_emphasize_match_one():
-    result = dice.matcher.emphasize_match_one('7', '7, 5, 2, 7')
-    assert result == '__7__, 5, 2, 7'
-    result = dice.matcher.emphasize_match_one('7', result)
-    assert result == '__7__, 5, 2, __7__'
-    result = dice.matcher.emphasize_match_one('2', result)
-    assert result == '__7__, 5, __2__, __7__'

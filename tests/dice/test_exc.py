@@ -21,7 +21,7 @@ def test_dice_exception_write_log():
     log = mock.Mock()
     log.info.return_value = None
     msg = fake_msg_gears("I don't like exceptions")
-    error.write_log(log, content=msg.content, author=msg.author, channel=msg.channel)
+    dice.exc.write_log(error, log, content=msg.content, author=msg.author, channel=msg.channel)
     expect = """
 DiceException: An exception happened :(
 ====================
@@ -33,9 +33,10 @@ GearsandCogs sent I don't like exceptions from Channel: dev/Guild: Gears' Hideou
 
 
 def test_more_one_match():
-    error = dice.exc.MoreThanOneMatch('LHS', ['LHS 1', 'LHS 2', 'LHS 3'])
+    error = dice.exc.MoreThanOneMatch('LHS', ['LHS 1', 'LHS 2', 'LHS 3'], 'String')
     expect = """Resubmit query with more specific criteria.
-Too many matches for 'LHS' in strings:
+Too many matches for 'LHS' in Strings:
+
     - __LHS__ 1
     - __LHS__ 2
     - __LHS__ 3"""
@@ -43,9 +44,10 @@ Too many matches for 'LHS' in strings:
 
     error = dice.exc.MoreThanOneMatch('Channel',
                                       [Channel('Channel 1'), Channel('Channel 2'), Channel('Channel 3')],
-                                      'name')
+                                      'Channel', obj_attr='name')
     expect = """Resubmit query with more specific criteria.
 Too many matches for 'Channel' in Channels:
+
     - __Channel__ 1
     - __Channel__ 2
     - __Channel__ 3"""

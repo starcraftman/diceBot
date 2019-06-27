@@ -196,26 +196,22 @@ class DiceBot(discord.Client):
 
         except dice.exc.ArgumentParseError as exc:
             log.exception("Failed to parse command. '%s' | %s", author.name, content)
-            exc.write_log(log, content=content, author=author, channel=channel)
-            if 'invalid choice' not in exc.message:
+            dice.exc.write_log(exc, log, content=content, author=author, channel=channel)
+            if 'invalid choice' not in str(exc):
                 try:
                     self.parser.parse_args(content.split(' ')[0:1] + ['--help'])
                 except dice.exc.ArgumentHelpError as exc2:
-                    exc.message = 'Invalid command use. Check the command help.'
-                    exc.message += '\n{}\n{}'.format(len(exc.message) * '-', exc2.message)
-            await self.send(channel, exc.reply(), ttl=True)
+                    exc.args += ['Invalid command use. Check the command help.']
+                    exc.args += ['\n{}\n{}'.format(len(str(exc)) * '-', str(exc2))]
+            await self.send(channel, str(exc), ttl=True)
             try:
                 await message.delete()
             except discord.DiscordException:
                 pass
 
-        except dice.exc.UserException as exc:
-            exc.write_log(log, content=content, author=author, channel=channel)
-            await self.send(channel, exc.reply())
-
-        except dice.exc.InternalException as exc:
-            exc.write_log(log, content=content, author=author, channel=channel)
-            await self.send(channel, exc.reply())
+        except (dice.exc.UserException, dice.exc.InternalException, IOError, OSError) as exc:
+            dice.exc.write_log(exc, log, content=content, author=author, channel=channel)
+            await self.send(channel, str(exc))
             raise exc
 
         except discord.DiscordException as exc:
