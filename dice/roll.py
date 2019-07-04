@@ -1055,19 +1055,27 @@ class RerollDice(ModifyDice):
                                 reroll_once=sorted(reroll_once))
 
     def modify(self, dice_list):
-        for die in [d for d in dice_list if d.flags & (Die.EXPLODE | Die.REROLL) == 0]:
+        new_list = []
+        for die in dice_list:
+            new_list += [die]
+            if die.flags & (Die.EXPLODE | Die.REROLL):
+                continue
+
             if die.value in self.reroll_once:
                 die.set_reroll()
                 die.set_drop()
                 die = die.dupe()
-                dice_list += [die]
+                new_list += [die]
                 continue
 
             while die.value in self.reroll_always:
                 die.set_reroll()
                 die.set_drop()
                 die = die.dupe()
-                dice_list += [die]
+                new_list += [die]
+
+        dice_list.clear()
+        dice_list += new_list
 
 
 class KeepDrop(ModifyDice):
