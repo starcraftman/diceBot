@@ -177,6 +177,25 @@ async def test_cmd_pf_error(f_bot):
 
 @OGN_TEST
 @pytest.mark.asyncio
+async def test_cmd_pf2(f_bot):
+    msg = fake_msg_gears('!pf2 monk')
+
+    await action_map(msg, f_bot).execute()
+
+    expect = """Searching Pathfinder 2e Wiki: **monk**
+Top 3 Results:
+
+Monk
+      <https://pf2.d20pfsrd.com/class/monk/>
+Equipment
+      <https://pf2.d20pfsrd.com/rules/equipment/>
+Halfling
+      <https://pf2.d20pfsrd.com/ancestry/halfling/>"""
+    f_bot.send.assert_called_with(msg.channel, expect)
+
+
+@OGN_TEST
+@pytest.mark.asyncio
 async def test_cmd_star(f_bot):
     msg = fake_msg_gears('!star starship')
 

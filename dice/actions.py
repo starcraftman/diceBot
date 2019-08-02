@@ -13,6 +13,7 @@ import math
 import re
 
 import aiohttp
+import bs4
 import discord
 import numpy.random as rand
 
@@ -30,6 +31,7 @@ ROLL_TIMEOUT = 10
 CHECK_TIMER_GAP = 5
 TIMERS = {}
 TIMER_OFFSETS = ["60:00", "15:00", "5:00", "1:00"]
+PF2_URL = 'https://pf2.d20pfsrd.com/?s={}'
 PF_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3A6zo0hx_wle8&q={}'
 D5_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3A1xq0zf2wtvq&q={}'
 STAR_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3Awyjvzq2cjz8&q={}'
@@ -106,6 +108,7 @@ class Help(Action):
             ['{prefix}m', 'Alias for `!music`'],
             ['{prefix}n', 'Alias for `!turn --next`'],
             ['{prefix}pf', 'Search on the Pathfinder wiki'],
+            ['{prefix}pf2', 'Search on the Pathfinder 2e wiki'],
             ['{prefix}poni', 'Pony?!?!'],
             ['{prefix}pun', 'Prepare for pain!'],
             ['{prefix}roll', 'Roll a dice like: 2d6 + 5'],
@@ -527,6 +530,27 @@ class Songs(Action):
             await self.search_tags(self.args.tag)
 
 
+class PF2Wiki(Action):
+    """
+    Search an OGN PF2 wiki site, now no longer with google CSE.
+    """
+    async def execute(self):
+        msg = """Searching {}: **{}**
+Top {} Results:\n\n{}"""
+        terms = ' '.join(self.args.terms)
+        match = re.match(r".*?([^a-zA-Z0-9 '-]+)", terms)
+        if match:
+            raise dice.exc.InvalidCommandArgs('No special characters in search please. ' + match.group(1))
+
+        base_url = getattr(dice.actions, self.args.url)
+        full_url = base_url.format(terms.replace(' ', '+'))
+        with concurrent.futures.ProcessPoolExecutor(1) as pool:
+            result = await self.bot.loop.run_in_executor(pool, get_pf2_results_background,
+                                                         full_url, self.args.num)
+
+        await self.reply(msg.format(self.args.wiki, terms, self.args.num, result))
+
+
 class SearchWiki(Action):
     """
     Search an OGN wiki site based on their google custom search URL.
@@ -535,14 +559,14 @@ class SearchWiki(Action):
         msg = """Searching {}: **{}**
 Top {} Results:\n\n{}"""
         terms = ' '.join(self.args.terms)
-        match = re.match(r'.*?([^a-zA-Z0-9 -]+)', terms)
+        match = re.match(r".*?([^a-zA-Z0-9 '-]+)", terms)
         if match:
             raise dice.exc.InvalidCommandArgs('No special characters in search please. ' + match.group(1))
 
         base_url = getattr(dice.actions, self.args.url)
         full_url = base_url.format(terms.replace(' ', '%20'))
         with concurrent.futures.ProcessPoolExecutor(1) as pool:
-            result = await self.bot.loop.run_in_executor(pool, get_results_in_background,
+            result = await self.bot.loop.run_in_executor(pool, get_cse_google_results_background,
                                                          full_url, self.args.num)
 
         await self.reply(msg.format(self.args.wiki, terms, self.args.num, result))
@@ -1347,7 +1371,7 @@ def format_song_list(header, songs, footer, *, cnt=1):
     return msg
 
 
-def get_results_in_background(full_url, num):
+def get_cse_google_results_background(full_url, num):
     """
     Fetch the top num results from full_url (a GCS page).
     """
@@ -1358,6 +1382,28 @@ def get_results_in_background(full_url, num):
     for ele in browser.find_elements_by_class_name('gsc-thumbnail-inside')[:num]:
         link_text = ele.find_element_by_css_selector('a.gs-title').get_property('href')
         result += '{}\n      <{}>\n'.format(ele.text, link_text)
+
+    browser.quit()
+    del browser  # Force cleanup now
+
+    return result.rstrip()
+
+
+def get_pf2_results_background(full_url, num):
+    """
+    Fetch the top num results from full_url (a GCS page).
+    """
+    browser = dice.util.init_chrome()
+    browser.get(full_url)
+
+    result = ''
+    soup = bs4.BeautifulSoup(browser.page_source, 'html.parser')
+    try:
+        for ele in soup.find_all('article')[:num]:
+            result += '{}\n      <{}>\n'.format(ele.h2.a.text, ele.h2.a.get('href'))
+    except AttributeError:
+        result = "No results!"
+
     browser.quit()
     del browser  # Force cleanup now
 

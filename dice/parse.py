@@ -225,6 +225,22 @@ def subs_pf(subs, prefix):
 
 
 @register_parser
+def subs_pf2(subs, prefix):
+    """ Subcommand parsing for searching pathfinder wiki """
+    desc = """Search something on Pathfinder 2e Wiki.
+
+{prefix}pf2 arcane mark
+        Search for "arcane mark" and return first 3 matches.
+{prefix}pf2 --num 5 arcane mark
+        Search for "arcane mark" and return first 5 matches.
+    """.format(prefix=prefix)
+    sub = subs.add_parser(prefix + 'pf2', description=desc, formatter_class=RawHelp)
+    sub.set_defaults(cmd='PF2Wiki', url='PF2_URL', wiki='Pathfinder 2e Wiki')
+    sub.add_argument('-n', '--num', type=int, default=3, help='Number of results.')
+    sub.add_argument('terms', nargs='+', help='To search.')
+
+
+@register_parser
 def subs_d5e(subs, prefix):
     """ Subcommand parsing for searching d&d5 wiki """
     desc = """Search something on D&D 5e Wiki.
