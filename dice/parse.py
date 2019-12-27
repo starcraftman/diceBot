@@ -527,3 +527,26 @@ def subs_reroll(subs, prefix):
     sub.set_defaults(cmd='Reroll')
     sub.add_argument('--menu', action='store_true', help='Select reroll from reverse menu.')
     sub.add_argument('offset', nargs="?", type=int, default=-1, help='The offset to modify.')
+
+
+@register_parser
+def subs_movies(subs, prefix):
+    """ Subcommand parsing for movie rolling  """
+    desc = """Randomly select a movie from a saved list.
+
+{prefix}movies
+        Roll for a random movie from your own list. Shows result, removes movie.
+{prefix}movies d20
+        Roll for a random movie from your own list from top 20. Shows result, removes movie.
+{prefix}movies -u movie1, movie2, movie3
+{prefix}movies --update movie1, movie2, movie3
+        Update the movies list.
+{prefix}reroll -1
+        Show the list of movies stored for current user.
+    """.format(prefix=prefix)
+    sub = subs.add_parser(prefix + 'movies', description=desc, formatter_class=RawHelp)
+    sub.set_defaults(cmd='Movies')
+    sub.add_argument('-l', '--list', action='store_true', help='Select reroll from reverse menu.')
+    sub.add_argument('-a', '--add', nargs="*", help='Add these movies to existing list.')
+    sub.add_argument('-u', '--update', nargs="*", help='Update the list to just these movies.')
+    sub.add_argument('limit', nargs='?', type=int, default=None, help='The movies to set.')

@@ -1273,6 +1273,22 @@ class Reroll(Action):
             None, dicedb.query.add_last_roll, self.session, self.msg.author.id, selected.roll_str, LIMIT_REROLLS)
 
 
+class Movies(Action):
+    async def execute(self):
+        msg = 'default'
+
+        if self.args.list:
+            pass
+        elif self.args.add:
+            pass
+        elif self.args.update:
+            pass
+        else:
+            pass
+
+        await self.reply(msg)
+
+
 async def timer_monitor(timers, sleep_time=CHECK_TIMER_GAP):
     """
     Perform a check on all active timers every sleep_time seconds.
