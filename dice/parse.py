@@ -536,17 +536,21 @@ def subs_movies(subs, prefix):
 
 {prefix}movies
         Roll for a random movie from your own list. Shows result, removes movie.
-{prefix}movies d20
+{prefix}movies 20
         Roll for a random movie from your own list from top 20. Shows result, removes movie.
+{prefix}movies -a movie1, movie2, movie3
+{prefix}movies --add movie1, movie2, movie3
+        Update the movies list.
 {prefix}movies -u movie1, movie2, movie3
 {prefix}movies --update movie1, movie2, movie3
         Update the movies list.
-{prefix}reroll -1
+{prefix}movies -l
+{prefix}movies --list
         Show the list of movies stored for current user.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'movies', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Movies')
-    sub.add_argument('-l', '--list', action='store_true', help='Select reroll from reverse menu.')
+    sub.add_argument('-l', '--list', action='store_true', help='List stored movies.')
     sub.add_argument('-a', '--add', nargs="*", help='Add these movies to existing list.')
     sub.add_argument('-u', '--update', nargs="*", help='Update the list to just these movies.')
-    sub.add_argument('limit', nargs='?', type=int, default=None, help='The movies to set.')
+    sub.add_argument('limit', nargs='?', type=int, default=999999, help='Roll the first limit movies (default all).')

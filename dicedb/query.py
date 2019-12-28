@@ -13,7 +13,8 @@ from sqlalchemy import func
 
 import dice.exc
 import dicedb
-from dicedb.schema import (DUser, Pun, SavedRoll, TurnChar, TurnOrder, Song, SongTag, Googly, LastRoll)
+from dicedb.schema import (DUser, Pun, SavedRoll, TurnChar, TurnOrder,
+                           Song, SongTag, Googly, LastRoll, Movie)
 
 DEFAULT_VOLUME = dice.util.get_config('music', 'default_volume', default=20)
 
@@ -466,4 +467,50 @@ def add_last_roll(session, user_id, roll_str, limit=20):
 
     new_roll = LastRoll(id=user_id, id_num=next_id_num, roll_str=roll_str)
     session.add(new_roll)
+    session.commit()
+
+
+def get_movies(session, user_id):
+    """
+    Return all Movies a user has added for later.
+    """
+    return session.query(Movie).filter(Movie.id == user_id).all()
+
+
+def add_movies(session, user_id, movie_names):
+    """
+    Add a movie after the current selection.
+    """
+    movies = get_movies(session, user_id)
+    if not movies:
+        id_num = 0
+    else:
+        id_num = movies[-1].id_num + 1
+
+    for movie_name in movie_names:
+        session.add(Movie(id=user_id, id_num=id_num, name=movie_name))
+        id_num += 1
+    session.commit()
+
+
+def replace_all_movies(session, user_id, movie_names):
+    """
+    Remove all current movies and replace the list with the new list of movie names.
+
+    Args:
+        session: A session object.
+        user_id: Discord id.
+        movie_names: A list of movie names, no string bigger than 200 chars.
+    """
+    for movie in get_movies(session, user_id):
+        session.delete(movie)
+    session.commit()
+
+    cnt = 0
+    movies = []
+    for movie_name in movie_names:
+        movies += [Movie(id=user_id, id_num=cnt, name=movie_name)]
+        cnt += 1
+
+    session.add_all(movies)
     session.commit()

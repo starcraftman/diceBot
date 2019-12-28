@@ -201,8 +201,9 @@ class DiceBot(discord.Client):
                 try:
                     self.parser.parse_args(content.split(' ')[0:1] + ['--help'])
                 except dice.exc.ArgumentHelpError as exc2:
-                    exc.args += ['Invalid command use. Check the command help.']
-                    exc.args += ['\n{}\n{}'.format(len(str(exc)) * '-', str(exc2))]
+                    args = list(exc.args)
+                    args += ['Invalid command use. Check the command help.']
+                    args += ['\n{}\n{}'.format(len(str(exc)) * '-', str(exc2))]
             await self.send(channel, str(exc), ttl=True)
             try:
                 await message.delete()

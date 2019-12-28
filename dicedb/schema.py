@@ -28,6 +28,7 @@ LEN_SONG_NAME = 60
 LEN_SONG_URL = 36
 LEN_SONG_TAG = 60
 LEN_TURN_KEY = 60
+LEN_MOVIE = 200
 LEN_TURN_ORDER = 2500
 Base = sqlalchemy.ext.declarative.declarative_base()
 
@@ -392,6 +393,34 @@ class LastRoll(Base):
             (self.id, self.id_num) < (other.id, other.id_num)
 
 
+@total_ordering
+class Movie(Base):
+    """
+    A movie someone might want to see.
+    """
+    __tablename__ = 'movies'
+
+    id = sqla.Column(sqla.String(LEN_DID), primary_key=True)
+    id_num = sqla.Column(sqla.Integer, primary_key=True)
+    name = sqla.Column(sqla.String(LEN_ROLLSTR))
+
+    def __repr__(self):
+        keys = ['id', 'id_num', 'name']
+        kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
+
+        return "Movie({})".format(', '.join(kwargs))
+
+    def __str__(self):
+        return repr(self)
+
+    def __eq__(self, other):
+        return isinstance(other, self.__class__) and self.name == other.name
+
+    def __lt__(self, other):
+        return isinstance(other, self.__class__) and \
+            (self.id, self.name) < (other.id, other.name)
+
+
 def parse_int(word):
     """ Parse into int, on failure return 0 """
     try:
@@ -488,15 +517,15 @@ def main():  # pragma: no cover
     session.commit()
 
     turns = (
-        TurnChar(user_key=dusers[0].id, turn_key=turns[0].id, name='user', init=7),
+        TurnChar(user_key=dusers[0].id, turn_key=turns[0].id, name='user', modifier=7),
     )
     session.add_all(turns)
     session.commit()
 
     songs = (
-        Song(name='song1', url='/music/song1'),
-        Song(name='song2', url='/music/song2'),
-        Song(name='song3', url='youtube.com/song3'),
+        Song(name='song1', url='/music/song1', folder='/'),
+        Song(name='song2', url='/music/song2', folder='/'),
+        Song(name='song3', url='youtube.com/song3', folder='/'),
     )
     session.add_all(songs)
     session.commit()
@@ -511,6 +540,14 @@ def main():  # pragma: no cover
         SongTag(song_key=songs[2].id, name='creepy'),
     )
     session.add_all(song_tags)
+    session.commit()
+
+    movies = (
+        Movie(id=dusers[1].id, id_num=1, name='Matrix'),
+        Movie(id=dusers[2].id, id_num=1, name='Pokemon'),
+        Movie(id=dusers[2].id, id_num=2, name='Final Space (TV)'),
+    )
+    session.add_all(movies)
     session.commit()
 
     def mprint(*args):
@@ -554,6 +591,12 @@ def main():  # pragma: no cover
     for obj in session.query(SongTag):
         mprint(obj)
     session.close()
+
+    print('Movies----------')
+    for obj in session.query(Movie):
+        mprint(obj)
+    session.close()
+
     Base.metadata.drop_all(engine)
 
 

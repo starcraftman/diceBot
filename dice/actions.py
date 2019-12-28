@@ -1274,17 +1274,52 @@ class Reroll(Action):
 
 
 class Movies(Action):
+    """
+    Managed the movies list, a means of tracking things to watch later.
+    """
+    async def extract_movies(self, line):
+        """
+        Extract the movies desired from the command.
+        """
+        for word in ['!movies', ' -l ', ' --limit ', ' -a ', ' --add ', ' -u ', ' --update ']:
+            line = line.replace(word, '')
+
+        return [x.strip() for x in line.split(',')]
+
     async def execute(self):
-        msg = 'default'
+        msg = "__Movies__\n\n"
+        duser = dicedb.query.ensure_duser(self.session, self.msg.author)
+        cur_movies = dicedb.query.get_movies(self.session, duser.id)
 
         if self.args.list:
-            pass
+            fmt_str = "{}) {}"
+            for ind, movie in enumerate(cur_movies, 1):
+                msg += fmt_str.format(ind, movie.name) + "\n"
         elif self.args.add:
-            pass
+            next_movies = await self.extract_movies(self.msg.content)
+            dicedb.query.add_movies(self.session, duser.id, next_movies)
+
+            msg += "Added:\n\n" + '\n'.join([x for x in next_movies])
         elif self.args.update:
-            pass
-        else:
-            pass
+            next_movies = await self.extract_movies(self.msg.content)
+            dicedb.query.replace_all_movies(self.session, duser.id, next_movies)
+
+            msg += "Replaced:\n\n" + '\n'.join([x for x in next_movies])
+        else:  # Rolling a movie
+            if len(cur_movies) < 1:
+                raise dice.exc.InvalidCommandArgs("No movies in the current list.")
+
+            limit = self.args.limit
+            if limit > len(cur_movies):
+                limit = len(cur_movies)
+            elif limit <= 1:
+                limit = 1
+
+            roll = rand.randint(0, limit)
+            selected = cur_movies[roll]
+            msg += "You rolled: {}\nSeleted: {}".format(roll + 1, selected.name)
+            self.session.delete(selected)
+            self.session.commit()
 
         await self.reply(msg)
 
