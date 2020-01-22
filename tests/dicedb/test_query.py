@@ -285,3 +285,23 @@ def test_add_last_roll_exceeds_length(session, f_lastrolls):
     assert len(dicedb.query.get_last_rolls(session, '1')) == 3
     dicedb.query.add_last_roll(session, last_roll.id, "test" * 100)
     assert len(dicedb.query.get_last_rolls(session, '1')) == 3
+
+
+def test_get_movies(session, f_movies):
+    db_movies = dicedb.query.get_movies(session, '1')
+    f_movies = list(f_movies[:-1])
+    assert db_movies == f_movies
+
+
+def test_add_movies(session, f_movies):
+    dicedb.query.add_movies(session, '1', ['Bad Boys'])
+    all_movies = dicedb.query.get_movies(session, '1')
+    assert len(all_movies) ==  4
+    assert all_movies[-1].name == 'Bad Boys'
+
+
+def test_replace_all_movies(session, f_movies):
+    dicedb.query.replace_all_movies(session, '99', ['Bad Boys'])
+    all_movies = dicedb.query.get_movies(session, '99')
+    assert len(all_movies) == 1
+    assert all_movies[0].name == 'Bad Boys'

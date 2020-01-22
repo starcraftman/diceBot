@@ -1277,49 +1277,48 @@ class Movies(Action):
     """
     Managed the movies list, a means of tracking things to watch later.
     """
-    async def extract_movies(self, line):
-        """
-        Extract the movies desired from the command.
-        """
-        for word in ['!movies', ' -l ', ' --limit ', ' -a ', ' --add ', ' -u ', ' --update ']:
-            line = line.replace(word, '')
-
-        return [x.strip() for x in line.split(',')]
-
     async def execute(self):
         msg = "__Movies__\n\n"
         duser = dicedb.query.ensure_duser(self.session, self.msg.author)
         cur_movies = dicedb.query.get_movies(self.session, duser.id)
 
-        if self.args.list:
-            fmt_str = "{}) {}"
-            for ind, movie in enumerate(cur_movies, 1):
-                msg += fmt_str.format(ind, movie.name) + "\n"
-        elif self.args.add:
-            next_movies = await self.extract_movies(self.msg.content)
-            dicedb.query.add_movies(self.session, duser.id, next_movies)
+        if self.args.sub == 'add':
+            new_movies = [x.strip() for x in ' '.join(self.args.movies).split(',')]
+            dicedb.query.add_movies(self.session, duser.id, new_movies)
 
-            msg += "Added:\n\n" + '\n'.join([x for x in next_movies])
-        elif self.args.update:
-            next_movies = await self.extract_movies(self.msg.content)
-            dicedb.query.replace_all_movies(self.session, duser.id, next_movies)
+            msg += "Added:\n\n" + '\n'.join(new_movies)
+        elif self.args.sub == 'update':
+            new_movies = [x.strip() for x in ' '.join(self.args.movies).split(',')]
+            dicedb.query.replace_all_movies(self.session, duser.id, new_movies)
 
-            msg += "Replaced:\n\n" + '\n'.join([x for x in next_movies])
-        else:  # Rolling a movie
+            msg += "Replaced:\n\n" + '\n'.join(new_movies)
+        elif self.args.sub == 'roll':
             if len(cur_movies) < 1:
                 raise dice.exc.InvalidCommandArgs("No movies in the current list.")
 
-            limit = self.args.limit
-            if limit > len(cur_movies):
+            limit = self.args.num
+            if limit == 9999:
                 limit = len(cur_movies)
-            elif limit <= 1:
+            elif limit > len(cur_movies):
+                limit = len(cur_movies)
+            elif limit < 1:
                 limit = 1
 
             roll = rand.randint(0, limit)
             selected = cur_movies[roll]
-            msg += "You rolled: {}\nSeleted: {}".format(roll + 1, selected.name)
+            msg += "Rolled: {}\nSelected: {}".format(roll + 1, selected.name)
             self.session.delete(selected)
             self.session.commit()
+        else:
+            if self.args.short:
+                fmt_str = "{}, "
+                for movie in cur_movies:
+                    msg += fmt_str.format(movie.name)
+                msg = msg[:-2]
+            else:
+                fmt_str = "{}) {}"
+                for ind, movie in enumerate(cur_movies, 1):
+                    msg += fmt_str.format(ind, movie.name) + "\n"
 
         await self.reply(msg)
 

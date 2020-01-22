@@ -24,7 +24,7 @@ except ImportError:
 
 import dicedb
 import dicedb.schema
-from dicedb.schema import (DUser, SavedRoll, Pun, TurnChar, TurnOrder, Song, SongTag, Googly, LastRoll)
+from dicedb.schema import (DUser, SavedRoll, Pun, TurnChar, TurnOrder, Song, SongTag, Googly, LastRoll, Movie)
 
 
 #  @pytest.yield_fixture(scope='function', autouse=True)
@@ -507,6 +507,27 @@ def f_lastrolls(session):
     yield rolls
 
     for matched in session.query(LastRoll):
+        session.delete(matched)
+    session.commit()
+
+
+@pytest.fixture
+def f_movies(session):
+    """
+    Fixture to insert some test Googly objects.
+    """
+    movies = (
+        Movie(id='1', id_num=0, name='Toy Story'),
+        Movie(id='1', id_num=1, name='Forest Gump'),
+        Movie(id='1', id_num=2, name='A New Hope'),
+        Movie(id='2', id_num=0, name='Star Treak'),
+    )
+    session.add_all(movies)
+    session.commit()
+
+    yield movies
+
+    for matched in session.query(Movie):
         session.delete(matched)
     session.commit()
 

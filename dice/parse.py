@@ -534,23 +534,30 @@ def subs_movies(subs, prefix):
     """ Subcommand parsing for movie rolling  """
     desc = """Randomly select a movie from a saved list.
 
-{prefix}movies
+{prefix}movies roll
         Roll for a random movie from your own list. Shows result, removes movie.
-{prefix}movies 20
+{prefix}movies roll 20
         Roll for a random movie from your own list from top 20. Shows result, removes movie.
-{prefix}movies -a movie1, movie2, movie3
-{prefix}movies --add movie1, movie2, movie3
-        Update the movies list.
-{prefix}movies -u movie1, movie2, movie3
-{prefix}movies --update movie1, movie2, movie3
-        Update the movies list.
-{prefix}movies -l
-{prefix}movies --list
+{prefix}movies add movie1, movie2, movie3
+        Append movies to the list.
+{prefix}movies update movie1, movie2, movie3
+        Update the movies list with movies in list.
+{prefix}movies show
         Show the list of movies stored for current user.
+{prefix}movies show -s
+        Show the list of movies stored for current user. Uses format can be editted for update subcommand.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'movies', description=desc, formatter_class=RawHelp)
-    sub.set_defaults(cmd='Movies')
-    sub.add_argument('-l', '--list', action='store_true', help='List stored movies.')
-    sub.add_argument('-a', '--add', nargs="*", help='Add these movies to existing list.')
-    sub.add_argument('-u', '--update', nargs="*", help='Update the list to just these movies.')
-    sub.add_argument('limit', nargs='?', type=int, default=999999, help='Roll the first limit movies (default all).')
+    sub.set_defaults(cmd='Movies', short=False)
+    subsub = sub.add_subparsers(title='sub-subcommands',
+                                description='The subcommands of movies',
+                                dest='sub')
+
+    sub3 = subsub.add_parser('add', description="Append one or more movies.")
+    sub3.add_argument('movies', nargs='*', help='The movies to add.')
+    sub3 = subsub.add_parser('show', description="Show movies in the list.")
+    sub3.add_argument('-s', '--short', action='store_true', help='Display in short format')
+    sub3 = subsub.add_parser('roll', description="Roll for a movie.")
+    sub3.add_argument('num', nargs='?', type=int, default=9999, help='Select from n first movies inclusive')
+    sub3 = subsub.add_parser('update', description="Replace the entire list.")
+    sub3.add_argument('movies', nargs='*', help='The movies to add.')

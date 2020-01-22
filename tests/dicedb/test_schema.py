@@ -5,7 +5,7 @@ from __future__ import absolute_import, print_function
 
 import dicedb
 import dicedb.schema
-from dicedb.schema import (DUser, Pun, SavedRoll, TurnOrder, TurnChar, Song, Googly, LastRoll)
+from dicedb.schema import (DUser, Pun, SavedRoll, TurnOrder, TurnChar, Song, Googly, LastRoll, Movie)
 
 
 def test_duser__eq__(f_dusers):
@@ -211,6 +211,24 @@ def test_song_format_menu(f_songs):
 
 """
     assert f_songs[0].format_menu(1) == expect
+
+
+def test_movie__init__(f_movies):
+    movie = Movie(id='1', id_num=0, name='Toy Story')
+    assert movie.name == 'Toy Story'
+
+
+def test_movie__repr__(f_movies):
+    assert repr(f_movies[0]) == "Movie(id='1', id_num=0, name='Toy Story')"
+
+
+def test_movie__eq__(f_movies):
+    assert f_movies[0] == Movie(id='1', id_num=0, name='Toy Story')
+
+
+def test_movie__lt__(f_movies):
+    assert repr(f_movies[0]) < f_movies[-1]
+    assert repr(f_movies[0]) < f_movies[1]
 
 
 def test_parse_int():

@@ -862,6 +862,83 @@ async def test_cmd_reroll_offset_invalid(f_bot, f_lastrolls):
         await action_map(msg, f_bot).execute()
 
 
+@pytest.mark.asyncio
+async def test_cmd_movies_show(f_bot, f_movies):
+    msg = fixed_id_fake_msg("!movies show")
+    msg.author.id = '1'
+
+    expect = """__Movies__
+
+1) Toy Story
+2) Forest Gump
+3) A New Hope"""
+    await action_map(msg, f_bot).execute()
+    assert expect in str(f_bot.send.call_args).replace("\\n", "\n")
+
+
+@pytest.mark.asyncio
+async def test_cmd_movies_show_short(f_bot, f_movies):
+    msg = fixed_id_fake_msg("!movies show -s")
+    msg.author.id = '1'
+
+    expect = """__Movies__
+
+Toy Story, Forest Gump, A New Hope"""
+    await action_map(msg, f_bot).execute()
+    assert expect in str(f_bot.send.call_args).replace("\\n", "\n")
+
+
+@pytest.mark.asyncio
+async def test_cmd_movies_add(f_bot, f_movies):
+    msg = fixed_id_fake_msg("!movies add Babylon 5, Power Rangers")
+    msg.author.id = '1'
+    msg2 = fixed_id_fake_msg("!movies show")
+    msg2.author.id = '1'
+
+    await action_map(msg, f_bot).execute()
+    await action_map(msg2, f_bot).execute()
+
+    expect = """__Movies__
+
+1) Toy Story
+2) Forest Gump
+3) A New Hope
+4) Babylon 5
+5) Power Rangers"""
+    assert expect in str(f_bot.send.call_args).replace("\\n", "\n")
+
+
+@pytest.mark.asyncio
+async def test_cmd_movies_update(f_bot, f_movies):
+    msg = fixed_id_fake_msg("!movies update Babylon 5, Power Rangers")
+    msg.author.id = '1'
+    msg2 = fixed_id_fake_msg("!movies show")
+    msg2.author.id = '1'
+
+    await action_map(msg, f_bot).execute()
+    await action_map(msg2, f_bot).execute()
+
+    expect = """__Movies__
+
+1) Babylon 5
+2) Power Rangers"""
+    assert expect in str(f_bot.send.call_args).replace("\\n", "\n")
+
+
+@pytest.mark.asyncio
+async def test_cmd_movies_roll(f_bot, f_movies):
+    msg = fixed_id_fake_msg("!movies roll 1")
+    msg.author.id = '1'
+
+    await action_map(msg, f_bot).execute()
+
+    expect = """__Movies__
+
+Rolled: 1
+Selected: Toy Story"""
+    assert expect in str(f_bot.send.call_args).replace("\\n", "\n")
+
+
 def test_parse_time_spec():
     time_spec = "1:15:30"
     assert dice.actions.parse_time_spec(time_spec) == 3600 + 900 + 30
@@ -909,20 +986,6 @@ def test_format_pun_list(session, f_puns):
 A footer"""
 
     assert dice.actions.format_pun_list(header, f_puns, footer) == expect
-
-
-@OGN_TEST
-def test_get_results_in_background():
-    full_url = 'https://cse.google.com/cse?cx=006680642033474972217%3A6zo0hx_wle8&q=acid%20dart'
-
-    result = dice.actions.get_results_in_background(full_url, 3)
-    expect = """Acid Dart – d20PFSRD
-      <https://www.d20pfsrd.com/magic/3rd-party-spells/sean-k-reynolds-games/acid-dart/>
-Conjuration – d20PFSRD
-      <https://www.d20pfsrd.com/classes/core-classes/wizard/arcane-schools/paizo-arcane-schools/classic-arcane-schools/conjuration/>
-Earth Domain – d20PFSRD
-      <https://www.d20pfsrd.com/classes/core-classes/cleric/domains/paizo-domains/earth-domain/>"""
-    assert result == expect
 
 
 def test_timers_summary():

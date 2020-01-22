@@ -474,7 +474,7 @@ def get_movies(session, user_id):
     """
     Return all Movies a user has added for later.
     """
-    return session.query(Movie).filter(Movie.id == user_id).all()
+    return session.query(Movie).filter(Movie.id == user_id).order_by(Movie.id_num).all()
 
 
 def add_movies(session, user_id, movie_names):
