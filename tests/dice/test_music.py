@@ -18,8 +18,9 @@ def test_run_cmd_with_retries():
 
 @pytest.mark.asyncio
 async def test_get_yt_info():
-    url = 'https://www.youtube.com/watch?v=O9qUdpgcWVY&list=PLFItFVrQwOi45Y4YlWn1Myz-YQvSZ6MEL'
-    expect = ('https://youtu.be/O9qUdpgcWVY', 'Obey the Groove')
+    url = 'https://www.youtube.com/watch?v=Rv0TWdEdH7k&list=PLmBeBcXnjN18-IMsrj8COayOGViwZroIn'
+    expect = ("https://youtu.be/Rv0TWdEdH7k",
+              "Mark Ronson performs Don't Leave Me Lonely with YEBBA in acoustic session at Glastonbury 2019")
     assert expect == (await dice.music.get_yt_info(url))[0]
 
 

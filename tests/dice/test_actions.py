@@ -185,12 +185,12 @@ async def test_cmd_pf2(f_bot):
     expect = """Searching Pathfinder 2e Wiki: **monk**
 Top 3 Results:
 
+Stone Giant Monk
+      <https://pf2.d20pfsrd.com/npc/stone-giant-monk/>
 Monk
-      <https://pf2.d20pfsrd.com/class/monk/>
-Equipment
-      <https://pf2.d20pfsrd.com/rules/equipment/>
-Halfling
-      <https://pf2.d20pfsrd.com/ancestry/halfling/>"""
+      <https://pf2.d20pfsrd.com/archetype/monk/>
+Monk
+      <https://pf2.d20pfsrd.com/class/monk/>"""
     f_bot.send.assert_called_with(msg.channel, expect)
 
 
@@ -224,10 +224,8 @@ async def test_cmd_poni_one_image(f_bot):
 
     await action_map(msg, f_bot).execute()
 
-    expect = 'https://derpicdn.net/img/view/2017/2/24/1371687__safe_artist-colon-iluvchedda_'\
-             'oc_oc-colon-blue+moon_oc+only_oc-colon-radieux_apple+tree_g2_moon_night_pegasus_'\
-             'pony_rock_tree_unshorn+fetlocks.jpeg'
-    f_bot.send.assert_called_with(msg.channel, expect)
+    f_bot.send.assert_called_with(msg.channel,
+                                  "https://derpicdn.net/img/view/2017/2/24/1371687.jpeg")
 
 
 @pytest.mark.asyncio
