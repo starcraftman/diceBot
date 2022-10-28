@@ -1,6 +1,7 @@
 *.private
 .pytest_cache
 wget-log
+mdb/
 
 # Byte-compiled / optimized / DLL files
 data/

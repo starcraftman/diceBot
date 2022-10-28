@@ -281,7 +281,7 @@ class UMLDocs(Command):
 SHORT_DESC = 'Simple Dice Bot for Discord'
 MY_NAME = 'Jeremy Pallats / starcraft.man'
 MY_EMAIL = 'N/A'
-RUN_DEPS = ['argparse', 'bs4', 'decorator', 'discord.py', 'numpy',
+RUN_DEPS = ['argparse', 'bs4', 'decorator', 'discord.py', 'motor', 'numpy',
             'pymysql', 'pynacl', 'pyyaml', 'selenium', 'SQLalchemy',
             'uvloop', 'youtube_dl']
 TEST_DEPS = ['coverage', 'flake8', 'aiomock', 'mock', 'pylint', 'pytest', 'pytest-asyncio',
