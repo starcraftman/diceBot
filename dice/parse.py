@@ -76,70 +76,70 @@ def subs_math(subs, prefix):
     sub.add_argument('spec', nargs='+', help='The math operations.')
 
 
-@register_parser
-def subs_music(subs, prefix):
-    """ Subcommand parsing for music """
-    desc = """A simple music player for users to stream yt or local media.
+#  @register_parser
+#  def subs_music(subs, prefix):
+    #  """ Subcommand parsing for music """
+    #  desc = """A simple music player for users to stream yt or local media.
 
-{prefix}m is aliased to this command.
+#  {prefix}m is aliased to this command.
 
-{prefix}music play youtube_link, song db name, local_name ...
-        Play one or more youtube links or local files on server.
-{prefix}music play youtube_playlist
-        Play the playlist from start to finish. Only 1 playlist supported.
-{prefix}music add youtube_link_1 local_name_1
-        Append the following songs to the list.
-{prefix}music add youtube_playlist
-        Append the playlist from start to finish. Only 1 playlist supported.
-{prefix}music clear
-        Stop playing the music and clear the queue.
-{prefix}music dedupe
-        Remove all duplicates from the current queue.
-{prefix}music pause
-        Pause the playing the music.
-{prefix}music resume
-        Resume playing from pause or stopped if there are any songs in queue left.
-{prefix}music stop
-        Stop playing the music.
-{prefix}music restart
-        Play the queue from the beginning.
-{prefix}music next
-        Play the next song.
-{prefix}music prev
-        Play the previous song.
-{prefix}music volume
-        Set the volume: [0, 100]
-{prefix}music repeat
-        Set the current song to repeat when it finishes.
-{prefix}music repeatqueue
-        Set the player to start back at front of list when finished queue.
-{prefix}music shuffle
-        Player will enable shuffle mode and randomly play every song once then restart.
-    """.format(prefix=prefix)
-    sub = subs.add_parser(prefix + 'music', aliases=[prefix + 'm'], description=desc, formatter_class=RawHelp)
-    sub.set_defaults(cmd='Music')
+#  {prefix}music play youtube_link, song db name, local_name ...
+        #  Play one or more youtube links or local files on server.
+#  {prefix}music play youtube_playlist
+        #  Play the playlist from start to finish. Only 1 playlist supported.
+#  {prefix}music add youtube_link_1 local_name_1
+        #  Append the following songs to the list.
+#  {prefix}music add youtube_playlist
+        #  Append the playlist from start to finish. Only 1 playlist supported.
+#  {prefix}music clear
+        #  Stop playing the music and clear the queue.
+#  {prefix}music dedupe
+        #  Remove all duplicates from the current queue.
+#  {prefix}music pause
+        #  Pause the playing the music.
+#  {prefix}music resume
+        #  Resume playing from pause or stopped if there are any songs in queue left.
+#  {prefix}music stop
+        #  Stop playing the music.
+#  {prefix}music restart
+        #  Play the queue from the beginning.
+#  {prefix}music next
+        #  Play the next song.
+#  {prefix}music prev
+        #  Play the previous song.
+#  {prefix}music volume
+        #  Set the volume: [0, 100]
+#  {prefix}music repeat
+        #  Set the current song to repeat when it finishes.
+#  {prefix}music repeatqueue
+        #  Set the player to start back at front of list when finished queue.
+#  {prefix}music shuffle
+        #  Player will enable shuffle mode and randomly play every song once then restart.
+    #  """.format(prefix=prefix)
+    #  sub = subs.add_parser(prefix + 'music', aliases=[prefix + 'm'], description=desc, formatter_class=RawHelp)
+    #  sub.set_defaults(cmd='Music')
 
-    subsub = sub.add_subparsers(title='sub-subcommands',
-                                description='The subcommands of play',
-                                dest='sub')
-    sub3 = subsub.add_parser('add', description="Append the vids to the music queue.")
-    sub3.add_argument('vids', nargs="+", default=[], help='The videos to play.')
-    sub3 = subsub.add_parser('play', aliases=['replace'], description="Play the selected videos.")
-    sub3.add_argument('vids', nargs="+", default=[], help='The videos to play.')
-    subsub.add_parser('clear', description="Clear the music queue.")
-    subsub.add_parser('dedupe', description="Remove duplicate entries from the queue.")
-    subsub.add_parser('restart', description="Restart the music queue.")
-    subsub.add_parser('stop', description="Stop the player and disconnect from channel.")
-    subsub.add_parser('next', description="Play next song in queue.")
-    subsub.add_parser('prev', description="Play previous song in queue.")
-    subsub.add_parser('pause', description="Puase the player.")
-    subsub.add_parser('resume', description="Resume the player.")
-    subsub.add_parser('repeat', description="Repeat current song until next called.")
-    subsub.add_parser('repeatqueue', description="When queue finished, start over again.")
-    subsub.add_parser('shuffle', description="Enable shuffle mode, songs will be randomly selected from queue.")
-    subsub.add_parser('status', description="Show player status and queue.")
-    sub3 = subsub.add_parser('volume', description="Restart the music queue.")
-    sub3.add_argument('volume', type=int, help='Set the volume: [0, 100]')
+    #  subsub = sub.add_subparsers(title='sub-subcommands',
+                                #  description='The subcommands of play',
+                                #  dest='sub')
+    #  sub3 = subsub.add_parser('add', description="Append the vids to the music queue.")
+    #  sub3.add_argument('vids', nargs="+", default=[], help='The videos to play.')
+    #  sub3 = subsub.add_parser('play', aliases=['replace'], description="Play the selected videos.")
+    #  sub3.add_argument('vids', nargs="+", default=[], help='The videos to play.')
+    #  subsub.add_parser('clear', description="Clear the music queue.")
+    #  subsub.add_parser('dedupe', description="Remove duplicate entries from the queue.")
+    #  subsub.add_parser('restart', description="Restart the music queue.")
+    #  subsub.add_parser('stop', description="Stop the player and disconnect from channel.")
+    #  subsub.add_parser('next', description="Play next song in queue.")
+    #  subsub.add_parser('prev', description="Play previous song in queue.")
+    #  subsub.add_parser('pause', description="Puase the player.")
+    #  subsub.add_parser('resume', description="Resume the player.")
+    #  subsub.add_parser('repeat', description="Repeat current song until next called.")
+    #  subsub.add_parser('repeatqueue', description="When queue finished, start over again.")
+    #  subsub.add_parser('shuffle', description="Enable shuffle mode, songs will be randomly selected from queue.")
+    #  subsub.add_parser('status', description="Show player status and queue.")
+    #  sub3 = subsub.add_parser('volume', description="Restart the music queue.")
+    #  sub3.add_argument('volume', type=int, help='Set the volume: [0, 100]')
 
 
 @register_parser
@@ -285,40 +285,40 @@ def subs_poni(subs, prefix):
     sub.add_argument('tags', nargs='+', help='To search.')
 
 
-@register_parser
-def subs_songs(subs, prefix):
-    """ Subcommand parsing for songs """
-    desc = """Manage the song lookup.
+#  @register_parser
+#  def subs_songs(subs, prefix):
+    #  """ Subcommand parsing for songs """
+    #  desc = """Manage the song lookup.
 
-{prefix}songs --add name, youtube_link, tag1, tag2, tag3
-{prefix}songs -a name, youtube_link, tag1, tag2, tag3
-{prefix}songs --add name, local_path_name, tag1, tag2
-{prefix}songs -a name, local_path_name, tag1, tag2
-        Add all names into the songs mapping.
-{prefix}songs --list
-{prefix}songs -l
-        List everything in the db.
-{prefix}songs --manage
-{prefix}songs -m
-        Manage the songs in the db interactively.
-{prefix}songs --play
-{prefix}songs -p
-        Interactively via menus select a song from db to play.
-{prefix}songs --searche name_song
-{prefix}songs -s name_song
-        Search for a name of song (loose match).
-{prefix}songs --tag tag_name
-{prefix}songs -t tag_name
-        Search for a tag (loose match).
-    """.format(prefix=prefix)
-    sub = subs.add_parser(prefix + 'songs', description=desc, formatter_class=RawHelp)
-    sub.set_defaults(cmd='Songs')
-    sub.add_argument('-a', '--add', nargs='+', help='Add a song to the mappings.')
-    sub.add_argument('-l', '--list', action='store_true', help='Show all mappings.')
-    sub.add_argument('-m', '--manage', action='store_true', help='Manage the mappings.')
-    sub.add_argument('-p', '--play', action='store_true', help='Select a song from db to play.')
-    sub.add_argument('-s', '--search', nargs='+', help='Search the song names.')
-    sub.add_argument('-t', '--tag', nargs='+', help='Search the song names.')
+#  {prefix}songs --add name, youtube_link, tag1, tag2, tag3
+#  {prefix}songs -a name, youtube_link, tag1, tag2, tag3
+#  {prefix}songs --add name, local_path_name, tag1, tag2
+#  {prefix}songs -a name, local_path_name, tag1, tag2
+        #  Add all names into the songs mapping.
+#  {prefix}songs --list
+#  {prefix}songs -l
+        #  List everything in the db.
+#  {prefix}songs --manage
+#  {prefix}songs -m
+        #  Manage the songs in the db interactively.
+#  {prefix}songs --play
+#  {prefix}songs -p
+        #  Interactively via menus select a song from db to play.
+#  {prefix}songs --searche name_song
+#  {prefix}songs -s name_song
+        #  Search for a name of song (loose match).
+#  {prefix}songs --tag tag_name
+#  {prefix}songs -t tag_name
+        #  Search for a tag (loose match).
+    #  """.format(prefix=prefix)
+    #  sub = subs.add_parser(prefix + 'songs', description=desc, formatter_class=RawHelp)
+    #  sub.set_defaults(cmd='Songs')
+    #  sub.add_argument('-a', '--add', nargs='+', help='Add a song to the mappings.')
+    #  sub.add_argument('-l', '--list', action='store_true', help='Show all mappings.')
+    #  sub.add_argument('-m', '--manage', action='store_true', help='Manage the mappings.')
+    #  sub.add_argument('-p', '--play', action='store_true', help='Select a song from db to play.')
+    #  sub.add_argument('-s', '--search', nargs='+', help='Search the song names.')
+    #  sub.add_argument('-t', '--tag', nargs='+', help='Search the song names.')
 
 
 @register_parser
@@ -471,19 +471,19 @@ def subs_pun(subs, prefix):
     sub.set_defaults(cmd='Pun')
 
 
-@register_parser
-def subs_yt(subs, prefix):
-    """ Subcommand parsing for youtube search """
-    desc = """Search youtube for songs to play.
+#  @register_parser
+#  def subs_yt(subs, prefix):
+    #  """ Subcommand parsing for youtube search """
+    #  desc = """Search youtube for songs to play.
 
-{prefix}yt critical hit
-        Search for "critical hit" on youtube and show a paging menu with results.
-        Select one to play or exit from menu.
-    """.format(prefix=prefix)
-    sub = subs.add_parser(prefix + 'yt', description=desc, formatter_class=RawHelp)
-    sub.set_defaults(cmd='YTSearch')
-    sub.add_argument('-f', '--first', action="store_true", help='Play first match.')
-    sub.add_argument('terms', nargs='+', help='To search.')
+#  {prefix}yt critical hit
+        #  Search for "critical hit" on youtube and show a paging menu with results.
+        #  Select one to play or exit from menu.
+    #  """.format(prefix=prefix)
+    #  sub = subs.add_parser(prefix + 'yt', description=desc, formatter_class=RawHelp)
+    #  sub.set_defaults(cmd='YTSearch')
+    #  sub.add_argument('-f', '--first', action="store_true", help='Play first match.')
+    #  sub.add_argument('terms', nargs='+', help='To search.')
 
 
 @register_parser

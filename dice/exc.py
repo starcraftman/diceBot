@@ -40,38 +40,24 @@ class InvalidPerms(UserException):
     """ Unable to process command due to insufficient permissions.  """
 
 
-class MoreThanOneMatch(UserException):
-    """ Too many matches were found for sequence.  """
-    def __init__(self, needle, matches, cls, *, obj_attr=None):
-        super().__init__()
-        self.needle = needle
-        self.matches = matches
-        self.cls = cls
-        self.obj_attr = obj_attr if obj_attr else ''
-
-    def __str__(self):
-        header = """Resubmit query with more specific criteria.
-Too many matches for '{}' in {}s:
-""".format(self.needle, self.cls)
-        matched_strings = [dice.matcher.emphasize_match(self.needle, getattr(obj, self.obj_attr, obj))
-                           for obj in self.matches]
-        matched = "\n    - " + "\n    - ".join(matched_strings)
-        return header + matched
-
-
-class NoMatch(UserException):
-    """ No match was found for sequence. """
-    def __init__(self, needle, search_type):
-        super().__init__()
-        self.needle = needle
-        self.search_type = search_type
-
-    def __str__(self):
-        return "No matches for '{}' in {}s.".format(self.needle, self.search_type)
-
-
 class CmdAborted(UserException):
     """ Raised to cancel a multistep command. """
+
+
+class DBException(DiceException):
+    """
+    Exception occurred usually due to user error.
+
+    Not unexpected but can indicate a problem.
+    """
+
+
+class MoreThanOneMatch(DBException):
+    """ Too many matches were found for sequence.  """
+
+
+class NoMatch(DBException):
+    """ No match was found for sequence. """
 
 
 class InternalException(DiceException):

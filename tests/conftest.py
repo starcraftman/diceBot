@@ -10,7 +10,7 @@ import os
 import aiomock
 import discord
 import pytest
-import sqlalchemy.exc
+import pytest_asyncio
 
 try:
     import uvloop
@@ -24,7 +24,6 @@ except ImportError:
 
 import dicedb
 import dicedb.schema
-from dicedb.schema import (DUser, SavedRoll, Pun, TurnChar, TurnOrder, Song, SongTag, Googly, LastRoll, Movie)
 
 
 #  @pytest.yield_fixture(scope='function', autouse=True)
@@ -53,7 +52,6 @@ def event_loop():
     Save system wide loop policy, and use uvloop if available.
 
     To test either:
-        1) Mark with pytest.mark.asyncio
         2) event_loop.run_until_complete(asyncio.gather(futures))
     """
     loop = uvloop.new_event_loop()
@@ -260,292 +258,266 @@ def f_bot():
     yield fake_bot
 
 
+#  @pytest.fixture
+#  def f_mplayer_db():
+    #  """
+    #  Return a simple mplayer db sample.
+    #  """
+    #  fake_mplayer_db = {
+        #  'exists': {
+            #  'name': 'exists_local',
+            #  'tags': [
+                #  'classical',
+                #  'chopin',
+            #  ],
+            #  'url': 'nocturne1.mp3',
+        #  },
+        #  'not_exists': {
+            #  'name': 'not_exists',
+            #  'tags': [
+                #  'classical',
+                #  'chopin',
+            #  ],
+            #  'url': 'ballade1.mp3',
+        #  },
+        #  'the_oddyssey': {
+            #  'name': 'the_oddyssey',
+            #  'tags': [
+                #  'prog metal',
+                #  'symphony x',
+            #  ],
+            #  'url': 'https://www.youtube.com/watch?v=M3nkuJO2y5I',
+        #  },
+        #  'bad_url': {
+            #  'name': 'bad_url',
+            #  'tags': [
+                #  'invalid',
+                #  'will not pass',
+            #  ],
+            #  'url': 'https://www.google.com/videos/24002',
+        #  },
+    #  }
+
+    #  yield fake_mplayer_db
+
+
 @pytest.fixture
-def f_mplayer_db():
-    """
-    Return a simple mplayer db sample.
-    """
-    fake_mplayer_db = {
-        'exists': {
-            'name': 'exists_local',
-            'tags': [
-                'classical',
-                'chopin',
-            ],
-            'url': 'nocturne1.mp3',
-        },
-        'not_exists': {
-            'name': 'not_exists',
-            'tags': [
-                'classical',
-                'chopin',
-            ],
-            'url': 'ballade1.mp3',
-        },
-        'the_oddyssey': {
-            'name': 'the_oddyssey',
-            'tags': [
-                'prog metal',
-                'symphony x',
-            ],
-            'url': 'https://www.youtube.com/watch?v=M3nkuJO2y5I',
-        },
-        'bad_url': {
-            'name': 'bad_url',
-            'tags': [
-                'invalid',
-                'will not pass',
-            ],
-            'url': 'https://www.google.com/videos/24002',
-        },
-    }
+def test_db():
+    client = dicedb.get_db_client('test_dice')
 
-    yield fake_mplayer_db
+    yield client
 
 
-@pytest.fixture
-def session():
-    sess = dicedb.Session()
-
-    yield sess
-
-    sess.close()
-
-
-@pytest.fixture(autouse=True)
-def db_cleanup():
+@pytest_asyncio.fixture()
+async def db_cleanup(test_db):
     """ Nuke anything left in db after test. """
     yield
 
-    dicedb.schema.empty_tables(dicedb.Session())
+    for info in await test_db.list_collections():
+        coll = await test_db.get_collection(info['name'])
+        await coll.drop()
 
 
-@pytest.fixture
-def f_dusers(session):
+@pytest_asyncio.fixture
+async def f_dusers(test_db):
     """
     Fixture to insert some test DUsers.
     """
-    dusers = (
-        DUser(id='1', display_name='User1'),
-        DUser(id='2', display_name='User2'),
-        DUser(id='3', display_name='User3'),
-    )
-    try:
-        session.add_all(dusers)
-        session.commit()
-    except sqlalchemy.exc.IntegrityError:
-        pass
+    dusers = [
+        {'discord_id': 1, 'display_name': 'User1'},
+        {'discord_id': 2, 'display_name': 'User2'},
+        {'discord_id': 3, 'display_name': 'User3'},
+    ]
+    await test_db.discord_users.insert_many(dusers)
 
     yield dusers
 
-    for matched in session.query(DUser):
-        session.delete(matched)
-    session.commit()
+    await test_db.discord_users.delete_many({})
 
 
-@pytest.fixture
-def f_saved_rolls(session, f_dusers):
+@pytest_asyncio.fixture
+async def f_puns(test_db):
+    """
+    Fixture to insert some test Puns.
+    """
+    puns = (
+        {'discord_id': 0, 'puns': [
+            {'text': "First Pun", 'hits': 0},
+            {'text': 'Second pun', 'hits': 2},
+            {'text': 'Third pun', 'hits': 7},
+        ]},
+    )
+    await test_db.puns.insert_many(puns)
+
+    yield puns
+
+    await test_db.puns.delete_many({})
+
+
+@pytest_asyncio.fixture
+async def f_saved_rolls(test_db):
     """
     Fixture to insert some test SavedRolls.
 
     Remember to put DUsers in.
     """
-    rolls = (
-        SavedRoll(name='Crossbow', roll_str='d20 + 7, d8', user_id=f_dusers[0].id),
-        SavedRoll(name='Staff', roll_str='d20 + 2, d6', user_id=f_dusers[0].id),
-        SavedRoll(name='LongSword', roll_str='d20 + 7, d8+4', user_id=f_dusers[1].id),
-        SavedRoll(name='Dagger', roll_str='d20 + 5, d4 + 3', user_id=f_dusers[2].id),
-    )
-    session.add_all(rolls)
-    session.commit()
+    rolls = [
+        {'name': 'Crossbow', 'roll': 'd20 + 7, d8', 'discord_id': 0},
+        {'name': 'Staff', 'roll': 'd20 + 7, d8', 'discord_id': 0},
+        {'name': 'LongSword', 'roll': 'd20 + 7, d8', 'discord_id': 1},
+        {'name': 'Dagger', 'roll': 'd20 + 7, d8', 'discord_id': 2},
+    ]
+    await test_db.rolls_saved.insert_many(rolls)
 
     yield rolls
 
-    for matched in session.query(SavedRoll):
-        session.delete(matched)
-    session.commit()
+    await test_db.rolls_saved.delete_many({})
 
 
-@pytest.fixture
-def f_puns(session):
-    """
-    Fixture to insert some test Puns.
-    """
-    puns = (
-        Pun(text='First pun', hits=2),
-        Pun(text='Second pun', hits=0),
-        Pun(text='Third pun', hits=1),
-        Pun(text='Fourth pun', hits=0),
-    )
-    session.add_all(puns)
-    session.commit()
-
-    yield puns
-
-    for matched in session.query(Pun):
-        session.delete(matched)
-    session.commit()
-
-
-@pytest.fixture
-def f_turnorders(session, f_turnchars):
-    """
-    Fixture to insert some test Puns.
-    """
-    turns = (
-        TurnOrder(id='guild1-chan1', text='TurnOrder'),
-        TurnOrder(id='guild1-chan2', text='TurnOrder'),
-    )
-    session.add_all(turns)
-    session.commit()
-
-    yield turns
-
-    for matched in session.query(TurnOrder):
-        session.delete(matched)
-    session.commit()
-
-
-@pytest.fixture
-def f_turnchars(session, f_dusers):
-    """
-    Fixture to insert some test Puns.
-    """
-    chars = (
-        TurnChar(user_key='1', turn_key='turn', name='Wizard', modifier=7),
-        TurnChar(user_key='2', turn_key='turn', name='Fighter', modifier=2),
-        TurnChar(user_key='3', turn_key='turn', name='Rogue', modifier=3),
-    )
-    session.add_all(chars)
-    session.commit()
-
-    yield chars
-
-    for matched in session.query(TurnChar):
-        session.delete(matched)
-    session.commit()
-
-
-@pytest.fixture
-def f_songs(session):
-    """
-    Fixture to insert some test Songs and SongTags.
-    """
-    tdir = tempfile.TemporaryDirectory()
-
-    try:
-        os.mkdir('/tmp/tmp')
-    except OSError:
-        pass
-
-    with open('/tmp/tmp/late.opus', 'wb') as fout:
-        fout.write(b'1')
-
-    songs = (
-        Song(id=1, name="crit", folder=tdir.name,
-             url="https://youtu.be/IrbCrwtDIUA", repeat=False, volume_int=50),
-        Song(id=2, name="pop", folder=tdir.name,
-             url="https://youtu.be/7jgnv0xCv-k", repeat=False, volume_int=50),
-        Song(id=3, name="late", folder='/tmp/tmp',
-             url=None, repeat=False, volume_int=50),
-    )
-    tags = (
-        SongTag(id=1, song_key=1, name='exciting'),
-        SongTag(id=2, song_key=1, name='action'),
-        SongTag(id=3, song_key=2, name='pop'),
-        SongTag(id=4, song_key=2, name='public'),
-        SongTag(id=5, song_key=3, name='late'),
-        SongTag(id=6, song_key=3, name='lotr'),
-    )
-    session.add_all(songs + tags)
-    session.commit()
-
-    yield songs
-
-    for matched in session.query(Song):
-        session.delete(matched)
-    for matched in session.query(SongTag):
-        session.delete(matched)
-    session.commit()
-    tdir.cleanup()
-
-
-@pytest.fixture
-def f_googly(session):
-    """
-    Fixture to insert some test Googly objects.
-    """
-    googlys = (
-        Googly(id='1', total=100, used=0),
-        Googly(id='2', total=40, used=10),
-        Googly(id='3', total=55, used=22),
-    )
-    session.add_all(googlys)
-    session.commit()
-
-    yield googlys
-
-    for matched in session.query(Googly):
-        session.delete(matched)
-    session.commit()
-
-
-@pytest.fixture
-def f_lastrolls(session):
+@pytest_asyncio.fixture
+async def f_lastrolls(session):
     """
     Fixture to insert some test Googly objects.
     """
     rolls = (
-        LastRoll(id='1', id_num=0, roll_str='4d6 + 1'),
-        LastRoll(id='1', id_num=1, roll_str='4d6 + 2'),
-        LastRoll(id='1', id_num=2, roll_str='4d6 + 3'),
-        LastRoll(id='2', id_num=0, roll_str='2d20 + 4'),
+        {'discord_id': 1, 'history': ['4d6 + 1', '4d6 + 2', '3d10 + 4']},
+        {'discord_id': 2, 'history': ['2d20 + 4']},
     )
-    session.add_all(rolls)
-    session.commit()
+    await test_db.rolls_last.insert_many(rolls)
 
     yield rolls
 
-    for matched in session.query(LastRoll):
-        session.delete(matched)
-    session.commit()
+    await test_db.rolls_last.delete_many({})
 
 
-@pytest.fixture
-def f_movies(session):
+@pytest_asyncio.fixture
+async def f_movies(session):
     """
     Fixture to insert some test Googly objects.
     """
     movies = (
-        Movie(id='1', id_num=0, name='Toy Story'),
-        Movie(id='1', id_num=1, name='Forest Gump'),
-        Movie(id='1', id_num=2, name='A New Hope'),
-        Movie(id='2', id_num=0, name='Star Treak'),
+        {"discord_id": 0, "name": "Movies", "entries": ["Toy Story", "Forest Gump", "A New Hope"]},
+        {"discord_id": 2, "name": "Movies", "entries": ["Star Trek"]},
     )
-    session.add_all(movies)
-    session.commit()
+    await test_db.movies.insert_many(movies)
 
     yield movies
 
-    for matched in session.query(Movie):
-        session.delete(matched)
-    session.commit()
+    await test_db.movies.delete_many({})
 
 
-@pytest.fixture
-def f_vclient():
-    mock = aiomock.AIOMock()
-    mock.channel = Channel("VoiceChannel")
-    mock.source = aiomock.AIOMock()  # The AudioStream
-    mock.source.volume = 0.5
-    mock.is_connected.return_value = False
-    mock.is_playing.return_value = False
-    mock.is_paused.return_value = False
-    mock.play.return_value = True
-    mock.stop.return_value = True
-    mock.pause.return_value = True
-    mock.resume.return_value = True
-    mock.disconnect.async_return_value = True  # Async
-    mock.move_to.async_return_value = True  # Async
+@pytest_asyncio.fixture
+async def f_googly(session):
+    """
+    Fixture to insert some test Googly objects.
+    """
+    googlys = (
+        {'id': 1, 'total': 100, 'used': 0},
+        {'id': 2, 'total': 40, 'used': 10},
+        {'id': 3, 'total': 55, 'used': 22},
+    )
+    await test_db.googly_eyes.insert_many(googlys)
 
-    yield mock
+    yield googlys
+
+    await test_db.googly_eyes.delete_many({})
+
+
+#  @pytest_asyncio.fixture
+#  async def f_turnorders(test_db, f_turnchars):
+    #  """
+    #  Fixture to insert some test Puns.
+    #  """
+    #  turns = (
+        #  {'id': 'guild1-chan1', 'text': 'TurnOrder'},
+        #  {'id': 'guild1-chan2', 'text': 'TurnOrder'},
+    #  )
+    #  await test_db.turn_orders.insert_many(turns)
+
+    #  yield turns
+
+    #  await test_db.turn_orders.delete_many({})
+
+
+#  @pytest_asyncio.fixture
+#  def f_turnchars(test_db, f_dusers):
+    #  """
+    #  Fixture to insert some test Puns.
+    #  """
+    #  chars = (
+        #  {'discord_id': 1, '
+        #  TurnChar(user_key='1', turn_key='turn', name='Wizard', modifier=7),
+        #  TurnChar(user_key='2', turn_key='turn', name='Fighter', modifier=2),
+        #  TurnChar(user_key='3', turn_key='turn', name='Rogue', modifier=3),
+    #  )
+    #  session.add_all(chars)
+    #  session.commit()
+
+    #  yield chars
+
+    #  for matched in session.query(TurnChar):
+        #  session.delete(matched)
+    #  session.commit()
+
+
+#  @pytest_asyncio.fixture
+#  def f_songs(session):
+    #  """
+    #  Fixture to insert some test Songs and SongTags.
+    #  """
+    #  tdir = tempfile.TemporaryDirectory()
+
+    #  try:
+        #  os.mkdir('/tmp/tmp')
+    #  except OSError:
+        #  pass
+
+    #  with open('/tmp/tmp/late.opus', 'wb') as fout:
+        #  fout.write(b'1')
+
+    #  songs = (
+        #  Song(id=1, name="crit", folder=tdir.name,
+             #  url="https://youtu.be/IrbCrwtDIUA", repeat=False, volume_int=50),
+        #  Song(id=2, name="pop", folder=tdir.name,
+             #  url="https://youtu.be/7jgnv0xCv-k", repeat=False, volume_int=50),
+        #  Song(id=3, name="late", folder='/tmp/tmp',
+             #  url=None, repeat=False, volume_int=50),
+    #  )
+    #  tags = (
+        #  SongTag(id=1, song_key=1, name='exciting'),
+        #  SongTag(id=2, song_key=1, name='action'),
+        #  SongTag(id=3, song_key=2, name='pop'),
+        #  SongTag(id=4, song_key=2, name='public'),
+        #  SongTag(id=5, song_key=3, name='late'),
+        #  SongTag(id=6, song_key=3, name='lotr'),
+    #  )
+    #  session.add_all(songs + tags)
+    #  session.commit()
+
+    #  yield songs
+
+    #  for matched in session.query(Song):
+        #  session.delete(matched)
+    #  for matched in session.query(SongTag):
+        #  session.delete(matched)
+    #  session.commit()
+    #  tdir.cleanup()
+
+
+#  @pytest.fixture
+#  def f_vclient():
+    #  mock = aiomock.AIOMock()
+    #  mock.channel = Channel("VoiceChannel")
+    #  mock.source = aiomock.AIOMock()  # The AudioStream
+    #  mock.source.volume = 0.5
+    #  mock.is_connected.return_value = False
+    #  mock.is_playing.return_value = False
+    #  mock.is_paused.return_value = False
+    #  mock.play.return_value = True
+    #  mock.stop.return_value = True
+    #  mock.pause.return_value = True
+    #  mock.resume.return_value = True
+    #  mock.disconnect.async_return_value = True  # Async
+    #  mock.move_to.async_return_value = True  # Async
+
+    #  yield mock

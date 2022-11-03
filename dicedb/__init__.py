@@ -1,41 +1,24 @@
 """
 All database related code resides under this module.
-Only one rule, no sql text.
+This database uses motor python library, an async version of pymongo.
 
-Useful Documentation
---------------------
-ORM  tutorial:
-    http://docs.sqlalchemy.org/en/latest/orm/tutorial.html
-Relationships:
-    http://docs.sqlalchemy.org/en/latest/orm/basic_relationships.html
-Relationship backrefs:
-    http://docs.sqlalchemy.org/en/latest/orm/backref.html#relationships-backref
+Followed simple tutorial for tutorial on motor.
+
+See: https://motor.readthedocs.io/en/stable/tutorial-asyncio.html
 """
-from __future__ import absolute_import, print_function
-import logging
-import sys
+import motor.motor_asyncio
 
-import sqlalchemy
-import sqlalchemy.event
-import sqlalchemy.exc
-import sqlalchemy.orm
+NOPASS_URL = 'mongodb://localhost:31000'
 
-import dice.util
 
-# Old engine, just in case
-# engine = sqlalchemy.create_engine('sqlite://', echo=False)
+def get_db_client(with_database='dice'):
+    """
+    Returns the db client to mongo, after selecting the database first.
+    If you want raw client, pass None.
+    """
+    client = motor.motor_asyncio.AsyncIOMotorClient(NOPASS_URL)
 
-MYSQL_SPEC = 'mysql+pymysql://{user}:{pass}@{host}/{db}?charset=utf8mb4'
-CREDS = dice.util.get_config('dbs', 'main')
+    if with_database:
+        client = client[with_database]
 
-TEST_DB = False
-if 'pytest' in sys.modules:
-    CREDS['db'] = 'test_dice'
-    TEST_DB = True
-
-engine = sqlalchemy.create_engine(MYSQL_SPEC.format(**CREDS), echo=False, pool_recycle=3600)
-Session = sqlalchemy.orm.sessionmaker(bind=engine)
-logging.getLogger('cogdb').info('Main Engine: %s', engine)
-print('Main Engine Selected: ', engine)
-
-CREDS = None
+    return client
