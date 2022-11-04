@@ -9,8 +9,6 @@ import re
 import tempfile
 
 import numpy.random
-import sqlalchemy.orm.exc as sqla_oexc
-from sqlalchemy import func
 
 import dice.exc
 import dicedb
@@ -25,7 +23,7 @@ async def dump_db():  # pragma: no cover
     client = dicedb.get_db_client()
     fname = os.path.join(tempfile.gettempdir(), 'dbdump_' + os.environ.get('COG_TOKEN', 'dev'))
     print("Dumping db contents to:", fname)
-    with open(fname, 'w') as fout:
+    with open(fname, 'w', encoding='utf-8') as fout:
         for info in await client.list_collections():
             coll = await client.get_collection(info['name'])
             all_objs = await coll.find_many({})
@@ -34,17 +32,24 @@ async def dump_db():  # pragma: no cover
 
 
 async def get_duser(client, discord_id):
-    """
-    Return the DUser that has the same discord_id. None if nothing found for users.
+    """Get the discord user from the database with any user prefs.
+
+    Args:
+        client: A connection onto the db.
+        discord_id: The discord id of the user.
     """
     return await client.discord_users.find_one({'discord_id': discord_id})
 
 
 async def ensure_duser(client, discord_id, display_name):
-    """
-    Ensure a member has an entry in the discord_users table.
+    """Ensure a user is present in the database.
 
-    Returns: The DUser
+    If they aren't present insert them. If they are, update them.
+
+    Args:
+        client: A connection onto the db.
+        discord_id: The discord id of the user.
+        display_name: The name of the user on server.
     """
     await client.discord_users.replace_one(
         {'discord_id': discord_id},
@@ -56,10 +61,12 @@ async def ensure_duser(client, discord_id, display_name):
 
 
 async def find_saved_roll(client, discord_id, name):
-    """
-    Find a loosely matching SavedRoll IFF there is exactly one match.
+    """Find a saved roll by user under a particular name.
 
-    Returns: The saved roll object. If nothing found None.
+    Args:
+        client: A connection onto the db.
+        discord_id: The discord id of the user.
+        name: The name of the saved roll. Will be loosely matched on left and right.
     """
     name_re = re.compile(r'^.*' + name + r'.*', re.IGNORECASE)
     return await client.rolls_saved.find_one({
@@ -68,23 +75,26 @@ async def find_saved_roll(client, discord_id, name):
     })
 
 
-async def find_all_saved_rolls(client, discord_id, *, limit=None):
-    """
-    Find all SavedRolls for a given user_id. Empty list if none set.
+async def find_all_saved_rolls(client, discord_id):
+    """Find __ALL__ saved rolls by user. Sort the results by name.
 
-    Returns: [SavedRoll, SavedRoll, ...]
+    Args:
+        client: A connection onto the db.
+        discord_id: The discord id of the user.
     """
     return await client.rolls_saved.find({'discord_id': discord_id}).\
         sort([('name', 1)]).\
-        to_list(limit)
+        to_list(None)
 
 
 async def update_saved_roll(client, discord_id, name, roll_str):
-    """
-    Update the saved named roll in the database.
+    """Update or insert a saved roll for the given user.
 
-    Returns:
-        new_roll: The update object in the db.
+    Args:
+        client: A connection onto the db.
+        discord_id: The discord id of the user.
+        name: The name of the saved roll.
+        roll_str: The actual roll string that can be rolled later.
     """
     await client.rolls_saved.replace_one(
         {'discord_id': discord_id, 'name': name},
@@ -98,6 +108,13 @@ async def update_saved_roll(client, discord_id, name, roll_str):
 
 
 async def remove_saved_roll(client, discord_id, name):
+    """Remove a single saved roll by user id and name.
+
+    Args:
+        client: A connection onto the db.
+        discord_id: The discord id of the user.
+        name: The name of the saved roll.
+    """
     result = await client.rolls_saved.delete_one(
         {'discord_id': discord_id, 'name': name},
     )
@@ -105,56 +122,240 @@ async def remove_saved_roll(client, discord_id, name):
     return result.deleted_count != 0
 
 
-#  def add_pun(session, new_pun):
-    #  """
-    #  Add a pun to the pun database.
-    #  """
-    #  session.add(Pun(text=new_pun))
-    #  session.commit()
+async def get_roll_history(client, discord_id):
+    """Get all rolls made by the user with this bot.
+
+    Args:
+        client: A connection onto the db.
+        discord_id: The discord id of the user.
+    """
+    exists = await client.rolls_made.find_one({'discord_id': discord_id})
+    if not exists:
+        await client.rolls_made.insert_one({'discord_id': discord_id, 'history': []})
+        exists = await client.rolls_made.find_one({'discord_id': discord_id})
+
+    return exists
 
 
-#  def all_puns(session):
-    #  """
-    #  Get a complete list of puns.
-    #  """
-    #  return session.query(Pun).all()
+async def add_roll_history(client, discord_id, *, entries, limit=100):
+    """Add a roll to roll history for a discord user.
+
+    Prune the overall history down to limit upon update.
+
+    Args:
+        client: A connection onto the db.
+        discord_id: The discord id of the user.
+        entries: A list of objects to add to roll history. Expecting:
+            [{'roll': '3d6 + 10', 'result': '22'}, ...]
+        limit: The max history to store. Default is 100.
+    """
+    rolls = await get_roll_history(client, discord_id)
+
+    # Ensure now adjacent repeats, unlikely but prudent
+    last_entry = rolls['history'][-1]
+    for entry in entries:
+        if entry != last_entry:
+            rolls['history'] += [entry]
+            last_entry = entry
+    rolls['history'] = rolls['history'][-limit:]
+
+    await client.rolls_made.replace_one(
+        {'discord_id': discord_id},
+        rolls,
+    )
 
 
-#  def remove_pun(session, pun):
-    #  """
-    #  Remove a pun from the database.
-    #  """
-    #  session.delete(pun)
-    #  session.commit()
+async def check_for_pun_dupe(client, discord_id, pun):
+    """Returns True IFF the text already exists in users pun list.
+
+    Args:
+        client: A connection onto the db.
+        discord_id: The discord id of the user.
+        pun: The pun to look for.
+    """
+    existing = await get_all_puns(client, discord_id)
+    return [x for x in existing['puns'] if x['text'] == pun] != []
 
 
-#  def randomly_select_pun(session):
-    #  """
-    #  Get a random pun from the database.
-    #  While selection is random, will evenly visit all puns before repeats.
+async def add_pun(client, discord_id, new_pun):
+    """Add a new pun for a given discord user. Will not allow dupes.
 
-    #  Raises:
-        #  dice.exc.InvalidCommandArgs - No puns exist to choose.
-    #  """
-    #  try:
-        #  lowest_hits = session.query(func.min(Pun.hits)).scalar()
-        #  pun = numpy.random.choice(session.query(Pun).filter(Pun.hits == lowest_hits).all())
+    Args:
+        client: A connection onto the db.
+        discord_id: The discord id of the user.
+        new_pun: The new pun text.
+    """
+    exists = await client.puns.find_one({'discord_id': discord_id})
+    is_dupe = new_pun in [x['text'] for x in exists['puns']]
+    if exists and not is_dupe:
+        exists['puns'] += [{'text': new_pun, 'hits': 0}]
+    else:
+        exists = {'discord_id': discord_id, 'puns': [{'text': new_pun, 'hits': 0}]}
 
-        #  pun.hits += 1
-        #  session.add(pun)
-        #  session.commit()
-
-        #  return pun.text
-    #  except (IndexError, ValueError):
-        #  raise dice.exc.InvalidCommandArgs('You must add puns first!')
+    await client.puns.replace_one(
+        {'discord_id': discord_id},
+        exists,
+        True
+    )
 
 
-#  def check_for_pun_dupe(session, text):
-    #  """
-    #  Returns true if the text already contained in a Pun.
-    #  """
-    #  return session.query(Pun).filter(Pun.text == text).all()
+async def get_all_puns(client, discord_id):
+    """Get the puns object a user has stored. If they have none, return a new entry for them.
 
+    Args:
+        client: A connection onto the db.
+        discord_id: The discord id of the user.
+    """
+    exists = await client.puns.find_one({'discord_id': discord_id})
+    if not exists:
+        await client.puns.insert_one({'discord_id': discord_id, 'puns': []})
+        exists = await client.puns.find_one({'discord_id': discord_id})
+
+    return exists
+
+
+async def remove_pun(client, discord_id, pun):
+    """Remove a pun from a users stored puns. Ignore if none stored.
+
+    Args:
+        client: A connection onto the db.
+        discord_id: The discord id of the user.
+        pun: The text of the pun to remove.
+    """
+    exists = await get_all_puns(client, discord_id)
+
+    if exists:
+        exists['puns'] = [x for x in exists['puns'] if x['text'] != pun]
+
+        await client.puns.replace_one(
+            {'discord_id': discord_id},
+            exists,
+            True
+        )
+
+
+async def randomly_select_pun(client, discord_id):
+    """Randomly select a single pun from a user. Increment hits for the pun.
+
+    Args:
+        client: A connection onto the db.
+        discord_id: The discord id of the user.
+    """
+    puns = await get_all_puns(client, discord_id)
+    if not puns['puns']:
+        raise dice.exc.NoMatch
+
+    choice = numpy.random.randint(0, len(puns['puns']))
+    puns['puns'][choice]['hits'] += 1
+    await client.puns.replace_one(
+        {'discord_id': puns['discord_id']},
+        puns
+    )
+
+    return puns['puns'][choice]['text']
+
+
+async def get_googly(client, discord_id, default_total=100):
+    """Get a googly from the database.
+
+    Args:
+        client: A connection onto the db.
+        discord_id: The discord id of the user.
+        default_total: The default amount of googly eyes to give.
+    """
+    exists = await client.googly_eyes.find_one({'discord_id': discord_id})
+    if not exists:
+        await client.googly_eyes.insert_one({'discord_id': discord_id, 'total': default_total})
+        exists = await client.googly_eyes.find_one({'discord_id': discord_id})
+
+    return exists
+
+
+async def update_googly(client, googly_eyes):
+    """Update a googly from database after usage.
+
+    Args:
+        client: A connection onto the db.
+        googly_eyes: An existing googly eyes object.
+    """
+    await client.googly_eyes.replace_one(
+        {'discord_id': googly_eyes['discord_id']},
+        googly_eyes
+    )
+
+
+async def get_list(client, discord_id, name):
+    """Return all entries in a named list.
+
+    Args:
+        client: A connection onto the db.
+        discord_id: The discord id of the user.
+        name: The name of the list to retrieve.
+    """
+    return await client.lists.find_one({'discord_id': discord_id, 'name': name})
+
+
+async def add_list_entries(client, discord_id, name, to_add):
+    """Add entries to an existing list name. If it doesn't exist, create the list.
+
+    Args:
+        client: A connection onto the db.
+        discord_id: The discord id of the user.
+        name: The name of the list to retrieve.
+        to_add: Entries to add to the list.
+    """
+    exists = await get_list(client, discord_id, name)
+    if exists:
+        exists['entries'] += to_add
+    else:
+        exists = {'discord_id': discord_id, 'name': name, 'entries': to_add}
+
+    await client.lists.replace_one(
+        {'discord_id': discord_id, 'name': name},
+        exists,
+        True
+    )
+
+
+async def remove_list_entries(client, discord_id, name, to_remove):
+    """Remove entries from an existing list name. If it doesn't exist, ignore.
+
+    If all entries removed from a list, delete it entirely.
+
+    Args:
+        client: A connection onto the db.
+        discord_id: The discord id of the user.
+        name: The name of the list to retrieve.
+        to_remove: Entries to remove from the list.
+    """
+    exists = await get_list(client, discord_id, name)
+    if exists:
+        exists['entries'] = [x for x in exists['entries'] if x not in to_remove]
+
+        if exists['entries']:
+            await client.lists.replace_one(
+                {'discord_id': discord_id, 'name': name},
+                exists
+            )
+        else:
+            await client.lists.delete_one({'discord_id': discord_id, 'name': name})
+
+
+async def replace_list_entries(client, discord_id, name, replacement):
+    """
+    Replace the list with the new entries passed in.
+
+    Args:
+        client: A connection onto the db.
+        discord_id: The discord id of the user.
+        name: The name of the list to retrieve.
+        replacement: Entries to replace old list entries with.
+    """
+    await client.lists.replace_one(
+        {'discord_id': discord_id, 'name': name},
+        {'discord_id': discord_id, 'name': name, 'entries': replacement},
+        True
+    )
 
 #  def update_turn_order(session, key, turnorder):
     #  """
@@ -379,112 +580,3 @@ async def remove_saved_roll(client, discord_id, name):
                                  #  volume_int=DEFAULT_VOLUME))
 
     #  return new_vids
-
-
-#  def get_googly(session, user_id):
-    #  """
-    #  Get a Googly from the db for the given user.
-    #  If none set, create one.
-
-    #  Returns:
-        #  A Googly for user.
-    #  """
-    #  try:
-        #  googly = session.query(Googly).filter(Googly.id == user_id).one()
-    #  except sqla_oexc.NoResultFound:
-        #  googly = Googly(id=user_id)
-        #  session.add(googly)
-        #  session.commit()
-
-    #  return googly
-
-
-#  def get_last_rolls(session, user_id):
-    #  """
-    #  Simply get all previous rolls by a user.
-
-    #  Args:
-        #  session: An SQLAlchemy session.
-        #  user_id: A discord user id.
-
-    #  Returns:
-        #  [LastRoll(), LastRoll(), ...]
-    #  """
-    #  return session.query(LastRoll).filter(LastRoll.id == user_id).order_by(LastRoll.id_num).all()
-
-
-#  def add_last_roll(session, user_id, roll_str, limit=20):
-    #  """
-    #  A user has made a new roll. Store only if the spec differs from last one.
-    #  Will not store two following rolls that are exactly the same.
-    #  Rolls that exceed storage limit will be ignored rather than truncated.
-
-    #  Args:
-        #  user_id: A discord user ID.
-        #  roll_str: A dice specification.
-        #  limit: The limit of dice to keep.
-    #  """
-    #  if len(roll_str) > dicedb.schema.LEN_ROLLSTR:
-        #  return
-
-    #  rolls = get_last_rolls(session, user_id)
-    #  try:
-        #  last_roll = rolls[-1]
-        #  if last_roll.roll_str == roll_str:
-            #  return
-        #  next_id_num = last_roll.id_num + 1 % 1000
-    #  except (AttributeError, IndexError):
-        #  next_id_num = 0
-
-    #  for roll in rolls[:-limit]:
-        #  session.delete(roll)
-
-    #  new_roll = LastRoll(id=user_id, id_num=next_id_num, roll_str=roll_str)
-    #  session.add(new_roll)
-    #  session.commit()
-
-
-#  def get_movies(session, user_id):
-    #  """
-    #  Return all Movies a user has added for later.
-    #  """
-    #  return session.query(Movie).filter(Movie.id == user_id).order_by(Movie.id_num).all()
-
-
-#  def add_movies(session, user_id, movie_names):
-    #  """
-    #  Add a movie after the current selection.
-    #  """
-    #  movies = get_movies(session, user_id)
-    #  if not movies:
-        #  id_num = 0
-    #  else:
-        #  id_num = movies[-1].id_num + 1
-
-    #  for movie_name in movie_names:
-        #  session.add(Movie(id=user_id, id_num=id_num, name=movie_name))
-        #  id_num += 1
-    #  session.commit()
-
-
-#  def replace_all_movies(session, user_id, movie_names):
-    #  """
-    #  Remove all current movies and replace the list with the new list of movie names.
-
-    #  Args:
-        #  session: A session object.
-        #  user_id: Discord id.
-        #  movie_names: A list of movie names, no string bigger than 200 chars.
-    #  """
-    #  for movie in get_movies(session, user_id):
-        #  session.delete(movie)
-    #  session.commit()
-
-    #  cnt = 0
-    #  movies = []
-    #  for movie_name in movie_names:
-        #  movies += [Movie(id=user_id, id_num=cnt, name=movie_name)]
-        #  cnt += 1
-
-    #  session.add_all(movies)
-    #  session.commit()

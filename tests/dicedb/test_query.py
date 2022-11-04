@@ -52,59 +52,183 @@ async def test_find_all_saved_rolls(test_db, f_dusers, f_saved_rolls):
     assert 'Staff' in results
 
 
-#  def test_remove_saved_roll(session, f_saved_rolls):
-    #  roll = f_saved_rolls[0]
+@pytest.mark.asyncio
+async def test_remove_saved_roll(test_db, f_dusers, f_saved_rolls):
+    roll = f_saved_rolls[0]
 
-    #  assert dicedb.query.find_saved_roll(session, roll.user_id, roll.name)
-    #  dicedb.query.remove_saved_roll(session, roll.user_id, roll.name)
-    #  with pytest.raises(dice.exc.NoMatch):
-        #  dicedb.query.find_saved_roll(session, roll.user_id, roll.name)
-
-
-#  def test_update_saved_roll(session, f_saved_rolls):
-    #  roll = f_saved_rolls[0]
-
-    #  dicedb.query.update_saved_roll(session, roll.user_id, roll.name, 'NewString')
-    #  new_roll = dicedb.query.find_saved_roll(session, roll.user_id, roll.name)
-    #  assert new_roll.name == roll.name
-    #  assert new_roll.user_id == roll.user_id
-    #  assert new_roll.roll_str == 'NewString'
+    assert await dicedb.query.find_saved_roll(test_db, roll['discord_id'], roll['name'])
+    assert await dicedb.query.remove_saved_roll(test_db, roll['discord_id'], roll['name'])
+    assert not await dicedb.query.find_saved_roll(test_db, roll['discord_id'], roll['name'])
 
 
-#  def test_update_saved_roll_raises(session, f_saved_rolls):
-    #  roll = f_saved_rolls[0]
-
-    #  with pytest.raises(dice.exc.InvalidCommandArgs):
-        #  dicedb.query.update_saved_roll(session, roll.user_id, roll.name, "test" * 400)
-
-
-#  def test_all_puns(session, f_puns):
-    #  for ind, pun in enumerate(dicedb.query.all_puns(session)):
-        #  assert pun == f_puns[ind]
+@pytest.mark.asyncio
+async def test_update_saved_roll(test_db, f_dusers, f_saved_rolls):
+    await dicedb.query.update_saved_roll(test_db, 0, 'Crossbow', 'd20 + 12, d8')
+    new_roll = await dicedb.query.find_saved_roll(test_db, 0, 'Crossbow')
+    assert new_roll['name'] == 'Crossbow'
+    assert new_roll['discord_id'] == 0
+    assert new_roll['roll'] == 'd20 + 12, d8'
 
 
-#  def test_add_pun(session, f_puns):
-    #  dicedb.query.add_pun(session, 'A new pun')
-    #  assert dicedb.query.all_puns(session)[-1].text == 'A new pun'
+@pytest.mark.asyncio
+async def test_update_saved_roll_not_exists(test_db, f_saved_rolls):
+    await dicedb.query.update_saved_roll(test_db, 5, 'Crossbow', 'd20 + 12, d8')
+    new_roll = await dicedb.query.find_saved_roll(test_db, 5, 'Crossbow')
+
+    assert new_roll['name'] == 'Crossbow'
+    assert new_roll['discord_id'] == 5
+    assert new_roll['roll'] == 'd20 + 12, d8'
 
 
-#  def test_remove_pun(session, f_puns):
-    #  dicedb.query.remove_pun(session, f_puns[-1])
-    #  assert dicedb.query.all_puns(session)[-1] == f_puns[2]
+@pytest.mark.asyncio
+async def test_add_pun(test_db, f_dusers, f_puns):
+    await dicedb.query.add_pun(test_db, 0, 'A new pun')
+    existing = await dicedb.query.get_all_puns(test_db, 0)
+    assert 'A new pun' == existing['puns'][-1]['text']
 
 
-#  def test_randomly_select_pun(session, f_puns):
-    #  assert 'pun' in dicedb.query.randomly_select_pun(session)
+@pytest.mark.asyncio
+async def test_get_all_puns(test_db, f_dusers, f_puns):
+    puns = await dicedb.query.get_all_puns(test_db, 0)
+    assert {'hits': 2, 'text': 'Second pun'} in puns['puns']
+    assert len(puns['puns']) == 3
+
+    assert not (await dicedb.query.get_all_puns(test_db, NEW_DISCORDID))['puns']
 
 
-#  def test_randomly_select_pun_raises(session):
-    #  with pytest.raises(dice.exc.InvalidCommandArgs):
-        #  dicedb.query.randomly_select_pun(session)
+@pytest.mark.asyncio
+async def test_remove_pun(test_db, f_dusers, f_puns):
+    assert len(await dicedb.query.get_all_puns(test_db, 0)) == 3
+    await dicedb.query.remove_pun(test_db, 0, 'Third pun')
+    left = await dicedb.query.get_all_puns(test_db, 0)
+    assert len(left['puns']) == 2
+    assert 'Second pun' == left['puns'][-1]['text']
 
 
-#  def test_check_for_pun_dupe(session, f_puns):
-    #  assert dicedb.query.check_for_pun_dupe(session, f_puns[0].text)
-    #  assert not dicedb.query.check_for_pun_dupe(session, 'Not there.')
+@pytest.mark.asyncio
+async def test_randomly_select_pun(test_db, f_dusers, f_puns):
+    assert 'pun' in await dicedb.query.randomly_select_pun(test_db, 0)
+    after = await dicedb.query.get_all_puns(test_db, 0)
+    assert f_puns[0]['puns'] != after['puns']
+
+
+@pytest.mark.asyncio
+async def test_randomly_select_pun_raises(test_db, f_dusers):
+    with pytest.raises(dice.exc.NoMatch):
+        await dicedb.query.randomly_select_pun(test_db, NEW_DISCORDID)
+
+
+@pytest.mark.asyncio
+async def test_check_for_pun_dupe(test_db, f_dusers, f_puns):
+    assert await dicedb.query.check_for_pun_dupe(test_db, 0, 'First pun')
+    assert not await dicedb.query.check_for_pun_dupe(test_db, 0, 'Not there.')
+
+
+@pytest.mark.asyncio
+async def test_get_roll_history(test_db, f_dusers, f_lastrolls):
+    rolls = await dicedb.query.get_roll_history(test_db, 1)
+    assert len(rolls['history']) == 3
+
+    rolls = await dicedb.query.get_roll_history(test_db, NEW_DISCORDID)
+    assert not rolls['history']
+
+
+@pytest.mark.asyncio
+async def test_add_roll_history(test_db, f_dusers, f_lastrolls):
+    entries = [{'roll': 'd20 + 5, d10 + 2', 'result': '19, 11'},
+               {'roll': 'd20 + 5, d10 + 2', 'result': '19, 11'}]
+    await dicedb.query.add_roll_history(test_db, 1, entries=entries)
+    found = await dicedb.query.get_roll_history(test_db, 1)
+
+    assert entries[0] == found['history'][-1]
+    assert entries[0] != found['history'][-2]
+
+
+@pytest.mark.asyncio
+async def test_add_last_roll_differs(test_db, f_dusers, f_lastrolls):
+    entries = [{'roll': 'd20 + 5, d10 + 2', 'result': '19, 11'},
+               {'roll': '3: 4d6kh3', 'result': '18, 15, 17'}]
+    await dicedb.query.add_roll_history(test_db, 1, entries=entries)
+    found = await dicedb.query.get_roll_history(test_db, 1)
+
+    assert entries[1] == found['history'][-1]
+    assert entries[0] == found['history'][-2]
+
+
+@pytest.mark.asyncio
+async def test_add_last_roll_prune(test_db, f_lastrolls):
+    entries = [{'roll': 'd20 + 5, d10 + 2', 'result': '19, 11'},
+               {'roll': '3: 4d6kh3', 'result': '18, 15, 17'}]
+    await dicedb.query.add_roll_history(test_db, 1, entries=entries, limit=2)
+    found = await dicedb.query.get_roll_history(test_db, 1)
+
+    assert len(found['history']) == 2
+    assert entries[1] == found['history'][-1]
+    assert entries[0] == found['history'][-2]
+
+
+@pytest.mark.asyncio
+async def test_get_googly_exists(test_db, f_googly):
+    found = await dicedb.query.get_googly(test_db, 1)
+    assert 95 == found['total']
+
+
+@pytest.mark.asyncio
+async def test_get_googly_no_exists(test_db, f_googly):
+    new_googly = await dicedb.query.get_googly(test_db, 5)
+    assert new_googly['discord_id'] == 5
+    assert new_googly['total'] == 100
+
+
+@pytest.mark.asyncio
+async def test_update_googly(test_db, f_googly):
+    found = await dicedb.query.get_googly(test_db, 1)
+    found['total'] -= 10
+    found['used'] += 10
+
+    await dicedb.query.update_googly(test_db, found)
+    found = await dicedb.query.get_googly(test_db, 1)
+    assert found['total'] == 85
+
+
+@pytest.mark.asyncio
+async def test_get_list(test_db, f_movies):
+    db_movies = await dicedb.query.get_list(test_db, 0, 'Movies')
+    assert len(db_movies['entries']) == 3
+
+
+@pytest.mark.asyncio
+async def test_add_list_entries_exists(test_db, f_movies):
+    await dicedb.query.add_list_entries(test_db, 0, 'Movies', ['Bad Boys'])
+    all_movies = await dicedb.query.get_list(test_db, 0, 'Movies')
+    assert len(all_movies['entries']) == 4
+    assert all_movies['entries'][-1] == 'Bad Boys'
+
+
+@pytest.mark.asyncio
+async def test_add_list_entries_not_exists(test_db, f_movies):
+    await dicedb.query.add_list_entries(test_db, NEW_DISCORDID, 'Movies', ['Star Trek', 'Bad Boys'])
+    all_movies = await dicedb.query.get_list(test_db, NEW_DISCORDID, 'Movies')
+    assert len(all_movies['entries']) == 2
+    assert all_movies['entries'][-1] == 'Bad Boys'
+    assert all_movies['discord_id'] == NEW_DISCORDID
+
+
+@pytest.mark.asyncio
+async def test_remove_list_entries(test_db, f_movies):
+    await dicedb.query.remove_list_entries(test_db, 0, 'Movies', ['Toy Story', 'Bad Boys'])
+    all_movies = await dicedb.query.get_list(test_db, 0, 'Movies')
+
+    assert len(all_movies['entries']) == 2
+    assert 'Toy Story' not in all_movies['entries']
+
+
+@pytest.mark.asyncio
+async def test_replace_list_entries(test_db, f_movies):
+    await dicedb.query.replace_list_entries(test_db, NEW_DISCORDID, 'movies', ['Toy Story', 'Bad Boys'])
+    all_movies = await dicedb.query.get_list(test_db, NEW_DISCORDID, 'movies')
+    assert len(all_movies['entries']) == 2
+    assert all_movies['entries'][-1] == 'Bad Boys'
 
 
 #  def test_update_turn_order(session, f_turnorders):
@@ -238,63 +362,3 @@ async def test_find_all_saved_rolls(test_db, f_dusers, f_saved_rolls):
 #  def test_validate_videos_local_found(f_songs):
     #  links = [f_songs[-1].name]
     #  dicedb.query.validate_videos(links)
-
-
-#  def test_get_googly_exists(session, f_googly):
-    #  assert dicedb.query.get_googly(session, '1') == f_googly[0]
-
-
-#  def test_get_googly_no_exists(session, f_googly):
-    #  new_googly = dicedb.query.get_googly(session, '5')
-    #  assert new_googly.id == '5'
-    #  assert new_googly.total == 0
-
-
-#  def test_get_last_rolls(session, f_lastrolls):
-    #  assert dicedb.query.get_last_rolls(session, '1') == list(f_lastrolls[:3])
-    #  assert dicedb.query.get_last_rolls(session, '9999') == []
-
-
-#  def test_add_last_roll_same(session, f_lastrolls):
-    #  last_roll = f_lastrolls[2]
-    #  dicedb.query.add_last_roll(session, last_roll.id, last_roll.roll_str)
-    #  assert len(dicedb.query.get_last_rolls(session, '1')) == 3
-
-
-#  def test_add_last_roll_differs(session, f_lastrolls):
-    #  last_roll = f_lastrolls[2]
-    #  dicedb.query.add_last_roll(session, last_roll.id, last_roll.roll_str + " + 10")
-    #  assert len(dicedb.query.get_last_rolls(session, '1')) != 3
-
-
-#  def test_add_last_roll_prune(session, f_lastrolls):
-    #  last_roll = f_lastrolls[2]
-    #  dicedb.query.add_last_roll(session, last_roll.id, last_roll.roll_str + " + 10", 1)
-    #  assert len(dicedb.query.get_last_rolls(session, '1')) == 2
-
-
-#  def test_add_last_roll_exceeds_length(session, f_lastrolls):
-    #  last_roll = f_lastrolls[2]
-    #  assert len(dicedb.query.get_last_rolls(session, '1')) == 3
-    #  dicedb.query.add_last_roll(session, last_roll.id, "test" * 100)
-    #  assert len(dicedb.query.get_last_rolls(session, '1')) == 3
-
-
-#  def test_get_movies(session, f_movies):
-    #  db_movies = dicedb.query.get_movies(session, '1')
-    #  f_movies = list(f_movies[:-1])
-    #  assert db_movies == f_movies
-
-
-#  def test_add_movies(session, f_movies):
-    #  dicedb.query.add_movies(session, '1', ['Bad Boys'])
-    #  all_movies = dicedb.query.get_movies(session, '1')
-    #  assert len(all_movies) ==  4
-    #  assert all_movies[-1].name == 'Bad Boys'
-
-
-#  def test_replace_all_movies(session, f_movies):
-    #  dicedb.query.replace_all_movies(session, '99', ['Bad Boys'])
-    #  all_movies = dicedb.query.get_movies(session, '99')
-    #  assert len(all_movies) == 1
-    #  assert all_movies[0].name == 'Bad Boys'

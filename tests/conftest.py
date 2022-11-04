@@ -342,7 +342,7 @@ async def f_puns(test_db):
     """
     puns = (
         {'discord_id': 0, 'puns': [
-            {'text': "First Pun", 'hits': 0},
+            {'text': "First pun", 'hits': 0},
             {'text': 'Second pun', 'hits': 2},
             {'text': 'Third pun', 'hits': 7},
         ]},
@@ -375,23 +375,29 @@ async def f_saved_rolls(test_db):
 
 
 @pytest_asyncio.fixture
-async def f_lastrolls(session):
+async def f_lastrolls(test_db):
     """
     Fixture to insert some test Googly objects.
     """
     rolls = (
-        {'discord_id': 1, 'history': ['4d6 + 1', '4d6 + 2', '3d10 + 4']},
-        {'discord_id': 2, 'history': ['2d20 + 4']},
+        {'discord_id': 1, 'history': [
+            {'roll': '4d6 + 1', 'result': '13'},
+            {'roll': '4d6 + 2', 'result': '22'},
+            {'roll': 'd20 + 5, 3d10 + 4', 'result': '22, 28'},
+        ]},
+        {'discord_id': 2, 'history': [
+            {'roll': '3d6 + 3', 'result': '20'},
+        ]},
     )
-    await test_db.rolls_last.insert_many(rolls)
+    await test_db.rolls_made.insert_many(rolls)
 
     yield rolls
 
-    await test_db.rolls_last.delete_many({})
+    await test_db.rolls_made.delete_many({})
 
 
 @pytest_asyncio.fixture
-async def f_movies(session):
+async def f_movies(test_db):
     """
     Fixture to insert some test Googly objects.
     """
@@ -399,22 +405,22 @@ async def f_movies(session):
         {"discord_id": 0, "name": "Movies", "entries": ["Toy Story", "Forest Gump", "A New Hope"]},
         {"discord_id": 2, "name": "Movies", "entries": ["Star Trek"]},
     )
-    await test_db.movies.insert_many(movies)
+    await test_db.lists.insert_many(movies)
 
     yield movies
 
-    await test_db.movies.delete_many({})
+    await test_db.lists.delete_many({})
 
 
 @pytest_asyncio.fixture
-async def f_googly(session):
+async def f_googly(test_db):
     """
     Fixture to insert some test Googly objects.
     """
     googlys = (
-        {'id': 1, 'total': 100, 'used': 0},
-        {'id': 2, 'total': 40, 'used': 10},
-        {'id': 3, 'total': 55, 'used': 22},
+        {'discord_id': 1, 'total': 95, 'used': 0},
+        {'discord_id': 2, 'total': 40, 'used': 10},
+        {'discord_id': 3, 'total': 55, 'used': 22},
     )
     await test_db.googly_eyes.insert_many(googlys)
 
