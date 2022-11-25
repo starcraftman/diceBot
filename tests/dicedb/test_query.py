@@ -114,7 +114,7 @@ async def test_randomly_select_pun(test_db, f_dusers, f_puns):
 
 @pytest.mark.asyncio
 async def test_randomly_select_pun_raises(test_db, f_dusers):
-    with pytest.raises(dice.exc.NoMatch):
+    with pytest.raises(dice.exc.InvalidCommandArgs):
         await dicedb.query.randomly_select_pun(test_db, NEW_DISCORDID)
 
 

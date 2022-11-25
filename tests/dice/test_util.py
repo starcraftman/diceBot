@@ -127,15 +127,9 @@ def test_is_valid_url():
         assert not dice.util.is_valid_url(link)
 
 
-def test_init_chrome():
-    try:
-        browser = dice.util.init_chrome()
+def test_get_chrome_driver():
+    with dice.util.get_chrome_driver() as browser:
         assert isinstance(browser, selenium.webdriver.Chrome)
-    finally:
-        try:
-            browser.quit()
-        except UnboundLocalError:
-            pass
 
 
 def test_biterator__init__():

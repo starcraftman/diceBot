@@ -32,33 +32,33 @@ GearsandCogs sent I don't like exceptions from Channel: dev/Guild: Gears' Hideou
     log.info.assert_called_with(expect)
 
 
-def test_more_one_match():
-    error = dice.exc.MoreThanOneMatch('LHS', ['LHS 1', 'LHS 2', 'LHS 3'], 'String')
-    expect = """Resubmit query with more specific criteria.
-Too many matches for 'LHS' in Strings:
+#  def test_more_one_match():
+    #  error = dice.exc.MoreThanOneMatch('LHS', ['LHS 1', 'LHS 2', 'LHS 3'], 'String')
+    #  expect = """Resubmit query with more specific criteria.
+#  Too many matches for 'LHS' in Strings:
 
-    - __LHS__ 1
-    - __LHS__ 2
-    - __LHS__ 3"""
-    assert str(error) == expect
+    #  - __LHS__ 1
+    #  - __LHS__ 2
+    #  - __LHS__ 3"""
+    #  assert str(error) == expect
 
-    error = dice.exc.MoreThanOneMatch('Channel',
-                                      [Channel('Channel 1'), Channel('Channel 2'), Channel('Channel 3')],
-                                      'Channel', obj_attr='name')
-    expect = """Resubmit query with more specific criteria.
-Too many matches for 'Channel' in Channels:
+    #  error = dice.exc.MoreThanOneMatch('Channel',
+                                      #  [Channel('Channel 1'), Channel('Channel 2'), Channel('Channel 3')],
+                                      #  'Channel', obj_attr='name')
+    #  expect = """Resubmit query with more specific criteria.
+#  Too many matches for 'Channel' in Channels:
 
-    - __Channel__ 1
-    - __Channel__ 2
-    - __Channel__ 3"""
-    assert str(error) == expect
+    #  - __Channel__ 1
+    #  - __Channel__ 2
+    #  - __Channel__ 3"""
+    #  assert str(error) == expect
 
 
-def test_no_match():
-    error = dice.exc.NoMatch('Cubeo', 'System')
-    assert str(error) == "No matches for 'Cubeo' in Systems."
-    error = dice.exc.NoMatch('Person1', 'person')
-    assert str(error) == "No matches for 'Person1' in persons."
+#  def test_no_match():
+    #  error = dice.exc.NoMatch('Cubeo', 'System')
+    #  assert str(error) == "No matches for 'Cubeo' in Systems."
+    #  error = dice.exc.NoMatch('Person1', 'person')
+    #  assert str(error) == "No matches for 'Person1' in persons."
 
 
 def test_log_format():
