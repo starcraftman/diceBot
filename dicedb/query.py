@@ -21,7 +21,7 @@ async def dump_db():  # pragma: no cover
     Purely debug function, shunts db contents into file for examination.
     """
     client = dicedb.get_db_client()
-    fname = os.path.join(tempfile.gettempdir(), 'dbdump_' + os.environ.get('COG_TOKEN', 'dev'))
+    fname = os.path.join(tempfile.gettempdir(), 'dbdump_' + os.environ.get('TOKEN', 'dev'))
     print("Dumping db contents to:", fname)
     with open(fname, 'w', encoding='utf-8') as fout:
         for info in await client.list_collections():
@@ -152,7 +152,9 @@ async def add_roll_history(client, discord_id, *, entries, limit=100):
     rolls = await get_roll_history(client, discord_id)
 
     # Ensure now adjacent repeats, unlikely but prudent
-    last_entry = rolls['history'][-1]
+    last_entry = {'roll': '', 'result': ''}
+    if rolls['history']:
+        last_entry = rolls['history'][-1]
     for entry in entries:
         if entry != last_entry:
             rolls['history'] += [entry]
@@ -214,7 +216,7 @@ async def get_all_puns(client, discord_id):
     return exists
 
 
-async def remove_pun(client, discord_id, pun):
+async def remove_pun(client, discord_id, pun_text):
     """Remove a pun from a users stored puns. Ignore if none stored.
 
     Args:
@@ -225,7 +227,7 @@ async def remove_pun(client, discord_id, pun):
     exists = await get_all_puns(client, discord_id)
 
     if exists:
-        exists['puns'] = [x for x in exists['puns'] if x['text'] != pun]
+        exists['puns'] = [x for x in exists['puns'] if x['text'] != pun_text]
 
         await client.puns.replace_one(
             {'discord_id': discord_id},
@@ -243,7 +245,7 @@ async def randomly_select_pun(client, discord_id):
     """
     puns = await get_all_puns(client, discord_id)
     if not puns['puns']:
-        raise dice.exc.NoMatch
+        raise dice.exc.InvalidCommandArgs("Please add some puns first!")
 
     choice = numpy.random.randint(0, len(puns['puns']))
     puns['puns'][choice]['hits'] += 1
@@ -265,7 +267,7 @@ async def get_googly(client, discord_id, default_total=100):
     """
     exists = await client.googly_eyes.find_one({'discord_id': discord_id})
     if not exists:
-        await client.googly_eyes.insert_one({'discord_id': discord_id, 'total': default_total})
+        await client.googly_eyes.insert_one({'discord_id': discord_id, 'total': default_total, 'used': 0})
         exists = await client.googly_eyes.find_one({'discord_id': discord_id})
 
     return exists
@@ -326,7 +328,7 @@ async def remove_list_entries(client, discord_id, name, to_remove):
         client: A connection onto the db.
         discord_id: The discord id of the user.
         name: The name of the list to retrieve.
-        to_remove: Entries to remove from the list.
+        to_remove: Remove entries that match this text.
     """
     exists = await get_list(client, discord_id, name)
     if exists:

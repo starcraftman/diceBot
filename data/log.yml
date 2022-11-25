@@ -27,7 +27,7 @@ handlers:
     filename: /tmp/dice/main.log
   err_stream:
     class: logging.StreamHandler
-    level: ERROR
+    level: INFO
     formatter: custom
     stream: ext://sys.stdout
 

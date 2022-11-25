@@ -8,14 +8,17 @@ import asyncio
 import concurrent.futures
 import datetime
 import inspect
+import json
 import logging
 import math
+import os
 import re
 
 import aiohttp
 import bs4
 import discord
 import numpy.random as rand
+from selenium.webdriver.common.by import By
 
 import dice.exc
 import dice.roll
@@ -27,7 +30,7 @@ import dice.util
 import dicedb
 import dicedb.query
 
-ROLL_TIMEOUT = 10
+ROLL_TIMEOUT = 30
 CHECK_TIMER_GAP = 5
 TIMERS = {}
 TIMER_OFFSETS = ["60:00", "15:00", "5:00", "1:00"]
@@ -35,7 +38,8 @@ PF2_URL = 'https://pf2.d20pfsrd.com/?s={}'
 PF_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3A6zo0hx_wle8&q={}'
 D5_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3A1xq0zf2wtvq&q={}'
 STAR_URL = 'https://cse.google.com/cse?cx=006680642033474972217%3Awyjvzq2cjz8&q={}'
-PONI_URL = "https://derpibooru.org/search.json?q="
+PONI_JSON = "https://derpibooru.org/api/v1/json"
+PONI_PER_PAGE = 25
 LIMIT_SONGS = 8
 LIMIT_TAGS = 16
 LIMIT_REROLLS = dice.util.get_config('reroll_limit', default=20)
@@ -54,6 +58,11 @@ class Action():
         self.msg = kwargs['msg']
         self.log = logging.getLogger('dice.actions')
         self.db = dicedb.get_db_client(with_database='dice')
+
+    @property
+    def discord_id(self):
+        """Return the discord_id of the original message author. """
+        return self.msg.author.id
 
     @property
     def chan_id(self):
@@ -101,12 +110,12 @@ class Help(Action):
         lines = [
             ['Command', 'Effect'],
             ['{prefix}d5', 'Search on the D&D 5e wiki'],
-            ['{prefix}effect', 'Add an effect to a user in turn order'],
-            ['{prefix}e', 'Alias for `!effect`'],
+            #  ['{prefix}effect', 'Add an effect to a user in turn order'],
+            #  ['{prefix}e', 'Alias for `!effect`'],
             ['{prefix}math', 'Do some math operations'],
             #  ['{prefix}music', 'Play songs from youtube and server.'],
             #  ['{prefix}m', 'Alias for `!music`'],
-            ['{prefix}n', 'Alias for `!turn --next`'],
+            #  ['{prefix}n', 'Alias for `!turn --next`'],
             ['{prefix}pf', 'Search on the Pathfinder wiki'],
             ['{prefix}pf2', 'Search on the Pathfinder 2e wiki'],
             ['{prefix}poni', 'Pony?!?!'],
@@ -119,7 +128,7 @@ class Help(Action):
             ['{prefix}status', 'Show status of bot including uptime'],
             ['{prefix}timer', 'Set a timer for HH:MM:SS in future'],
             ['{prefix}timers', 'See the status of all YOUR active timers'],
-            ['{prefix}turn', 'Manager turn order for pen and paper combat'],
+            #  ['{prefix}turn', 'Manager turn order for pen and paper combat'],
             ['{prefix}help', 'This help message'],
             ['{prefix}o.o', 'Funny eyes ?!?'],
         ]
@@ -211,31 +220,34 @@ Top {} Results:\n\n{}"""
 class Poni(Action):
     """
     Poni command.
+    API Reference: https://derpibooru.org/pages/api
     """
     async def execute(self):
+        page_ind, img_ind = 0, 0
         msg = "No images found!"
+
         tags = re.split(r'\s*,\s*|\s*,|,s*', self.msg.content.replace(self.bot.prefix + 'poni ', ''))
-        full_tag = "%2C+".join(tags + ["-nswf", "-suggestive"])
-        full_tag = re.sub(r'\s', '+', full_tag)
+        full_tag = "?q=" + "%2C+".join(tags + ["safe"])
+        full_url = os.path.join(PONI_JSON, "search", "images", full_tag)
 
         async with aiohttp.ClientSession() as session:
-            async with session.get(PONI_URL + full_tag) as resp:
-                resp_json = await resp.json()
-                total_imgs = resp_json['total']
+            async with session.get(full_url) as resp:
+                resp_text = await resp.text()
+                total_imgs = json.loads(resp_text)['total']
 
             if total_imgs == 1:
                 page_ind, img_ind = 1, 1
             elif total_imgs:
-                total_ind = rand.randint(1, total_imgs)
-                page_ind = math.ceil(total_ind / 15)
-                img_ind = total_ind % 15 - 1
+                total_ind = rand.randint(0, total_imgs - 1)
+                page_ind = math.ceil(total_ind / PONI_PER_PAGE)
+                img_ind = total_ind % PONI_PER_PAGE
 
-            if total_imgs:
-                async with session.get(PONI_URL + full_tag + '&page=' + str(page_ind)) as resp:
-                    resp_json = await resp.json()
-                    img_found = resp_json["search"][img_ind - 1]["representations"]
-
-                msg = 'https:' + img_found["full"]
+            if page_ind:
+                full_url += f'&page={page_ind}&per_page={PONI_PER_PAGE}'
+                self.log.info("Selecting page %d index %d of %s", page_ind, img_ind, full_url)
+                async with session.get(full_url) as resp:
+                    resp_json = json.loads(await resp.text())
+                    msg = resp_json['images'][img_ind]['representations']['full']
 
         await self.reply(msg)
 
@@ -247,37 +259,35 @@ class Roll(Action):
     async def execute(self):
         update_rolls = False
         full_spec = ' '.join(self.args.spec).strip()
-        user_id = self.msg.author.id
         msg = ''
 
         if self.args.save:
-            duser = dicedb.query.ensure_duser(self.session, self.msg.author)
-            roll = dicedb.query.update_saved_roll(self.session, str(duser.id), self.args.save, full_spec)
+            #  await dicedb.query.ensure_duser(self.db, self.discord_id, self.msg.author.name)
+            await dicedb.query.update_saved_roll(self.db, self.discord_id, self.args.save, full_spec)
 
-            msg = 'Added roll: __**{}**__: {}'.format(roll.name, roll.roll_str)
+            msg = f"Added roll: __**{self.args.save}**__: {full_spec}"
 
         elif self.args.list:
-            rolls = dicedb.query.find_all_saved_rolls(self.session, user_id)
+            rolls = await dicedb.query.find_all_saved_rolls(self.db, self.discord_id)
             resp = ['__**Saved Rolls**__:', '']
-            resp += ['__{}__: {}'.format(roll.name, roll.roll_str) for roll in rolls]
+            resp += [f"__{roll['name']}__: {roll['roll']}" for roll in rolls]
 
             msg = '\n'.join(resp)
 
         elif self.args.remove:
-            roll = dicedb.query.remove_saved_roll(self.session, user_id, self.args.remove)
+            await dicedb.query.remove_saved_roll(self.db, self.discord_id, self.args.remove)
 
-            msg = 'Removed roll: __**{}**__: {}'.format(roll.name, roll.roll_str)
+            msg = f"Removed roll: __**{self.args.remove}**__"
 
         else:
-            try:
-                if full_spec == '':
-                    raise dice.exc.InvalidCommandArgs('A roll requires some text!')
+            resp = ['__Dice Rolls__', '']
+            if full_spec == '':
+                raise dice.exc.InvalidCommandArgs('A roll requires some text!')
 
-                saved_roll = dicedb.query.find_saved_roll(self.session, user_id, full_spec)
-                full_spec = saved_roll.roll_str
-                resp = ['__Dice Rolls__ ({})'.format(saved_roll.name), '']
-            except dice.exc.NoMatch:
-                resp = ['__Dice Rolls__', '']
+            saved_roll = await dicedb.query.find_saved_roll(self.db, self.discord_id, full_spec)
+            if saved_roll:
+                full_spec = saved_roll['roll']
+                resp = [f"__Dice Rolls__ ({saved_roll['name']})", '']
 
             resp += await make_rolls(full_spec)
             msg = '\n'.join(resp)
@@ -290,8 +300,8 @@ class Roll(Action):
             await self.reply(msg)
 
         if update_rolls:
-            await self.bot.loop.run_in_executor(
-                None, dicedb.query.add_last_roll, self.session, self.msg.author.id, full_spec, LIMIT_REROLLS)
+            entries = [{'roll': full_spec, 'result': ''}]
+            await dicedb.query.add_roll_history(self.db, self.discord_id, entries=entries)
 
 
 class Timer(Action):
@@ -322,14 +332,11 @@ class Timer(Action):
         diff = self.end - datetime.datetime.utcnow()
         diff = diff - datetime.timedelta(microseconds=diff.microseconds)
 
-        return """{desc}
-        __Started__ {start}
-        __Ends at__  {end}
-        __Remaining__ {remain}
-        """.format(desc=self.description,
-                   start=self.start.replace(microsecond=0),
-                   end=self.end.replace(microsecond=0),
-                   remain=diff)
+        return f"""{self.description}
+        __Started__ {self.start.replace(microsecond=0)}
+        __Ends at {self.end.replace(microsecond=0)}
+        __Remaining__ {diff}
+        """
 
     def __repr__(self):
         keys = ['description', 'start', 'end', 'last_msgs', 'triggers']
@@ -483,246 +490,246 @@ class Timers(Action):
             await self.reply(timer_summary(TIMERS, self.msg.author.name))
 
 
-class Turn(Action):
-    """
-    Manipulate a turn order tracker.
-    """
-    def add(self, session, order):
-        """
-        Add users to an existing turn order,
-        start a new turn order if needed.
-        """
-        parts = ' '.join(self.args.add).split(',')
+#  class Turn(Action):
+    #  """
+    #  Manipulate a turn order tracker.
+    #  """
+    #  def add(self, session, order):
+        #  """
+        #  Add users to an existing turn order,
+        #  start a new turn order if needed.
+        #  """
+        #  parts = ' '.join(self.args.add).split(',')
 
-        if not order:
-            order = dice.turn.TurnOrder()
-            parts += dicedb.query.generate_inital_turn_users(session, self.chan_id)
+        #  if not order:
+            #  order = dice.turn.TurnOrder()
+            #  parts += dicedb.query.generate_inital_turn_users(session, self.chan_id)
 
-        order.add_all(dice.turn.parse_turn_users(parts))
-        dicedb.query.update_turn_order(session, self.chan_id, order)
+        #  order.add_all(dice.turn.parse_turn_users(parts))
+        #  dicedb.query.update_turn_order(session, self.chan_id, order)
 
-        return str(order)
+        #  return str(order)
 
-    def clear(self, session, _):
-        """
-        Clear the turn order.
-        """
-        dicedb.query.remove_turn_order(session, self.chan_id)
-        return 'Turn order cleared.'
+    #  def clear(self, session, _):
+        #  """
+        #  Clear the turn order.
+        #  """
+        #  dicedb.query.remove_turn_order(session, self.chan_id)
+        #  return 'Turn order cleared.'
 
-    def mod(self, session, _):
-        """
-        Update a user's initiative modifier.
-        """
-        dicedb.query.update_turn_char(session, str(self.msg.author.id),
-                                      self.chan_id, modifier=self.args.mod)
-        return 'Updated **modifier** for {} to: {}'.format(self.msg.author.name, self.args.mod)
+    #  def mod(self, session, _):
+        #  """
+        #  Update a user's initiative modifier.
+        #  """
+        #  dicedb.query.update_turn_char(session, str(self.msg.author.id),
+                                      #  self.chan_id, modifier=self.args.mod)
+        #  return 'Updated **modifier** for {} to: {}'.format(self.msg.author.name, self.args.mod)
 
-    def name(self, session, _):
-        """
-        Update a user's character name for turn order.
-        """
-        name_str = ' '.join(self.args.name)
-        dicedb.query.update_turn_char(session, str(self.msg.author.id),
-                                      self.chan_id, name=name_str)
-        return 'Updated **name** for {} to: {}'.format(self.msg.author.name, name_str)
+    #  def name(self, session, _):
+        #  """
+        #  Update a user's character name for turn order.
+        #  """
+        #  name_str = ' '.join(self.args.name)
+        #  dicedb.query.update_turn_char(session, str(self.msg.author.id),
+                                      #  self.chan_id, name=name_str)
+        #  return 'Updated **name** for {} to: {}'.format(self.msg.author.name, name_str)
 
-    def __single_next(self, session, order):
-        """
-        Advance the turn order.
-        """
-        msg = ''
-        if order.cur_user:
-            effects = order.cur_user.decrement_effects()
-            if effects:
-                msg += 'The following effects expired for **{}**:\n'.format(order.cur_user.name)
-                pad = '\n' + ' ' * 8
-                msg += pad + pad.join([x.text for x in effects]) + '\n\n'
+    #  def __single_next(self, session, order):
+        #  """
+        #  Advance the turn order.
+        #  """
+        #  msg = ''
+        #  if order.cur_user:
+            #  effects = order.cur_user.decrement_effects()
+            #  if effects:
+                #  msg += 'The following effects expired for **{}**:\n'.format(order.cur_user.name)
+                #  pad = '\n' + ' ' * 8
+                #  msg += pad + pad.join([x.text for x in effects]) + '\n\n'
 
-        msg += '**Next User**\n' + str(order.next())
+        #  msg += '**Next User**\n' + str(order.next())
 
-        dicedb.query.update_turn_order(session, self.chan_id, order)
+        #  dicedb.query.update_turn_order(session, self.chan_id, order)
 
-        return msg
+        #  return msg
 
-    def next(self, _, order):
-        """
-        Advance the turn order next places.
-        """
-        if self.args.next < 1:
-            raise dice.exc.InvalidCommandArgs('!next requires number in range [1, +∞]')
+    #  def next(self, _, order):
+        #  """
+        #  Advance the turn order next places.
+        #  """
+        #  if self.args.next < 1:
+            #  raise dice.exc.InvalidCommandArgs('!next requires number in range [1, +∞]')
 
-        text, cnt = '', self.args.next
-        while cnt:
-            text += self.__single_next(_, order) + '\n\n'
-            cnt -= 1
+        #  text, cnt = '', self.args.next
+        #  while cnt:
+            #  text += self.__single_next(_, order) + '\n\n'
+            #  cnt -= 1
 
-        return text.rstrip()
+        #  return text.rstrip()
 
-    def remove(self, session, order):
-        """
-        Remove one or more users from turn order.
-        """
-        users = ' '.join(self.args.remove).split(',')
-        removed = []
-        for user in users:
-            removed += [order.remove(user)]
+    #  def remove(self, session, order):
+        #  """
+        #  Remove one or more users from turn order.
+        #  """
+        #  users = ' '.join(self.args.remove).split(',')
+        #  removed = []
+        #  for user in users:
+            #  removed += [order.remove(user)]
 
-        dicedb.query.update_turn_order(session, self.chan_id, order)
+        #  dicedb.query.update_turn_order(session, self.chan_id, order)
 
-        msg = 'Removed the following users:\n'
-        return msg + '\n  - ' + '\n  - '.join([x.name for x in removed])
+        #  msg = 'Removed the following users:\n'
+        #  return msg + '\n  - ' + '\n  - '.join([x.name for x in removed])
 
-    def unset(self, session, _):
-        """
-        Unset the default character you set for the channel.
-        """
-        dicedb.query.remove_turn_char(session, str(self.msg.author.id),
-                                      self.chan_id)
+    #  def unset(self, session, _):
+        #  """
+        #  Unset the default character you set for the channel.
+        #  """
+        #  dicedb.query.remove_turn_char(session, str(self.msg.author.id),
+                                      #  self.chan_id)
 
-        return "Removed you from the default turn order."
+        #  return "Removed you from the default turn order."
 
-    def update(self, session, order):
-        """
-        Update one or more character's init for this turn order.
-        Usually used for some spontaneous change or DM decision.
-        """
-        msg = 'Updated the following users:\n'
-        for spec in ' '.join(self.args.update).split(','):
-            try:
-                part_name, new_init = spec.split('/')
-                changed = order.update_user(part_name.strip(), new_init.strip())
-                msg += '    Set __{}__ to {}\n'.format(changed.name, changed.init)
-            except ValueError:
-                raise dice.exc.InvalidCommandArgs("See usage, incorrect arguments.")
+    #  def update(self, session, order):
+        #  """
+        #  Update one or more character's init for this turn order.
+        #  Usually used for some spontaneous change or DM decision.
+        #  """
+        #  msg = 'Updated the following users:\n'
+        #  for spec in ' '.join(self.args.update).split(','):
+            #  try:
+                #  part_name, new_init = spec.split('/')
+                #  changed = order.update_user(part_name.strip(), new_init.strip())
+                #  msg += '    Set __{}__ to {}\n'.format(changed.name, changed.init)
+            #  except ValueError:
+                #  raise dice.exc.InvalidCommandArgs("See usage, incorrect arguments.")
 
-        dicedb.query.update_turn_order(session, self.chan_id, order)
+        #  dicedb.query.update_turn_order(session, self.chan_id, order)
 
-        return msg
+        #  return msg
 
-    async def execute(self):
-        dicedb.query.ensure_duser(self.session, self.msg.author)
+    #  async def execute(self):
+        #  dicedb.query.ensure_duser(self.session, self.msg.author)
 
-        order = dice.turn.parse_order(dicedb.query.get_turn_order(self.session, self.chan_id))
-        msg = str(order) if order else 'No turn order to report.'
+        #  order = dice.turn.parse_order(dicedb.query.get_turn_order(self.session, self.chan_id))
+        #  msg = str(order) if order else 'No turn order to report.'
 
-        if not order and (self.args.next != 'zero' or self.args.remove):
-            raise dice.exc.InvalidCommandArgs('Please add some users first.')
+        #  if not order and (self.args.next != 'zero' or self.args.remove):
+            #  raise dice.exc.InvalidCommandArgs('Please add some users first.')
 
-        try:
-            # Non-numeric default is 'zero', when arg not provided is None
-            try:
-                self.args.next = int(self.args.next)
-            except TypeError:
-                self.args.next = 1
-            msg = getattr(self, 'next')(self.session, order)
-        except (AttributeError, ValueError):
-            pass
+        #  try:
+            #  # Non-numeric default is 'zero', when arg not provided is None
+            #  try:
+                #  self.args.next = int(self.args.next)
+            #  except TypeError:
+                #  self.args.next = 1
+            #  msg = getattr(self, 'next')(self.session, order)
+        #  except (AttributeError, ValueError):
+            #  pass
 
-        methods = [x[0] for x in inspect.getmembers(self, inspect.ismethod)
-                   if x[0] not in ['__init__', 'execute', '__single_next', 'next']]
-        for name in methods:
-            try:
-                var = getattr(self.args, name)
-                if var is not None and var is not False:  # 0 is allowed for init
-                    msg = getattr(self, name)(self.session, order)
-                    break
-            except AttributeError:
-                pass
+        #  methods = [x[0] for x in inspect.getmembers(self, inspect.ismethod)
+                   #  if x[0] not in ['__init__', 'execute', '__single_next', 'next']]
+        #  for name in methods:
+            #  try:
+                #  var = getattr(self.args, name)
+                #  if var is not None and var is not False:  # 0 is allowed for init
+                    #  msg = getattr(self, name)(self.session, order)
+                    #  break
+            #  except AttributeError:
+                #  pass
 
-        await self.reply(msg)
+        #  await self.reply(msg)
 
 
-class Effect(Action):
-    """
-    Manage effects for users in the turn order.
-    """
-    @staticmethod
-    def add(chars, new_effects):
-        """
-        Add recurring effects to characters in the turn order.
+#  class Effect(Action):
+    #  """
+    #  Manage effects for users in the turn order.
+    #  """
+    #  @staticmethod
+    #  def add(chars, new_effects):
+        #  """
+        #  Add recurring effects to characters in the turn order.
 
-        Args:
-            chars: The TurnOrder characters to modify.
-            new_effects: The new effects to apply to them.
-        """
-        msg = ''
-        for char in chars:
-            for new_effect in new_effects:
-                try:
-                    char.add_effect(new_effect[0], int(new_effect[1]))
-                    msg += '{}: Added {} for {} turns.\n'.format(char.name, new_effect[0], new_effect[1])
-                except (IndexError, ValueError):
-                    raise dice.exc.InvalidCommandArgs("Invalid round count for effect.")
+        #  Args:
+            #  chars: The TurnOrder characters to modify.
+            #  new_effects: The new effects to apply to them.
+        #  """
+        #  msg = ''
+        #  for char in chars:
+            #  for new_effect in new_effects:
+                #  try:
+                    #  char.add_effect(new_effect[0], int(new_effect[1]))
+                    #  msg += '{}: Added {} for {} turns.\n'.format(char.name, new_effect[0], new_effect[1])
+                #  except (IndexError, ValueError):
+                    #  raise dice.exc.InvalidCommandArgs("Invalid round count for effect.")
 
-        return msg
+        #  return msg
 
-    @staticmethod
-    def remove(chars, new_effects):
-        """
-        Remove recurring effects from characters in turn order.
+    #  @staticmethod
+    #  def remove(chars, new_effects):
+        #  """
+        #  Remove recurring effects from characters in turn order.
 
-        Args:
-            chars: The TurnOrder characters to modify.
-            new_effects: The effects to remove from them.
-        """
-        msg = ''
-        for char in chars:
-            for new_effect in new_effects:
-                char.remove_effect(new_effect[0])
-                msg += '{}: Removed {}.\n'.format(char.name, new_effect[0])
+        #  Args:
+            #  chars: The TurnOrder characters to modify.
+            #  new_effects: The effects to remove from them.
+        #  """
+        #  msg = ''
+        #  for char in chars:
+            #  for new_effect in new_effects:
+                #  char.remove_effect(new_effect[0])
+                #  msg += '{}: Removed {}.\n'.format(char.name, new_effect[0])
 
-        return msg
+        #  return msg
 
-    @staticmethod
-    def update(chars, new_effects):
-        """
-        Update recurring effects on characters in turn order.
+    #  @staticmethod
+    #  def update(chars, new_effects):
+        #  """
+        #  Update recurring effects on characters in turn order.
 
-        Args:
-            chars: The TurnOrder characters to modify.
-            new_effects: The effects to update,
-                         should be textual match to original name with different turn count.
-        """
-        msg = ''
-        for char in chars:
-            for new_effect in new_effects:
-                try:
-                    char.update_effect(new_effect[0], int(new_effect[1]))
-                    msg += '{}: Updated {} for {} turns.\n'.format(char.name, new_effect[0], new_effect[1])
-                except (IndexError, ValueError):
-                    raise dice.exc.InvalidCommandArgs("Invalid round count for effect.")
+        #  Args:
+            #  chars: The TurnOrder characters to modify.
+            #  new_effects: The effects to update,
+                         #  should be textual match to original name with different turn count.
+        #  """
+        #  msg = ''
+        #  for char in chars:
+            #  for new_effect in new_effects:
+                #  try:
+                    #  char.update_effect(new_effect[0], int(new_effect[1]))
+                    #  msg += '{}: Updated {} for {} turns.\n'.format(char.name, new_effect[0], new_effect[1])
+                #  except (IndexError, ValueError):
+                    #  raise dice.exc.InvalidCommandArgs("Invalid round count for effect.")
 
-        return msg
+        #  return msg
 
-    async def execute(self):
-        order = dice.turn.parse_order(dicedb.query.get_turn_order(self.session, self.chan_id))
-        if not order:
-            raise dice.exc.InvalidCommandArgs('No turn order set to add effects.')
+    #  async def execute(self):
+        #  order = dice.turn.parse_order(dicedb.query.get_turn_order(self.session, self.chan_id))
+        #  if not order:
+            #  raise dice.exc.InvalidCommandArgs('No turn order set to add effects.')
 
-        targets = [target.lstrip() for target in ' '.join(self.args.targets).split(',')
-                   if target.lstrip()]
-        chars = [user for user in order.users if user.name in targets]
+        #  targets = [target.lstrip() for target in ' '.join(self.args.targets).split(',')
+                   #  if target.lstrip()]
+        #  chars = [user for user in order.users if user.name in targets]
 
-        msg = '__Characters With Effects__\n\n'
-        for char in order.users:
-            if char.effects:
-                msg += '{}\n\n'.format(char)
+        #  msg = '__Characters With Effects__\n\n'
+        #  for char in order.users:
+            #  if char.effects:
+                #  msg += '{}\n\n'.format(char)
 
-        effects_args = None
-        for name in ['add', 'remove', 'update']:
-            effects_args = getattr(self.args, name)
-            if effects_args:
-                new_effects = [x.strip().split('/') for x in (' '.join(effects_args)).split(',')]
-                msg = getattr(self.__class__, name)(chars, new_effects)
-                break
+        #  effects_args = None
+        #  for name in ['add', 'remove', 'update']:
+            #  effects_args = getattr(self.args, name)
+            #  if effects_args:
+                #  new_effects = [x.strip().split('/') for x in (' '.join(effects_args)).split(',')]
+                #  msg = getattr(self.__class__, name)(chars, new_effects)
+                #  break
 
-        if targets and not effects_args:
-            msg = 'No action selected for targets [--add|--remove|--update].'
+        #  if targets and not effects_args:
+            #  msg = 'No action selected for targets [--add|--remove|--update].'
 
-        dicedb.query.update_turn_order(self.session, self.chan_id, order)
+        #  dicedb.query.update_turn_order(self.session, self.chan_id, order)
 
-        await self.reply(msg)
+        #  await self.reply(msg)
 
 
 class PunMenu(dice.util.PagingMenu):
@@ -743,7 +750,7 @@ Select a pun to remove by number [1..{}]:
         if choice < 0 or choice >= len(self.cur_entries):
             raise ValueError
 
-        dicedb.query.remove_pun(self.act.session, self.cur_entries[choice])
+        await dicedb.query.remove_pun(self.act.db, self.act.discord_id, self.cur_entries[choice]['text'])
         del self.cur_entries[choice]
 
         return True
@@ -756,22 +763,19 @@ class Pun(Action):
     async def execute(self):
         if self.args.add:
             text = ' '.join(self.args.add)
-            if dicedb.query.check_for_pun_dupe(self.session, text):
-                raise dice.exc.InvalidCommandArgs("Pun already in the database!")
-            dicedb.query.add_pun(self.session, text)
+            await dicedb.query.add_pun(self.db, self.discord_id, text)
 
             msg = 'Pun added to the abuse database.'
 
         elif self.args.manage:
-            entries = dicedb.query.all_puns(self.session)
-            await PunMenu(self, entries).run()
-            self.session.commit()
+            entries = await dicedb.query.get_all_puns(self.db, self.discord_id)
+            await PunMenu(self, entries['puns']).run()
 
             msg = 'Pun abuse management terminated.'
 
         else:
             msg = '**Randomly Selected Pun**\n\n'
-            msg += dicedb.query.randomly_select_pun(self.session)
+            msg += await dicedb.query.randomly_select_pun(self.db, self.discord_id)
 
         await self.reply(msg)
 
@@ -781,19 +785,19 @@ class Googly(Action):
     Track amazing googly eyes.
     """
     async def execute(self):
-        googly = dicedb.query.get_googly(self.session, self.msg.author.id)
+        googly = await dicedb.query.get_googly(self.db, self.discord_id)
 
         if self.args.set:
-            googly.total = max(self.args.set, 0)
+            googly['total'] = max(self.args.set, 0)
         if self.args.used:
-            googly.used = max(self.args.used, 0)
+            googly['used'] = max(self.args.used, 0)
         if self.args.offset:
-            googly += self.args.offset
+            googly['total'] = max(googly['total'] + self.args.offset, 0)
+            if self.args.offset < 0:
+                googly['used'] = max(googly['used'] - self.args.offset, 0)
 
-        self.session.add(googly)
-        self.session.commit()
-
-        await self.reply(str(googly))
+        await dicedb.query.update_googly(self.db, googly)
+        await self.reply(f"Googlies: left {googly['total']}, used: {googly['used']}")
 
 
 class RerollMenu(dice.util.PagingMenu):
@@ -808,7 +812,7 @@ Select a roll by number [1..{}]:
 """.format(LIMIT_REROLLS, self.page, self.total_pages, len(self.cur_entries))
 
         for cnt, entry in enumerate(self.cur_entries, start=1):
-            msg += "    {cnt}) {spec}\n".format(cnt=cnt, spec=entry.roll_str)
+            msg += "    {cnt}) {spec}\n".format(cnt=cnt, spec=entry['roll'])
         msg = msg.rstrip()
         msg += dice.util.PAGING_FOOTER
 
@@ -827,28 +831,26 @@ class Reroll(Action):
     Reoll the last n commands.
     """
     async def execute(self):
-        rolls = dicedb.query.get_last_rolls(self.session, self.msg.author.id)
-        if not rolls:
+        rolls = await dicedb.query.get_roll_history(self.db, self.discord_id)
+
+        if not rolls['history']:
             raise dice.exc.InvalidCommandArgs("No rolls stored, make a !roll first.")
 
         if self.args.menu:
-            selected = await RerollMenu(self, list(reversed(rolls)), LIMIT_REROLLS_PER_PAGE).run()
+            selected = await RerollMenu(self, list(reversed(rolls['history'])), LIMIT_REROLLS_PER_PAGE).run()
             if not selected:
                 return
         else:
             try:
                 if self.args.offset > -1:
                     raise IndexError
-                selected = rolls[self.args.offset]
+                selected = list(reversed(rolls['history']))[self.args.offset]
             except IndexError:
                 raise dice.exc.InvalidCommandArgs("Please select a negative offset from : [-1, -{}]".
                                                   format(LIMIT_REROLLS))
 
-        msg = "**Reroll Result**\n\n" + '\n'.join(await make_rolls(selected.roll_str))
+        msg = "**Reroll Result**\n\n" + '\n'.join(await make_rolls(selected['roll']))
         await self.reply(msg)
-
-        await self.bot.loop.run_in_executor(
-            None, dicedb.query.add_last_roll, self.session, self.msg.author.id, selected.roll_str, LIMIT_REROLLS)
 
 
 class Movies(Action):
@@ -856,47 +858,43 @@ class Movies(Action):
     Managed the movies list, a means of tracking things to watch later.
     """
     async def execute(self):
-        msg = "__Movies__\n\n"
-        duser = dicedb.query.ensure_duser(self.session, self.msg.author)
-        cur_movies = dicedb.query.get_movies(self.session, duser.id)
+        arg_movies, msg = [], "__Movies__\n\n"
+        arg_movies = []
+        if self.args.sub in ['add', 'remove', 'set']:
+            arg_movies = [x.strip() for x in ' '.join(self.args.movies).split(',') if x]
 
+        list_obj = await dicedb.query.get_list(self.db, self.discord_id, 'Movies')
         if self.args.sub == 'add':
-            new_movies = [x.strip() for x in ' '.join(self.args.movies).split(',')]
-            dicedb.query.add_movies(self.session, duser.id, new_movies)
+            await dicedb.query.add_list_entries(self.db, self.discord_id, 'Movies', arg_movies)
+            msg += "Added:\n\n" + '\n'.join(arg_movies)
 
-            msg += "Added:\n\n" + '\n'.join(new_movies)
-        elif self.args.sub == 'update':
-            new_movies = [x.strip() for x in ' '.join(self.args.movies).split(',')]
-            dicedb.query.replace_all_movies(self.session, duser.id, new_movies)
+        elif self.args.sub == 'remove':
+            await dicedb.query.remove_list_entries(self.db, self.discord_id, 'Movies', arg_movies)
+            msg += "Removed:\n\n" + '\n'.join(arg_movies)
 
-            msg += "Replaced:\n\n" + '\n'.join(new_movies)
+        elif self.args.sub == 'set':
+            await dicedb.query.replace_list_entries(self.db, self.discord_id, 'Movies', arg_movies)
+            msg += "Replaced list:\n\n" + '\n'.join(arg_movies)
+
         elif self.args.sub == 'roll':
-            if len(cur_movies) < 1:
+            if len(list_obj['entries']) < 1:
                 raise dice.exc.InvalidCommandArgs("No movies in the current list.")
 
-            limit = self.args.num
-            if limit == 9999:
-                limit = len(cur_movies)
-            elif limit > len(cur_movies):
-                limit = len(cur_movies)
-            elif limit < 1:
-                limit = 1
+            limit = max(self.args.num, 1)
+            if limit > len(list_obj['entries']):
+                limit = len(list_obj['entries'])
 
             roll = rand.randint(0, limit)
-            selected = cur_movies[roll]
-            msg += "Rolled: {}\nSelected: {}".format(roll + 1, selected.name)
-            self.session.delete(selected)
-            self.session.commit()
+            selected = list_obj['entries'][roll]
+            await dicedb.query.remove_list_entries(self.db, self.discord_id, 'Movies', [selected])
+
+            msg += f"Rolled: {roll + 1}, selected: {selected}"
+
         else:
             if self.args.short:
-                fmt_str = "{}, "
-                for movie in cur_movies:
-                    msg += fmt_str.format(movie.name)
-                msg = msg[:-2]
+                msg += ", ".join(list_obj['entries'])
             else:
-                fmt_str = "{}) {}"
-                for ind, movie in enumerate(cur_movies, 1):
-                    msg += fmt_str.format(ind, movie.name) + "\n"
+                msg += "\n".join([f"{ind}) {movie}" for ind, movie in enumerate(list_obj['entries'], 1)])
 
         await self.reply(msg)
 
@@ -1399,7 +1397,7 @@ def format_pun_list(header, entries, footer, *, cnt=1):
     """
     msg = header
     for ent in entries:
-        msg += '{}) {}\n    Hits: {:4d}\n\n'.format(cnt, ent.text, ent.hits)
+        msg += f"{cnt}) {ent['text']}\n    Hits: {ent['hits']:4d}\n\n"
         cnt += 1
     msg = msg.rstrip()
     msg += footer
@@ -1407,34 +1405,31 @@ def format_pun_list(header, entries, footer, *, cnt=1):
     return msg
 
 
-def format_song_list(header, songs, footer, *, cnt=1):
-    """
-    Generate the management list of songs.
-    """
-    msg = header
-    for song in songs:
-        msg += song.format_menu(cnt)
-        cnt += 1
-    msg = msg.rstrip()
-    msg += footer
+#  def format_song_list(header, songs, footer, *, cnt=1):
+    #  """
+    #  Generate the management list of songs.
+    #  """
+    #  msg = header
+    #  for song in songs:
+        #  msg += song.format_menu(cnt)
+        #  cnt += 1
+    #  msg = msg.rstrip()
+    #  msg += footer
 
-    return msg
+    #  return msg
 
 
 def get_cse_google_results_background(full_url, num):
     """
     Fetch the top num results from full_url (a GCS page).
     """
-    browser = dice.util.init_chrome()
-    browser.get(full_url)
+    with dice.util.get_chrome_driver(dev=False) as browser:
+        browser.get(full_url)
 
-    result = ''
-    for ele in browser.find_elements_by_class_name('gsc-thumbnail-inside')[:num]:
-        link_text = ele.find_element_by_css_selector('a.gs-title').get_property('href')
-        result += '{}\n      <{}>\n'.format(ele.text, link_text)
-
-    browser.quit()
-    del browser  # Force cleanup now
+        result = ''
+        for ele in browser.find_elements(By.CLASS_NAME, 'gsc-thumbnail-inside')[:num]:
+            link_text = ele.find_element(By.CSS_SELECTOR, 'a.gs-title').get_property('href')
+            result += f'{ele.text}\n      <{link_text}>\n'
 
     return result.rstrip()
 
@@ -1443,19 +1438,16 @@ def get_pf2_results_background(full_url, num):
     """
     Fetch the top num results from full_url (a GCS page).
     """
-    browser = dice.util.init_chrome()
-    browser.get(full_url)
+    with dice.util.get_chrome_driver(dev=False) as browser:
+        browser.get(full_url)
 
-    result = ''
-    soup = bs4.BeautifulSoup(browser.page_source, 'html.parser')
-    try:
-        for ele in soup.find_all('article')[:num]:
-            result += '{}\n      <{}>\n'.format(ele.h2.a.text, ele.h2.a.get('href'))
-    except AttributeError:
-        result = "No results!"
-
-    browser.quit()
-    del browser  # Force cleanup now
+        result = ''
+        soup = bs4.BeautifulSoup(browser.page_source, 'html.parser')
+        try:
+            for ele in soup.find_all('article')[:num]:
+                result += f"{ele.h2.a.text}\n      <{ele.h2.a.get('href')}>\n"
+        except AttributeError:
+            result = "No results!"
 
     return result.rstrip()
 
@@ -1464,28 +1456,7 @@ def throw_in_pool(throw):  # pragma: no cover
     """
     Simple wrapper to init random in other process before throw.
     """
-    dice.util.seed_random()  # This runs in another process so seed again.
     return throw.next()
-
-
-def get_guild_player(guild_id, msg):
-    """
-    Get the guild player for a guild.
-    Current model assumes bot can maintain separate streams for each guild.
-    """
-    try:
-        text = msg.channel
-        voice = msg.author.voice.channel
-    except AttributeError:
-        voice = discord.utils.find(lambda x: isinstance(x, discord.VoiceChannel),
-                                   msg.guild.channels)
-
-    if guild_id not in PLAYERS:
-        PLAYERS[guild_id] = GuildPlayer(vids=[], voice_channel=voice, text_channel=text)
-    PLAYERS[guild_id].voice_channel = voice
-    PLAYERS[guild_id].text_channel = text
-
-    return PLAYERS[guild_id]
 
 
 async def make_rolls(spec):
@@ -1494,7 +1465,7 @@ async def make_rolls(spec):
     """
     loop = asyncio.get_event_loop()
     jobs = []
-    with concurrent.futures.ProcessPoolExecutor() as pool:
+    with concurrent.futures.ProcessPoolExecutor(initializer=dice.util.seed_random) as pool:
         for line in re.split(r's*,\s+', spec):
             line = line.strip()
             times = 1
@@ -1503,11 +1474,11 @@ async def make_rolls(spec):
                 parts = line.split(':')
                 times, line = int(parts[0]), parts[1].strip()
                 if times > LIMIT_ROLL_TIMES:
-                    raise dice.exc.InvalidCommandArgs("Please run <= {} times a dice roll.".format(LIMIT_ROLL_TIMES))
+                    raise dice.exc.InvalidCommandArgs(f"Please run <= {LIMIT_ROLL_TIMES} times a dice roll.")
 
             try:
                 throw = dice.roll.parse_dice_line(line)
-                jobs += [loop.run_in_executor(pool, throw_in_pool, throw) for _ in range(times)]
+                jobs = [loop.run_in_executor(pool, throw_in_pool, throw) for _ in range(times)]
             except ValueError as exc:
                 raise dice.exc.InvalidCommandArgs(str(exc))
 
@@ -1517,3 +1488,23 @@ async def make_rolls(spec):
             lines = ["Timeout! One or more of the dice took too long computing."]
 
     return lines
+
+
+#  def get_guild_player(guild_id, msg):
+    #  """
+    #  Get the guild player for a guild.
+    #  Current model assumes bot can maintain separate streams for each guild.
+    #  """
+    #  try:
+        #  text = msg.channel
+        #  voice = msg.author.voice.channel
+    #  except AttributeError:
+        #  voice = discord.utils.find(lambda x: isinstance(x, discord.VoiceChannel),
+                                   #  msg.guild.channels)
+
+    #  if guild_id not in PLAYERS:
+        #  PLAYERS[guild_id] = GuildPlayer(vids=[], voice_channel=voice, text_channel=text)
+    #  PLAYERS[guild_id].voice_channel = voice
+    #  PLAYERS[guild_id].text_channel = text
+
+    #  return PLAYERS[guild_id]

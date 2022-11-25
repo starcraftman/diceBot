@@ -191,6 +191,8 @@ these include (r)eroll, (!)explosive dice, (!!)compounding dice and (f)ail and s
         Roll 4d6, sort the output in ascending order.
 {prefix}roll 4d6sd
         Roll 4d6, sort the output in descending order.
+{prefix}roll -l
+        List all saved rolls.
 {prefix}roll -s NameNoSpace 3d6 + 20
         Save to name 'NameNoSpace' the roll: 3d6 + 20. Any valid roll can be saved.
 {prefix}roll -r NameNoSpace
@@ -220,7 +222,7 @@ def subs_pf(subs, prefix):
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'pf', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='SearchWiki', url='PF_URL', wiki='Pathfinder Wiki')
-    sub.add_argument('-n', '--num', type=int, default=3, help='Number of results.')
+    sub.add_argument('-n', '--num', type=int, default=5, help='Number of results.')
     sub.add_argument('terms', nargs='+', help='To search.')
 
 
@@ -236,7 +238,7 @@ def subs_pf2(subs, prefix):
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'pf2', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='PF2Wiki', url='PF2_URL', wiki='Pathfinder 2e Wiki')
-    sub.add_argument('-n', '--num', type=int, default=3, help='Number of results.')
+    sub.add_argument('-n', '--num', type=int, default=5, help='Number of results.')
     sub.add_argument('terms', nargs='+', help='To search.')
 
 
@@ -252,7 +254,7 @@ def subs_d5e(subs, prefix):
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'd5', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='SearchWiki', url='D5_URL', wiki='D&D 5e Wiki')
-    sub.add_argument('-n', '--num', type=int, default=3, help='Number of results.')
+    sub.add_argument('-n', '--num', type=int, default=5, help='Number of results.')
     sub.add_argument('terms', nargs='+', help='To search.')
 
 
@@ -268,7 +270,7 @@ def subs_star(subs, prefix):
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'star', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='SearchWiki', url='STAR_URL', wiki='Starfinder Wiki')
-    sub.add_argument('-n', '--num', type=int, default=3, help='Number of results.')
+    sub.add_argument('-n', '--num', type=int, default=5, help='Number of results.')
     sub.add_argument('terms', nargs='+', help='To search.')
 
 
@@ -540,8 +542,10 @@ def subs_movies(subs, prefix):
         Roll for a random movie from your own list from top 20. Shows result, removes movie.
 {prefix}movies add movie1, movie2, movie3
         Append movies to the list.
-{prefix}movies update movie1, movie2, movie3
-        Update the movies list with movies in list.
+{prefix}movies remove movie1, movie2, movie3
+        Remove the movies from the list.
+{prefix}movies set movie1, movie2, movie3
+        Set the movies list to the provided movies.
 {prefix}movies show
         Show the list of movies stored for current user.
 {prefix}movies show -s
@@ -558,6 +562,8 @@ def subs_movies(subs, prefix):
     sub3 = subsub.add_parser('show', description="Show movies in the list.")
     sub3.add_argument('-s', '--short', action='store_true', help='Display in short format')
     sub3 = subsub.add_parser('roll', description="Roll for a movie.")
-    sub3.add_argument('num', nargs='?', type=int, default=9999, help='Select from n first movies inclusive')
-    sub3 = subsub.add_parser('update', description="Replace the entire list.")
+    sub3.add_argument('num', nargs='?', type=int, default=9999999, help='Select from n first movies inclusive')
+    sub3 = subsub.add_parser('remove', description="Remove one or more movies.")
+    sub3.add_argument('movies', nargs='*', help='The movies to add.')
+    sub3 = subsub.add_parser('set', description="Set the movie list.")
     sub3.add_argument('movies', nargs='*', help='The movies to add.')

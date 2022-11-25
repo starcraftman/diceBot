@@ -5,6 +5,7 @@ from __future__ import absolute_import, print_function
 import abc
 import asyncio
 import concurrent
+import contextlib
 import datetime
 import functools
 import logging
@@ -18,12 +19,15 @@ import re
 import discord
 import numpy.random
 import selenium.webdriver
-from selenium.webdriver.chrome.options import Options as ChromeOpts
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 import yaml
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:  # pragma: no cover
     from yaml import Loader, Dumper
+
 
 import dice.exc
 
@@ -483,13 +487,28 @@ def is_valid_url(url):
     return IS_URL.match(url)
 
 
-def init_chrome():
-    """ Returns a headless Chrome webdriver. """
-    opts = ChromeOpts()
-    opts.add_argument('--headless')
-    opts.add_argument('--disable-gpu')
+@contextlib.contextmanager
+def get_chrome_driver(dev=True):  # pragma: no cover | Just a context wrapper around library startup
+    """Initialize the chrome webdriver.
 
-    return selenium.webdriver.Chrome(options=opts)
+    This is a context object, use with with.
+
+    Args:
+        dev: When False, will run in headless mode. Otherwise GUI is run.
+    """
+    driver = None
+    try:
+        options = Options()
+        options.add_argument("--window-size=1920x1080")
+        if not dev:
+            options.headless = True
+
+        service = Service(ChromeDriverManager().install())
+        driver = selenium.webdriver.Chrome(service=service, options=options)
+        yield driver
+    finally:
+        if driver:
+            driver.quit()
 
 
 def check_messages(original, msg):

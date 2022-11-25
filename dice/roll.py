@@ -849,7 +849,7 @@ class AThrow(list):
         if self.note:
             trail += "\n        Note: " + self.note
 
-        return "{} = {} = {}{}".format(self.spec, str(self), self.value, trail)
+        return f"{self.spec} = {self} = {self.value}{trail}"
 
 
 @functools.total_ordering

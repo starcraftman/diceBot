@@ -153,11 +153,12 @@ class DiceBot(discord.Client):
 
         # This block is effectively a one time setup.
         mod = sys.modules[__name__]
+        # TODO: Review these
         if not mod.LIVE_TASKS:
             mod.LIVE_TASKS += [
                 asyncio.ensure_future(presence_task(self)),
-                asyncio.ensure_future(dice.music.gplayer_monitor(dice.actions.PLAYERS, {})),
-                asyncio.ensure_future(dice.actions.timer_monitor(dice.actions.TIMERS)),
+                #  asyncio.ensure_future(dice.music.gplayer_monitor(dice.actions.PLAYERS, {})),
+                #  asyncio.ensure_future(dice.actions.timer_monitor(dice.actions.TIMERS)),
             ]
 
         print('DiceBot Ready!')
