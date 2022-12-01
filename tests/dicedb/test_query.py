@@ -254,19 +254,6 @@ async def test_remove_turn_order(test_db, f_turnorders):
     assert await dicedb.query.get_turn_order(test_db, discord_id=1, channel_id=1) is None
 
 
-@pytest.mark.asyncio
-async def test_generate_initial_turn_order(test_db, f_turnorders):
-    chars = ['The Wizard/7', 'Fighter/-3', 'Rogue Guy/4/22']
-    await dicedb.query.generate_inital_turn_users(test_db, discord_id=1, channel_id=3, chars=chars)
-    found = await dicedb.query.get_turn_order(test_db, discord_id=1, channel_id=3)
-
-    assert found
-    assert found['tracker'][1]['init'] == -3
-    assert found['tracker'][-1]['name'] == 'Rogue Guy'
-    assert found['tracker'][-1]['init'] == 4
-    assert found['tracker'][-1]['roll'] == 22
-
-
 #  def test_add_song_with_tags_update_existing(session, f_songs):
     #  song = f_songs[0]
 

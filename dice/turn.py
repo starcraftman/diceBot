@@ -11,41 +11,24 @@ COLLIDE_INCREMENT = 0.01
 ROLL_LIMIT = 8
 
 
-def compare_turns(left, right):
-    """
-    Comparison function to compare two roll objects. Assumed to have the same number of rolls.
-    """
-    return left['rolls'] <= right['rolls']
-
-
 def merge_turn_lists(left, right):
     """
     Merge two list of turn objects (i.e. turns from combat tracker).
     Left list will be used as a base and right merged in. Hence left has slightly higher priority.
 
-    :param left [TODO:type]: [TODO:description]
-    :param right [TODO:type]: [TODO:description]
+    :param left [turn, turn, ...]: The base of the turn list merge.
+    :param right [turn, turn, ...]: The turns to merge into base.
     """
     merged = []
-    base = sorted(left, key=compare_turns, reverse=True)
-    to_add = sorted(right, key=compare_turns, reverse=True)
+    base = sorted(left, key=lambda x: x['rolls'], reverse=True)
+    to_add = sorted(right, key=lambda x: x['rolls'], reverse=True)
 
     while to_add or base:
-        if to_add and base and to_add[0]['rolls'] > base[0]['rolls']:
-            merged += [to_add[0]]
-            to_add = to_add[1:]
-
-        elif to_add and base and to_add[0]['rolls'] < base[0]['rolls']:
+        if to_add and base and to_add[0]['rolls'] <= base[0]['rolls']:
             merged += [base[0]]
             base = base[1:]
 
-        # When new characters roll equal, depriorize adding characters
-        elif to_add and base and to_add[0]['rolls'] == base[0]['rolls']:
-            merged += [base[0]]
-            base = base[1:]
-            to_add[0]['roll'] -= COLLIDE_INCREMENT
-
-        elif to_add and not base:
+        elif to_add and base and to_add[0]['rolls'] > base[0]['rolls']:
             merged += [to_add[0]]
             to_add = to_add[1:]
 
@@ -53,12 +36,29 @@ def merge_turn_lists(left, right):
             merged += [base[0]]
             base = base[1:]
 
+        elif to_add and not base:
+            merged += [to_add[0]]
+            to_add = to_add[1:]
+
+    # Clean up colliding top rolls so they all are easily sorted.
+    by_roll = {}
+    for turn in merged:
+        try:
+            by_roll[turn['roll']] += [turn]
+        except KeyError:
+            by_roll[turn['roll']] = [turn]
+    for turns in by_roll.values():
+        if len(turns) > 1:
+            for ind, turn in enumerate(turns):
+                turn['roll'] -= COLLIDE_INCREMENT * ind
+
     return merged
 
 
 def roll_init(*, init, num_dice=1, sides_dice=20, times=1):
     """
     Roll initiative for a particular user. Default 1d20 + init
+    Roll up to times initiatives, extras can break ties.
 
     :param init int: The initiative modifier for a character.
     :param dice int: The amount of dice to roll for initiative. A spec of form: mdn where m number of dice, n sides. Default d20
@@ -81,25 +81,6 @@ def roll_init(*, init, num_dice=1, sides_dice=20, times=1):
     return values
 
 
-def order_based_on_rolls(turns):
-    """
-    Order a list of turn objects by the rolls made.
-    It will pad up the rolls made to match the most made rolls.
-    Last roll will be repeated until pad finished.
-
-    :param turns [turn, turn, ...]: A list of turn objects with 'rolls' field, a list of integers.
-    :returns: The turns list passed in sorted in order of initiative.
-    :rtype: [turn, turn, ...]
-    """
-    pad = max(len(x['rolls']) for x in turns)
-    for turn in turns:
-        roll_diff = pad - len(turn['rolls'])
-        if roll_diff:
-            turn['rolls'] += roll_init(init=turn['init'], times=roll_diff)
-
-    return sorted(turns, key=compare_turns, reverse=True)
-
-
 def combat_tracker_generate(discord_id, channel_id, chars):
     """
     Generate an initial turn order for combat trackers
@@ -117,29 +98,7 @@ def combat_tracker_generate(discord_id, channel_id, chars):
     """
     tracker = {'discord_id': discord_id, 'channel_id': channel_id, 'turns': []}
     combat_tracker_add_chars(tracker, chars)
-    tracker['turns'] = sorted(tracker['turns'], key=lambda x: x['roll'], reverse=True)
-
-    return tracker
-
-
-def combat_tracker_break_ties(tracker):
-    """
-    Look through the generated tracker and resolve any intiative ties.
-
-    :param tracker Object: The tracker object.
-    :returns: The combat tracker of the chracters with fully rolled results.
-    :rtype: A dictionary object.
-    """
-    conflicts = {}
-    for turn in tracker['turns']:
-        try:
-            conflicts[turn['roll']] += [turn]
-        except KeyError:
-            conflicts[turn['roll']] = [turn]
-
-    for _, turns in conflicts.items():
-        if len(turns) >= 2:
-            turns = resolve_tie(turns)
+    tracker['turns'] = sorted(tracker['turns'], key=lambda x: x['rolls'], reverse=True)
 
     return tracker
 
@@ -175,7 +134,6 @@ def combat_tracker_add_chars(tracker, chars):
         }]
 
     tracker['turns'] = merge_turn_lists(tracker['turns'], to_add)
-
     return tracker
 
 

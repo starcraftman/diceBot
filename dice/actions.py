@@ -494,91 +494,95 @@ class Turn(Action):
     """
     Manipulate a turn order tracker.
     """
-    async def add(self, client, order):
+    async def add(self, client, tracker):
         """
         Add users to an existing turn order,
         start a new turn order if needed.
         """
-        parts = ' '.join(self.args.add).split(',')
+        try:
+            chars = [x.strip() for x in ' '.join(self.args.chars).split(',')]
+        except ValueError:
+            raise dice.exc.InvalidCommandArgs("Please check format of command.")
 
+        if tracker:
+            dice.turn.combat_tracker_add_chars(tracker, chars)
+        else:
+            tracker = dice.turn.combat_tracker_generate(discord_id=self.discord_id, channel_id=self.msg.channel.id, chars=chars)
+        await dicedb.query.update_turn_order(client, discord_id=self.discord_id,
+                                             channel_id=self.msg.channel.id, combat_tracker=tracker)
 
+        return 'Characters added to tracker.'
 
     async def clear(self, client, _):
         """
         Clear the turn order.
         """
-        await dicedb.query.remove_turn_order(client, discord_id=self.discord_id, channel_id=self.msg.channel_id)
-        return 'Turn order cleared.'
+        await dicedb.query.remove_turn_order(client, discord_id=self.discord_id, channel_id=self.msg.channel.id)
+        return 'Combat tracker cleaed.'
 
-    def next(self, _, order):
+    async def next(self, client, tracker):
         """
         Advance the turn order next places.
         """
-        if self.args.next < 1:
-            raise dice.exc.InvalidCommandArgs('!next requires number in range [1, +∞]')
+        if self.args.steps == 'zero':
+            self.args.steps = 1
 
-        text, cnt = '', self.args.next
-        while cnt:
-            text += self.__single_next(_, order) + '\n\n'
-            cnt -= 1
+        tracker = dice.turn.combat_tracker_move(tracker, self.args.steps)
+        await dicedb.query.update_turn_order(client, discord_id=self.discord_id,
+                                             channel_id=self.msg.channel.id, combat_tracker=tracker)
+        return dice.turn.combat_tracker_format(tracker)
 
-        return text.rstrip()
-
-    def remove(self, client, order):
+    async def remove(self, client, tracker):
         """
         Remove one or more users from turn order.
         """
-        users = ' '.join(self.args.remove).split(',')
-        removed = []
-        for user in users:
-            removed += [order.remove(user)]
+        try:
+            chars = [x.strip() for x in ' '.join(self.args.chars).split(',')]
+        except ValueError:
+            raise dice.exc.InvalidCommandArgs("Please check format of command.")
 
-        dicedb.query.update_turn_order(client, self.chan_id, order)
+        dice.turn.combat_tracker_remove_chars(tracker, chars)
+        await dicedb.query.update_turn_order(client, discord_id=self.discord_id,
+                                             channel_id=self.msg.channel.id, combat_tracker=tracker)
 
-        msg = 'Removed the following users:\n'
-        return msg + '\n  - ' + '\n  - '.join([x.name for x in removed])
+        return 'Removed from the tracker: ' + ', '.join(chars)
 
-    def update(self, client, order):
+    async def update(self, client, tracker):
         """
         Update one or more character's init for this turn order.
         Usually used for some spontaneous change or DM decision.
         """
-        msg = 'Updated the following users:\n'
-        for spec in ' '.join(self.args.update).split(','):
-            try:
-                part_name, new_init = spec.split('/')
-                changed = order.update_user(part_name.strip(), new_init.strip())
-                msg += '    Set __{}__ to {}\n'.format(changed.name, changed.init)
-            except ValueError:
-                raise dice.exc.InvalidCommandArgs("See usage, incorrect arguments.")
-
-        dicedb.query.update_turn_order(client, self.chan_id, order)
-
-        return msg
-
-    async def execute(self):
-        existing = await dicedb.query.get_turn_order(self.db, discord_id=self.discord_id, channel_id=self.msg.channel.id)
-        if not existing and not self.args.add:
-            raise dice.exc.InvalidCommandArgs(f'Start combat with: {self.prefix}turn')
+        changed = False
 
         try:
-            # Non-numeric default is 'zero', when arg not provided is None
-            try:
-                self.args.next = int(self.args.next)
-            except TypeError:
-                self.args.next = 1
-            msg = getattr(self, 'next')(self.db, existing)
-        except (AttributeError, ValueError):
-            pass
+            chars = [x.strip().split('/') for x in ' '.join(self.args.chars).split(',')]
+            for name, roll in chars:
+                found = [x for x in tracker['turns'] if x['name'].lower() == name.lower()]
+                if found:
+                    changed = True
+                    found[0]['roll'] = roll
 
-        if self.args.add:
-            await self.add()
-        elif self.args.remove:
-            await self.remove():
-        elif: self.args.update:
-            await self.update():
-        else:
-            await self.clear()
+        except ValueError:
+            raise dice.exc.InvalidCommandArgs("Please check format of command.")
+
+        if changed:
+            await dicedb.query.update_turn_order(client, discord_id=self.discord_id,
+                                                 channel_id=self.msg.channel.id, combat_tracker=tracker)
+
+        return "Updated characters with new inits."
+
+    async def execute(self):
+        tracker = await dicedb.query.get_turn_order(self.db, discord_id=self.discord_id, channel_id=self.msg.channel.id)
+        if self.args.subcmd == 'n':
+            self.args.subcmd = 'next'
+
+        try:
+            msg = await getattr(self, self.args.subcmd)(self.db, tracker)
+        except TypeError:
+            if tracker:
+                msg = dice.turn.combat_tracker_format(tracker)
+            else:
+                msg = 'No combat begun.'
 
         await self.reply(msg)
 

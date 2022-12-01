@@ -354,11 +354,16 @@ def subs_turn(subs, prefix):
     subcmds = sub.add_subparsers(title='subcommands',
                                  description='Turn subcommands', dest='subcmd')
     subcmd = subcmds.add_parser('add', help='Add one or more combat characters.')
+    subcmd.add_argument('chars', nargs='+', help='The characters to add.')
     subcmd = subcmds.add_parser('clear', help='Clear the combat.')
     subcmd = subcmds.add_parser('remove', help='Remove one or more combat characters by name.')
+    subcmd.add_argument('chars', nargs='+', help='The characters to remove.')
     subcmd = subcmds.add_parser('update', help='Update the init rolls for one or more combat characters.')
+    subcmd.add_argument('chars', nargs='+', help='The characters to update.')
     subcmd = subcmds.add_parser('next', help='Move turn order forward by n steps.')
-    subcmd.add_argument('steps', type=int, default='zero', help='Positive or negative steps of turns.')
+    subcmd.add_argument('steps', nargs='?', type=int, default=1, help='Positive or negative steps of turns.')
+    subcmd = subcmds.add_parser('n', help='Move turn order forward by n steps.')
+    subcmd.add_argument('steps', nargs='?', type=int, default=1, help='Positive or negative steps of turns.')
 
 
 @register_parser

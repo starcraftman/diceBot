@@ -364,7 +364,7 @@ async def get_turn_order(client, *, discord_id, channel_id):
     """
     Fetch an existing turn order for a given server/channel combination.
     """
-    await client.combat_trackers.find_one({'discord_id': discord_id, 'channel_id': channel_id})
+    return await client.combat_trackers.find_one({'discord_id': discord_id, 'channel_id': channel_id})
 
 
 async def update_turn_order(client, *, discord_id, channel_id, combat_tracker):

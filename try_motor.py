@@ -19,12 +19,12 @@ async def async_main():
 
     #  result = await db.basic_test.replace_one({'i': 555}, {'i': 555, 'key': 'value'}, True)
 
-    result = await db.basic_test.insert_one({'i': 555})
+    #  result = await db.basic_test.insert_one({'i': 555})
     #  result = await db.basic_test.delete_one({'i': 555})
     #  print(result.deleted_count)
 
-    for x in await db.list_collections():
-        print(x)
+    #  for x in await db.list_collections():
+        #  print(x)
 
     #  result = await db.basic_test.insert_many(
         #  [{'i': i} for i in range(2000)]

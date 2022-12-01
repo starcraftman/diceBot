@@ -21,7 +21,7 @@ Proceeding has consequences for the above db ...
     These backups should be verified by the user,
         the code within will be **EVAL**ed to make db objects.
 
-    Continue? Y/n """.format(dicedb.engine)
+    Continue? Y/n """
 
 try:
     input = raw_input
