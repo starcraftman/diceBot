@@ -1408,6 +1408,8 @@ def throw_in_pool(throw):  # pragma: no cover
 async def make_rolls(spec):
     """
     Take a specification of dice rolls and return a string.
+    This function will process additional modifiers to normal dice spec.
+        4: d20 + 8, d8 + 2 -> Will roll 4 times d20 + 8 followed by d8 + 2.
     """
     loop = asyncio.get_event_loop()
     jobs = []
@@ -1424,7 +1426,7 @@ async def make_rolls(spec):
 
             try:
                 throw = dice.roll.parse_dice_line(line)
-                jobs = [loop.run_in_executor(pool, throw_in_pool, throw) for _ in range(times)]
+                jobs += [loop.run_in_executor(pool, throw_in_pool, throw) for _ in range(times)]
             except ValueError as exc:
                 raise dice.exc.InvalidCommandArgs(str(exc))
 

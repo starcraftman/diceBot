@@ -59,6 +59,20 @@ class ModFormatter(logging.Formatter):
         return super().format(record)
 
 
+class ReprMixin():
+    """Mixin that generates my format repr for object storage."""
+    def __repr__(self):
+        """
+        Simple repr generating the following format:
+            ClassName(key1=value1,key2=value2,...)
+        Store key names in ClassName._repr_keys
+        """
+        keys = self.__class__._repr_keys
+        kwargs = [f'{key}={getattr(self, key)!r}' for key in keys]
+
+        return f'{self.__class__.__name__}({", ".join(kwargs)})'
+
+
 class BIterator():
     """
     Bidirectional iterator that can move up and down list.
@@ -74,7 +88,7 @@ class BIterator():
         self.index = index
 
     def __repr__(self):
-        return "BIterator(index={}, items={})".format(self.index, self.items)
+        return f"BIterator(index={self.index}, items={self.items!r})"
 
     def __next__(self):
         """ Allow using it like an actual iterator. """
@@ -204,7 +218,7 @@ class PagingMenu(abc.ABC):
                 self.entries = None
                 await self.reply('Paging menu timed out. Goodbye human!.')
             except (KeyError, ValueError, dice.exc.InvalidCommandArgs) as exc:
-                msg = "Selection not understood. Make choice from numbers [1, {}]".format(len(self.cur_entries))
+                msg = f"Selection not understood. Make choice from numbers [1, {len(self.cur_entries)}]"
                 if isinstance(exc, dice.exc.InvalidCommandArgs):
                     msg = str(exc)
                 await self.reply(msg, ttl=True)
@@ -331,7 +345,7 @@ def dict_to_columns(data):
     header = []
 
     for col, key in enumerate(sorted(data)):
-        header.append('{} ({})'.format(key, len(data[key])))
+        header.append(f"{key} ({len(data[key])})")
 
         for row, item in enumerate(data[key]):
             try:

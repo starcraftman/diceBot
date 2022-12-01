@@ -1,3 +1,4 @@
+# pylint: disable=redefined-outer-name,missing-function-docstring,unused-argument
 """
 Tests against the dice.actions module.
 These tests act as integration tests, checking almost the whole path.
@@ -139,7 +140,7 @@ async def test_cmd_pf(f_bot):
     await action_map(msg, f_bot).execute()
 
     expect = """Searching Pathfinder Wiki: **acid dart**
-Top 3 Results:
+Top 5 Results:
 
 Acid Dart – d20PFSRD
       <https://www.d20pfsrd.com/magic/3rd-party-spells/sean-k-reynolds-games/acid-dart/>
@@ -183,14 +184,12 @@ async def test_cmd_pf2(f_bot):
     await action_map(msg, f_bot).execute()
 
     expect = """Searching Pathfinder 2e Wiki: **monk**
-Top 3 Results:
+Top 5 Results:
 
+Mad Monkeys
+      <https://pf2.d20pfsrd.com/spell/mad-monkeys/>
 Stone Giant Monk
-      <https://pf2.d20pfsrd.com/npc/stone-giant-monk/>
-Monk
-      <https://pf2.d20pfsrd.com/archetype/monk/>
-Monk
-      <https://pf2.d20pfsrd.com/class/monk/>"""
+      <https://pf2.d20pfsrd.com/npc/stone-giant-monk/>"""
     f_bot.send.assert_called_with(msg.channel, expect)
 
 
@@ -202,10 +201,10 @@ async def test_cmd_star(f_bot):
     await action_map(msg, f_bot).execute()
 
     expect = """Searching Starfinder Wiki: **starship**
-Top 3 Results:
+Top 5 Results:
 
-Starships – Starjammer SRD
-      <https://www.starjammersrd.com/equipment/starships/>"""
+Starship Combat – Starjammer SRD
+      <https://www.starjammersrd.com/game-mastering/starship-combat/>"""
     assert expect in str(f_bot.send.call_args).replace("\\n", "\n")
 
 
@@ -298,7 +297,6 @@ async def test_cmd_roll_alias(f_bot):
         assert line.startswith("2d6 + 3 = ")
 
 
-@pytest.mark.skip("FIXME: Refactor rolls to solve grouped rolls with roll, roll, roll")
 @pytest.mark.asyncio
 async def test_cmd_roll_recall(f_bot, f_saved_rolls):
     msg = fake_msg("!roll bow")
@@ -365,7 +363,7 @@ async def test_cmd_status(f_bot):
     expect = dice.tbl.wrap_markdown(dice.tbl.format_table([
         ['Created By', 'GearsandCogs'],
         ['Uptime', '5'],
-        ['Version', '{}'.format(dice.__version__)],
+        ['Version', f'{dice.__version__}'],
     ]))
     f_bot.send.assert_called_with(msg.channel, expect)
 

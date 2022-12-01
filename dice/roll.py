@@ -25,6 +25,7 @@ import re
 import numpy.random as rand
 
 import dice.exc
+from dice.util import ReprMixin
 
 IS_DIE = re.compile(r'(\d+)?d(\d+)', re.ASCII | re.IGNORECASE)
 IS_FATEDIE = re.compile(r'(\d+)?df', re.ASCII | re.IGNORECASE)
@@ -70,7 +71,7 @@ See `!roll --help` for more complete documentation.
 """
 
 
-class Comparison(abc.ABC):
+class Comparison(ReprMixin, abc.ABC):
     """
     The only reason this exists is that lambda functions don't automatically
     pickle like objects do.
@@ -80,11 +81,10 @@ class Comparison(abc.ABC):
         left: The left bound of the comparison (default used if not a range).
         right: The right bound of the comparison.
     """
+    _repr_keys = ['left']
+
     def __init__(self, *, left=0):
         self.left = left
-
-    def __repr__(self):
-        return "{}(left={!r})".format(self.__class__.__name__, self.left)
 
     @abc.abstractmethod
     def __call__(self, other):
@@ -143,12 +143,11 @@ class CompareRange(Comparison):  # pylint: disable=too-few-public-methods
     """
     Compare if an object of integer value is in a range.
     """
+    _repr_keys = ['left', 'right']
+
     def __init__(self, *, left=0, right=0):
         super().__init__(left=left)
         self.right = right
-
-    def __repr__(self):
-        return "{}(left={!r}, right={!r})".format(self.__class__.__name__, self.left, self.right)
 
     def __call__(self, other):
         """
@@ -397,6 +396,12 @@ def parse_dice_line(line):
     Take a complete dice specification with optional literals and return
     AThrow object containing all required parts to model the throw.
 
+    Examples valid:
+        4d20kh2 + 6d6 + 20
+    Examples invalid:
+        4: 6d6, 4d20 + 2
+        6d6 + 2, d8 + 4
+
     Raises:
         ValueError: Some part of the dice spec could not be parsed.
 
@@ -512,7 +517,7 @@ class FlaggableMixin():
 
 
 @functools.total_ordering
-class Die(FlaggableMixin):
+class Die(ReprMixin, FlaggableMixin):
     """
     Model a single dice with n sides, it can:
         - roll itself
@@ -525,20 +530,19 @@ class Die(FlaggableMixin):
         _value: The value of the last roll, always [1, sides].
         flags: The flags tracking the Die's state.
     """
+    _repr_keys = ['sides', 'value', 'flags']
+
     def __init__(self, *, sides=1, value=1, flags=1):
         super().__init__()
         self.sides = sides
         self._value = value
         self.flags = flags
 
-    def __repr__(self):
-        return "Die(sides={!r}, value={!r}, flags={!r})".format(self.sides, self._value, self.flags)
-
     def __str__(self):
         return self.fmt_string().format(self.value)
 
     def __hash__(self):
-        return hash('{}_{}'.format(self.sides, self.value))
+        return hash(f'{self.sides}_{self.value}')
 
     def __eq__(self, other):
         return issubclass(type(other), Die) and self.value == other.value
@@ -559,7 +563,7 @@ class Die(FlaggableMixin):
         """ The set value of this die. """
         min_val = 0 if self.is_penetrated() else 1
         if new_value < min_val:
-            raise ValueError("Dice value must be >= {}.".format(min_val))
+            raise ValueError(f"Dice value must be >= {min_val}.")
 
         self._value = new_value
 
@@ -619,7 +623,8 @@ class FateDie(Die):
         super().__init__(**kwargs)
 
     def __repr__(self):
-        return "FateDie(sides={!r}, value={!r}, flags={!r})".format(self.sides, self._value, self.flags)
+        kwargs = [f'{key}={getattr(self, key)!r}' for key in ['sides', '_value', 'flags']]
+        return f'{self.__class__.__name__}({", ".join(kwargs)})'.replace('_value', 'value')
 
     def __str__(self):
         value = self.value
@@ -656,7 +661,7 @@ class DiceList(list):
         self.mods = mods if mods else []
 
     def __repr__(self):
-        return "DiceList(items={!r}, mods={!r})".format(self[:], self.mods)
+        return f"DiceList(items={self[:]!r}, mods={self.mods!r})"
 
     def __str__(self):
         if not self:
@@ -672,7 +677,7 @@ class DiceList(list):
 
         if len(msg) > LIMIT_DICE_LIST_STR:
             parts = msg.split(' ')
-            msg = '{} ... {}'.format(' '.join(parts[:4]), parts[-1])
+            msg = f"{' '.join(parts[:4])} ... {parts[-1]}"
 
         return '(' + msg + ')'
 
@@ -693,12 +698,12 @@ class DiceList(list):
     @property
     def value(self):
         """ The value of this grouping is the sum of all non-dropped rolls. """
-        return sum([x.value for x in self if x.is_kept()])
+        return sum(x.value for x in self if x.is_kept())
 
     @property
     def max_roll(self):
         """ The lowest maximum roll within this dice list. """
-        return min([x.max_roll for x in self])
+        return min(x.max_roll for x in self)
 
     def add_dice(self, number, sides):
         """
@@ -755,7 +760,7 @@ class AThrow(list):
         self.note = note
 
     def __repr__(self):
-        return "AThrow(spec={!r}, note={!r}, items={!r})".format(self.spec, self.note, self[:])
+        return f"AThrow(spec={self.spec!r}, note={self.note!r}, items={self[:]!r})"
 
     def __str__(self):
         return " ".join([str(x) for x in self])
@@ -821,8 +826,8 @@ class AThrow(list):
 
         if display_success:
             diff = scnt - fcnt
-            msg += "({}{}) **{}** Failure(s), **{}** Success(es)".format(
-                '+' if diff >= 0 else '', diff, fcnt, scnt)
+            psign = '+' if diff >= 0 else ''
+            msg += f"({psign}{diff}) **{fcnt}** Failure(s), **{scnt}** Success(es)"
 
         return msg
 
@@ -867,7 +872,8 @@ class ModifyDice(abc.ABC):
     def __lt__(self, other):
         return self.__class__.WEIGHT < other.__class__.WEIGHT
 
-    @abc.abstractstaticmethod
+    @staticmethod
+    @abc.abstractmethod
     def should_parse(line):
         """
         Check if this modifier should attempt to parse the upcoming tokens.
@@ -880,7 +886,8 @@ class ModifyDice(abc.ABC):
         """
         raise NotImplementedError
 
-    @abc.abstractstaticmethod
+    @staticmethod
+    @abc.abstractmethod
     def parse(line, max_roll):
         """
         A method to parse a line and return the associated ModifyDice subclass
@@ -913,7 +920,7 @@ class ModifyDice(abc.ABC):
         raise NotImplementedError
 
 
-class ExplodeDice(ModifyDice):
+class ExplodeDice(ReprMixin, ModifyDice):
     """
     Explode when the associated predicate is true.
     Support normal explosion criteria and penetrated die.
@@ -923,13 +930,11 @@ class ExplodeDice(ModifyDice):
         penetrate: True if the die will penetrate on roll, else false.
     """
     WEIGHT = 2
+    _repr_keys = ['pred', 'penetrate']
 
     def __init__(self, *, pred, penetrate=False):
         self.pred = pred
         self.penetrate = penetrate
-
-    def __repr__(self):
-        return "{}(pred={!r}, penetrate={!r})".format(self.__class__.__name__, self.pred, self.penetrate)
 
     @staticmethod
     def should_parse(line):
@@ -999,7 +1004,7 @@ class CompoundDice(ExplodeDice):
                 die.value += new_explode.value
 
 
-class RerollDice(ModifyDice):
+class RerollDice(ReprMixin, ModifyDice):
     """
     Define conditions when dice should be rerolled.
     Rerolls will be checked for impossible combinations:
@@ -1011,13 +1016,11 @@ class RerollDice(ModifyDice):
         reroll_once: The list of values that will trigger a single reroll.
     """
     WEIGHT = 3
+    _repr_keys = ['reroll_always', 'reroll_once']
 
     def __init__(self, *, reroll_always=None, reroll_once=None):
         self.reroll_always = reroll_always if reroll_always else []
         self.reroll_once = reroll_once if reroll_once else []
-
-    def __repr__(self):
-        return "RerollDice(reroll_always={!r}), reroll_once={!r}".format(self.reroll_always, self.reroll_once)
 
     @staticmethod
     def should_parse(line):
@@ -1078,7 +1081,7 @@ class RerollDice(ModifyDice):
         dice_list += new_list
 
 
-class KeepDrop(ModifyDice):
+class KeepDrop(ReprMixin, ModifyDice):
     """
     Keep or drop N high or low rolls.
 
@@ -1088,15 +1091,12 @@ class KeepDrop(ModifyDice):
         num: The number to keep or drop.
     """
     WEIGHT = 4
+    _repr_keys = ['keep', 'high', 'num']
 
     def __init__(self, *, keep=True, high=True, num=1):
         self.keep = keep
         self.high = high
         self.num = num
-
-    def __repr__(self):
-        return "KeepDrop(keep={!r}, high={!r}, num={!r})".format(
-            self.keep, self.high, self.num)
 
     @staticmethod
     def should_parse(line):
@@ -1138,13 +1138,11 @@ class SuccessFail(ModifyDice):
         mark: The method to invoke on the die to set state.
     """
     WEIGHT = 5
+    _repr_keys = ['pred', 'mark_success']
 
     def __init__(self, *, pred, mark_success=True):
         self.pred = pred
         self.mark = 'set_success' if mark_success else 'set_fail'
-
-    def __repr__(self):
-        return "SuccessFail(pred={!r}, mark_success={!r})".format(self.pred, self.mark)
 
     @staticmethod
     def should_parse(line):
@@ -1177,12 +1175,10 @@ class SortDice(ModifyDice):
         ascending: Sort will be in order from smallest to largest rolls.
     """
     WEIGHT = 6
+    _repr_keys = ['ascending']
 
     def __init__(self, *, ascending=True):
         self.ascending = ascending
-
-    def __repr__(self):
-        return "SortDice(ascending={!r})".format(self.ascending)
 
     @staticmethod
     def should_parse(line):

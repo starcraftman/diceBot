@@ -204,7 +204,7 @@ class DiceBot(discord.Client):
                 except dice.exc.ArgumentHelpError as exc2:
                     args = list(exc.args)
                     args += ['Invalid command use. Check the command help.']
-                    args += ['\n{}\n{}'.format(len(str(exc)) * '-', str(exc2))]
+                    args += [f"\n{len(str(exc)) * '-'}\n{str(exc2)}"]
             await self.send(channel, str(exc), ttl=True)
             try:
                 await message.delete()
@@ -225,7 +225,7 @@ class DiceBot(discord.Client):
                     pass
             else:
                 owner = channel.guild.owner.mention
-                await self.send(channel, "A critical discord error occurred, see log {}.".format(owner))
+                await self.send(channel, f"A critical discord error occurred, see log {owner}.")
             line = "Discord.py Library raised an exception"
             line += dice.exc.log_format(content=content, author=author, channel=channel)
             log.exception(line)
@@ -325,7 +325,7 @@ def main():  # pragma: no cover
         dice.util.init_logging()
         seeded = dice.util.seed_random()
         logging.getLogger('dice.bot').warning('Seeding numpy/random with: %s', str(seeded))
-        print('Seeding numpy/random with: {:,}'.format(seeded))
+        print(f'Seeding numpy/random with: {seeded:,}')
         bot = DiceBot("!")
         dice.util.BOT = bot
 

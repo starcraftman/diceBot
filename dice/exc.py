@@ -80,9 +80,9 @@ def log_format(*, content, author, channel):
     """ Log useful information from discord.py """
     msg = "{aut} sent {cmd} from {cha}/{srv}"
     msg += "\n    Discord ID: " + str(author.id)
-    msg += "\n    Username: {}#{}".format(author.name, author.discriminator)
+    msg += f"\n    Username: {author.name}#{author.discriminator}"
     for role in author.roles[1:]:
-        msg += "\n    {} on {}".format(role.name, role.guild.name)
+        msg += f"\n    {role.name} on {role.guild.name}"
 
     return msg.format(aut=author.display_name, cmd=content,
                       cha=channel, srv=channel.guild)
@@ -93,5 +93,5 @@ def write_log(exc, log, *, lvl='info', content, author, channel):
     Log all relevant message about this session.
     """
     log_func = getattr(log, getattr(exc, 'lvl', lvl), lvl)
-    header = '\n{}\n{}\n'.format(exc.__class__.__name__ + ': ' + str(exc), '=' * 20)
+    header = f"\n{exc.__class__.__name__ + ': ' + str(exc)}\n{'=' * 20}\n"
     log_func(header + log_format(content=content, author=author, channel=channel))

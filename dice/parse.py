@@ -64,13 +64,13 @@ def subs_help(subs, prefix):
 @register_parser
 def subs_m(subs, prefix):
     """ Subcommand parsing for math """
-    desc = """Evaluate some simple math operations.
+    desc = f"""Evaluate some simple math operations.
 
 {prefix}m 1 + 2
         Do simple math operations.
 {prefix}m 1 + 2, 55/5, 5 * 10
         Do several math operations.
-    """.format(prefix=prefix)
+    """
     sub = subs.add_parser(prefix + 'm', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Math')
     sub.add_argument('spec', nargs='+', help='The math operations.')
@@ -79,13 +79,13 @@ def subs_m(subs, prefix):
 @register_parser
 def subs_math(subs, prefix):
     """ Subcommand parsing for math """
-    desc = """Evaluate some simple math operations.
+    desc = f"""Evaluate some simple math operations.
 
 {prefix}math 1 + 2
         Do simple math operations.
 {prefix}math 1 + 2, 55/5, 5 * 10
         Do several math operations.
-    """.format(prefix=prefix)
+    """
     sub = subs.add_parser(prefix + 'math', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Math')
     sub.add_argument('spec', nargs='+', help='The math operations.')
@@ -160,7 +160,7 @@ def subs_math(subs, prefix):
 @register_parser
 def subs_roll(subs, prefix):
     """ Subcommand parsing for roll """
-    desc = """Evaluate some simple math operations.
+    desc = f"""Evaluate some simple math operations.
 
 Many modifiers support predicates to trigger,
 these include (r)eroll, (!)explosive dice, (!!)compounding dice and (f)ail and success declarations.
@@ -216,7 +216,7 @@ these include (r)eroll, (!)explosive dice, (!!)compounding dice and (f)ail and s
         Roll the saved roll associated with NameNoSpace.
 {prefix}roll 4d6 @user1 @user2
         Roll 4d6, only you, user1 and user2 will see the result in direct DMs by bot.
-    """.format(prefix=prefix)
+    """
     sub = subs.add_parser(prefix + 'roll', aliases=[prefix + 'r'], description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Roll')
     sub.add_argument('spec', nargs='*', help='The dice rolls specified.')
@@ -228,13 +228,13 @@ these include (r)eroll, (!)explosive dice, (!!)compounding dice and (f)ail and s
 @register_parser
 def subs_pf(subs, prefix):
     """ Subcommand parsing for searching pathfinder wiki """
-    desc = """Search something on Pathfinder Wiki.
+    desc = f"""Search something on Pathfinder Wiki.
 
 {prefix}pf arcane mark
         Search for "arcane mark" and return first 3 matches.
 {prefix}pf --num 5 arcane mark
         Search for "arcane mark" and return first 5 matches.
-    """.format(prefix=prefix)
+    """
     sub = subs.add_parser(prefix + 'pf', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='SearchWiki', url='PF_URL', wiki='Pathfinder Wiki')
     sub.add_argument('-n', '--num', type=int, default=5, help='Number of results.')
@@ -244,13 +244,13 @@ def subs_pf(subs, prefix):
 @register_parser
 def subs_pf2(subs, prefix):
     """ Subcommand parsing for searching pathfinder wiki """
-    desc = """Search something on Pathfinder 2e Wiki.
+    desc = f"""Search something on Pathfinder 2e Wiki.
 
 {prefix}pf2 arcane mark
         Search for "arcane mark" and return first 3 matches.
 {prefix}pf2 --num 5 arcane mark
         Search for "arcane mark" and return first 5 matches.
-    """.format(prefix=prefix)
+    """
     sub = subs.add_parser(prefix + 'pf2', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='PF2Wiki', url='PF2_URL', wiki='Pathfinder 2e Wiki')
     sub.add_argument('-n', '--num', type=int, default=5, help='Number of results.')
@@ -260,13 +260,13 @@ def subs_pf2(subs, prefix):
 @register_parser
 def subs_d5e(subs, prefix):
     """ Subcommand parsing for searching d&d5 wiki """
-    desc = """Search something on D&D 5e Wiki.
+    desc = f"""Search something on D&D 5e Wiki.
 
 {prefix}d5 arcane mark
         Search for "arcane mark" and return first 3 matches.
 {prefix}d5 --num 5 arcane mark
         Search for "arcane mark" and return first 5 matches.
-    """.format(prefix=prefix)
+    """
     sub = subs.add_parser(prefix + 'd5', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='SearchWiki', url='D5_URL', wiki='D&D 5e Wiki')
     sub.add_argument('-n', '--num', type=int, default=5, help='Number of results.')
@@ -276,13 +276,13 @@ def subs_d5e(subs, prefix):
 @register_parser
 def subs_star(subs, prefix):
     """ Subcommand parsing for searching starfinder wiki """
-    desc = """Search something on Starfinder Wiki.
+    desc = f"""Search something on Starfinder Wiki.
 
 {prefix}pf arcane mark
         Search for "arcane mark" and return first 3 matches.
 {prefix}pf --num 5 arcane mark
         Search for "arcane mark" and return first 5 matches.
-    """.format(prefix=prefix)
+    """
     sub = subs.add_parser(prefix + 'star', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='SearchWiki', url='STAR_URL', wiki='Starfinder Wiki')
     sub.add_argument('-n', '--num', type=int, default=5, help='Number of results.')
@@ -292,11 +292,11 @@ def subs_star(subs, prefix):
 @register_parser
 def subs_poni(subs, prefix):
     """ Subcommand parsing for poni """
-    desc = """Be magical!
+    desc = f"""Be magical!
 
 {prefix}poni tag_1, tag 2, tag of words
         Do something poniful!
-    """.format(prefix=prefix)
+    """
     sub = subs.add_parser(prefix + 'poni', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Poni')
     sub.add_argument('tags', nargs='+', help='To search.')
@@ -384,13 +384,13 @@ def subs_turn(subs, prefix):
 @register_parser
 def subs_n(subs, prefix):
     """ Subcommand parsing for n (alias for turn --next) """
-    desc = """Shortcut for !turn --next
+    desc = f"""Shortcut for !turn --next
 
 {prefix}n
         Show next turn player.
 {prefix}n num
         Show and advance next num players.
-    """.format(prefix=prefix)
+    """
     sub = subs.add_parser(prefix + 'n', description=desc, formatter_class=RawHelp)
     sub.add_argument('steps', nargs='?', type=int, default=1, help='Move n steps forward or back in turns.')
     sub.set_defaults(cmd='Turn', subcmd='next', steps=1)
@@ -422,7 +422,7 @@ def subs_n(subs, prefix):
 @register_parser
 def subs_timer(subs, prefix):
     """ Subcommand parsing for timer """
-    desc = """Set timers to remind you of things later!
+    desc = f"""Set timers to remind you of things later!
 
     Default warnings if timer greater than vvalue:
         Warn at 60 minutes to finish.
@@ -439,7 +439,7 @@ def subs_timer(subs, prefix):
 {prefix}timer 3:30 -w 60 -w 30 -d Tea timer
         Wait for 3:30 then mention user. Tea timer is set as the descritpion.
         User will be warned at 60 seconds and 30 seconds left.
-    """.format(prefix=prefix)
+    """
     sub = subs.add_parser(prefix + 'timer', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Timer')
     sub.add_argument('time', help='The time to wait.')
@@ -451,7 +451,7 @@ def subs_timer(subs, prefix):
 @register_parser
 def subs_timers(subs, prefix):
     """ Subcommand parsing for timers """
-    desc = """Manage your timers.
+    desc = f"""Manage your timers.
 
 {prefix}timers
         Print all active timers you've started.
@@ -459,7 +459,7 @@ def subs_timers(subs, prefix):
         Clear all active timers you've started.
 {prefix}timers --manage
         Interactively manage timers. Write 'done' to stop.
-    """.format(prefix=prefix)
+    """
     sub = subs.add_parser(prefix + 'timers', description=desc, formatter_class=RawHelp)
     sub.add_argument('-c', '--clear', action="store_true", help='Clear all timers.')
     sub.add_argument('-m', '--manage', action="store_true", help='Manage timers selectively.')
@@ -469,7 +469,7 @@ def subs_timers(subs, prefix):
 @register_parser
 def subs_pun(subs, prefix):
     """ Subcommand parsing for puns """
-    desc = """Manage the puns!
+    desc = f"""Manage the puns!
 
 {prefix}pun
         Print a randomly selected pun.
@@ -477,7 +477,7 @@ def subs_pun(subs, prefix):
         Add an amazing pun to the pun db.
 {prefix}pun --manage
         Interactively manage the puns in the db, deleting as you like.
-    """.format(prefix=prefix)
+    """
     sub = subs.add_parser(prefix + 'pun', description=desc, formatter_class=RawHelp)
     sub.add_argument('-a', '--add', nargs='+', help='Add the provided pun.')
     sub.add_argument('-m', '--manage', action="store_true", help='Manage puns selectively.')
@@ -502,7 +502,7 @@ def subs_pun(subs, prefix):
 @register_parser
 def subs_googly(subs, prefix):
     """ Subcommand parsing for googly!  """
-    desc = """Search youtube for songs to play.
+    desc = f"""Search youtube for songs to play.
 
 {prefix}o.o +5
 {prefix}o.o +5
@@ -514,7 +514,7 @@ def subs_googly(subs, prefix):
         Set the number of used googly eyes.
 {prefix}o.o
         Show the overall status of googly eyes.
-    """.format(prefix=prefix)
+    """
     sub = subs.add_parser(prefix + 'o.o', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Googly')
     sub.add_argument('--set', type=int, help='Set the total googly eyes.')
@@ -525,7 +525,7 @@ def subs_googly(subs, prefix):
 @register_parser
 def subs_reroll(subs, prefix):
     """ Subcommand parsing for rerolls  """
-    desc = """Search youtube for songs to play.
+    desc = f"""Search youtube for songs to play.
 
 {prefix}reroll
         Reroll the last roll you issued.
@@ -535,7 +535,7 @@ def subs_reroll(subs, prefix):
         Reroll a roll made two rolls ago.
 {prefix}reroll --menu
         Browse the list of rolls you made and select one.
-    """.format(prefix=prefix)
+    """
     sub = subs.add_parser(prefix + 'reroll', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Reroll')
     sub.add_argument('--menu', action='store_true', help='Select reroll from reverse menu.')
@@ -545,7 +545,7 @@ def subs_reroll(subs, prefix):
 @register_parser
 def subs_movies(subs, prefix):
     """ Subcommand parsing for movie rolling  """
-    desc = """Randomly select a movie from a saved list.
+    desc = f"""Randomly select a movie from a saved list.
 
 {prefix}movies roll
         Roll for a random movie from your own list. Shows result, removes movie.
@@ -561,7 +561,7 @@ def subs_movies(subs, prefix):
         Show the list of movies stored for current user.
 {prefix}movies show -s
         Show the list of movies stored for current user. Uses format can be editted for update subcommand.
-    """.format(prefix=prefix)
+    """
     sub = subs.add_parser(prefix + 'movies', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Movies', short=False)
     subsub = sub.add_subparsers(title='sub-subcommands',

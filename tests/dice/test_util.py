@@ -1,3 +1,4 @@
+# pylint: disable=redefined-outer-name,missing-function-docstring,unused-argument
 """
 Test util the grab all module.
 """

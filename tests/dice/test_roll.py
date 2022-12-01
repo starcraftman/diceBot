@@ -1,3 +1,4 @@
+# pylint: disable=redefined-outer-name,missing-function-docstring,unused-argument
 """
 Tests for dice rolling in dice.roll
 """

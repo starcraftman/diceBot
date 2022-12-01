@@ -1,11 +1,10 @@
+# pylint: disable=redefined-outer-name,missing-function-docstring,unused-argument
 """
 Used for pytest fixtures and anything else test setup/teardown related.
 """
 from __future__ import absolute_import, print_function
 import datetime
 import sys
-import tempfile
-import os
 
 import aiomock
 import discord
@@ -72,7 +71,7 @@ class FakeObject():
     @classmethod
     def next_id(cls):
         cls.oid += 1
-        return '{}-{}'.format(cls.__name__, cls.oid)
+        return f'{cls.__name__}-{cls.oid}'
 
     def __init__(self, name, id=None):
         if not id:
@@ -81,10 +80,10 @@ class FakeObject():
         self.name = name
 
     def __repr__(self):
-        return "{}: {} {}".format(self.__class__.__name__, self.id, self.name)
+        return f"{self.__class__.__name__}: {self.id} {self.name}"
 
     def __str__(self):
-        return "{}: {}".format(self.__class__.__name__, self.name)
+        return f"{self.__class__.__name__}: {self.name}"
 
 
 class Guild(FakeObject):
