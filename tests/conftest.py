@@ -174,10 +174,10 @@ def fake_guilds():
     """ Generate fake discord guilds for testing. """
     guild = Guild("Gears' Hideout")
     channels = [
-        Channel("general", guild=guild),
-        Channel("dev", guild=guild),
-        Channel("gaming", guild=guild),
-        Channel("voice1", guild=guild, type=discord.ChannelType.voice),
+        Channel("general", id=4, guild=guild),
+        Channel("dev", id=1, guild=guild),
+        Channel("gaming", id=2, guild=guild),
+        Channel("voice1", id=3, guild=guild, type=discord.ChannelType.voice),
     ]
     for cha in channels:
         guild.add(cha)
@@ -189,7 +189,7 @@ def fake_msg_gears(content):
     """ Generate fake message with GearsandCogs as author. """
     guild = fake_guilds()[0]
     roles = [Role('Everyone', guild), Role('Cookie Lord', guild)]
-    aut = Member("GearsandCogs", roles, id="1000")
+    aut = Member("GearsandCogs", roles, id=1000)
     return Message(content, aut, guild, guild.channels[1], None)
 
 
@@ -197,11 +197,11 @@ def fake_msg_newuser(content):
     """ Generate fake message with GearsandCogs as author. """
     guild = fake_guilds()[0]
     roles = [Role('Everyone', guild), Role('Fighter', guild)]
-    aut = Member("newuser", roles, id="1003")
+    aut = Member("newuser", roles, id=1003)
     return Message(content, aut, guild, guild.channels[1], None)
 
 
-def fake_msg(content, user_id='1', name='User1', voice=False):
+def fake_msg(content, user_id=1, name='User1', voice=False):
     """ Generate fake message with GearsandCogs as author. """
     guild = fake_guilds()[0]
     roles = [Role('Everyone', guild), Role('Fighter', guild)]
@@ -212,7 +212,7 @@ def fake_msg(content, user_id='1', name='User1', voice=False):
     return Message(content, aut, guild, guild.channels[1], None)
 
 
-def fixed_id_fake_msg(content, user_id='1', name='User1', voice=False):
+def fixed_id_fake_msg(content, user_id=1, name='User1', voice=False):
     """ Generate fake message with GearsandCogs as author. """
     guild = fake_guilds()[0]
     roles = [Role('Everyone', guild), Role('Fighter', guild)]
@@ -220,9 +220,8 @@ def fixed_id_fake_msg(content, user_id='1', name='User1', voice=False):
     if voice:
         aut.voice = VoiceState('Voice ' + aut.name, is_afk=False, voice_channel=guild.channels[-1])
 
-    guild.id = 'a_guild'
     for ind, chan in enumerate(guild.channels):
-        chan.id = 'a_channel_{}'.format(ind)
+        chan.id = ind
     return Message(content, aut, guild, guild.channels[1], None)
 
 
@@ -341,7 +340,7 @@ async def f_puns(test_db):
     Fixture to insert some test Puns.
     """
     puns = (
-        {'discord_id': 0, 'puns': [
+        {'discord_id': 1, 'puns': [
             {'text': "First pun", 'hits': 0},
             {'text': 'Second pun', 'hits': 2},
             {'text': 'Third pun', 'hits': 7},
@@ -362,10 +361,10 @@ async def f_saved_rolls(test_db):
     Remember to put DUsers in.
     """
     rolls = [
-        {'name': 'Crossbow', 'roll': 'd20 + 7, d8', 'discord_id': 0},
-        {'name': 'Staff', 'roll': 'd20 + 7, d8', 'discord_id': 0},
-        {'name': 'LongSword', 'roll': 'd20 + 7, d8', 'discord_id': 1},
-        {'name': 'Dagger', 'roll': 'd20 + 7, d8', 'discord_id': 2},
+        {'name': 'Crossbow', 'roll': 'd20 + 7, d8', 'discord_id': 1},
+        {'name': 'Staff', 'roll': 'd20 + 3, d8 - 2', 'discord_id': 1},
+        {'name': 'LongSword', 'roll': 'd20 + 7, d8', 'discord_id': 2},
+        {'name': 'Dagger', 'roll': 'd20 + 7, d8', 'discord_id': 3},
     ]
     await test_db.rolls_saved.insert_many(rolls)
 
@@ -402,7 +401,7 @@ async def f_movies(test_db):
     Fixture to insert some test Googly objects.
     """
     movies = (
-        {"discord_id": 0, "name": "Movies", "entries": ["Toy Story", "Forest Gump", "A New Hope"]},
+        {"discord_id": 1, "name": "Movies", "entries": ["Toy Story", "Forest Gump", "A New Hope"]},
         {"discord_id": 2, "name": "Movies", "entries": ["Star Trek"]},
     )
     await test_db.lists.insert_many(movies)

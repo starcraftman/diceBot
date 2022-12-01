@@ -7,7 +7,6 @@ from __future__ import absolute_import, print_function
 import asyncio
 import concurrent.futures
 import datetime
-import inspect
 import json
 import logging
 import math
@@ -57,7 +56,7 @@ class Action():
         self.bot = kwargs['bot']
         self.msg = kwargs['msg']
         self.log = logging.getLogger('dice.actions')
-        self.db = dicedb.get_db_client(with_database='dice')
+        self.db = dicedb.get_db_client()
 
     @property
     def discord_id(self):
@@ -69,7 +68,7 @@ class Action():
         """
         An id representing the originating channel.
         """
-        return '{}_{}'.format(self.msg.guild.id, self.msg.channel.id)
+        return self.msg.channel.id
 
     @property
     def guild_id(self):
@@ -103,36 +102,35 @@ class Help(Action):
         over = [
             'Here is an overview of my commands.',
             '',
-            'For more information do: `{}Command -h`'.format(prefix),
-            '       Example: `{}drop -h`'.format(prefix),
+            f'For more information do: `{prefix}Command -h`',
+            f'       Example: `{prefix}drop -h`',
             '',
         ]
         lines = [
             ['Command', 'Effect'],
-            ['{prefix}d5', 'Search on the D&D 5e wiki'],
-            #  ['{prefix}effect', 'Add an effect to a user in turn order'],
-            #  ['{prefix}e', 'Alias for `!effect`'],
-            ['{prefix}math', 'Do some math operations'],
-            #  ['{prefix}music', 'Play songs from youtube and server.'],
-            #  ['{prefix}m', 'Alias for `!music`'],
-            #  ['{prefix}n', 'Alias for `!turn --next`'],
-            ['{prefix}pf', 'Search on the Pathfinder wiki'],
-            ['{prefix}pf2', 'Search on the Pathfinder 2e wiki'],
-            ['{prefix}poni', 'Pony?!?!'],
-            ['{prefix}pun', 'Prepare for pain!'],
-            ['{prefix}roll', 'Roll a dice like: 2d6 + 5'],
-            ['{prefix}reroll', 'Reroll previous rolls'],
-            ['{prefix}r', 'Alias for `!roll`'],
-            #  ['{prefix}songs', 'Create manage song lookup.'],
-            ['{prefix}star', 'Search on the Starfinder wiki.'],
-            ['{prefix}status', 'Show status of bot including uptime'],
-            ['{prefix}timer', 'Set a timer for HH:MM:SS in future'],
-            ['{prefix}timers', 'See the status of all YOUR active timers'],
-            #  ['{prefix}turn', 'Manager turn order for pen and paper combat'],
-            ['{prefix}help', 'This help message'],
-            ['{prefix}o.o', 'Funny eyes ?!?'],
+            [f'{prefix}d5', 'Search on the D&D 5e wiki'],
+            #  [f'{prefix}effect', 'Add an effect to a user in turn order'],
+            #  [f'{prefix}e', 'Alias for `!effect`'],
+            [f'{prefix}math', 'Do some math operations'],
+            #  [f'{prefix}music', 'Play songs from youtube and server.'],
+            [f'{prefix}m', 'Alias for `!math`'],
+            [f'{prefix}n', 'Alias for `!turn --next`'],
+            [f'{prefix}pf', 'Search on the Pathfinder wiki'],
+            [f'{prefix}pf2', 'Search on the Pathfinder 2e wiki'],
+            [f'{prefix}poni', 'Pony?!?!'],
+            [f'{prefix}pun', 'Prepare for pain!'],
+            [f'{prefix}roll', 'Roll a dice like: 2d6 + 5'],
+            [f'{prefix}reroll', 'Reroll previous rolls'],
+            [f'{prefix}r', 'Alias for `!roll`'],
+            #  [f'{prefix}songs', 'Create manage song lookup.'],
+            [f'{prefix}star', 'Search on the Starfinder wiki.'],
+            [f'{prefix}status', 'Show status of bot including uptime'],
+            [f'{prefix}timer', 'Set a timer for HH:MM:SS in future'],
+            [f'{prefix}timers', 'See the status of all YOUR active timers'],
+            [f'{prefix}turn', 'Manager turn order for pen and paper combat'],
+            [f'{prefix}help', 'This help message'],
+            [f'{prefix}o.o', 'Funny eyes ?!?'],
         ]
-        lines = [[line[0].format(prefix=prefix), line[1]] for line in lines]
 
         response = '\n'.join(over) + dice.tbl.wrap_markdown(dice.tbl.format_table(lines, header=True))
         await self.reply(response, ttl=True)
@@ -151,7 +149,7 @@ class Status(Action):
         lines = [
             ['Created By', 'GearsandCogs'],
             ['Uptime', self.bot.uptime],
-            ['Version', '{}'.format(dice.__version__)],
+            ['Version', f'{dice.__version__}'],
         ]
 
         await self.reply(dice.tbl.wrap_markdown(dice.tbl.format_table(lines)))
@@ -166,7 +164,7 @@ class Math(Action):
         for line in ' '.join(self.args.spec).split(','):
             line = line.strip()
             if re.match(r'[^0-9 \(\)+-/*]', line):
-                resp += ["'{}' looks suspicious. Allowed characters: 0-9 ()+-/*".format(line)]
+                resp += [f"'{line}' looks suspicious. Allowed characters: 0-9 ()+-/*"]
                 continue
 
             # FIXME: Dangerous, but re blocking anything not simple maths.
@@ -227,8 +225,9 @@ class Poni(Action):
         msg = "No images found!"
 
         tags = re.split(r'\s*,\s*|\s*,|,s*', self.msg.content.replace(self.bot.prefix + 'poni ', ''))
-        full_tag = "?q=" + "%2C+".join(tags + ["safe"])
+        full_tag = "?q=" + "%2C".join(tags).replace(" ", "+")
         full_url = os.path.join(PONI_JSON, "search", "images", full_tag)
+        logging.getLogger(__name__).info("Poni retrieving: %s", full_url)
 
         async with aiohttp.ClientSession() as session:
             async with session.get(full_url) as resp:
@@ -236,11 +235,11 @@ class Poni(Action):
                 total_imgs = json.loads(resp_text)['total']
 
             if total_imgs == 1:
-                page_ind, img_ind = 1, 1
+                page_ind, img_ind = 1, 0
             elif total_imgs:
                 total_ind = rand.randint(0, total_imgs - 1)
-                page_ind = math.ceil(total_ind / PONI_PER_PAGE)
-                img_ind = total_ind % PONI_PER_PAGE
+                page_ind = math.ceil(total_ind / PONI_PER_PAGE + 0.01)
+                img_ind = (total_ind) % PONI_PER_PAGE
 
             if page_ind:
                 full_url += f'&page={page_ind}&per_page={PONI_PER_PAGE}'
@@ -340,9 +339,9 @@ class Timer(Action):
 
     def __repr__(self):
         keys = ['description', 'start', 'end', 'last_msgs', 'triggers']
-        kwargs = ['{}={!r}'.format(key, getattr(self, key)) for key in keys]
+        kwargs = [f'{key}={getattr(self, key)!r}' for key in keys]
 
-        return "Timer({})".format(', '.join(kwargs))
+        return f"Timer({', '.join(kwargs)})"
 
     def __eq__(self, other):
         return self.key == other.key
@@ -388,7 +387,7 @@ class Timer(Action):
             A list of the form:
                 [[trigger_date, msg_to_user], [trigger_date, msg_to_user], ...]
         """
-        msg = "{}: Timer '{}'".format(self.msg.author.mention, self.description)
+        msg = f"{self.msg.author.mention}: Timer '{self.description}'"
 
         if self.args.offsets is None:
             self.args.offsets = TIMER_OFFSETS
@@ -398,7 +397,7 @@ class Timer(Action):
         triggers = []
         for offset in offsets:
             trigger = self.end + datetime.timedelta(seconds=offset)
-            triggers.append([trigger, msg + " has {} time remaining!".format(self.end - trigger)])
+            triggers.append([trigger, msg + f" has {self.end - trigger} time remaining!"])
 
         triggers.append([self.end, msg + " has expired. Do something meatbag!"])
 
@@ -453,11 +452,11 @@ class TimersMenu(dice.util.PagingMenu):
     Manage the timers the user has active.
     """
     def menu(self):
-        header = """**Timers Management**
-Page {}/{}
-Select a timer to cancel from [1..{}]:
+        header = f"""**Timers Management**
+Page {self.page}/{self.total_pages}
+Select a timer to cancel from [1..{len(self.cur_entries)}]:
 
-""".format(self.page, self.total_pages, len(self.cur_entries))
+"""
         return header + timer_summary(TIMERS, self.msg.author.name) + dice.util.PAGING_FOOTER
 
     async def handle_msg(self, user_select):
@@ -501,24 +500,24 @@ class Turn(Action):
         """
         try:
             chars = [x.strip() for x in ' '.join(self.args.chars).split(',')]
-        except ValueError:
-            raise dice.exc.InvalidCommandArgs("Please check format of command.")
+        except ValueError as exc:
+            raise dice.exc.InvalidCommandArgs("Please check format of command.") from exc
 
         if tracker:
             dice.turn.combat_tracker_add_chars(tracker, chars)
         else:
-            tracker = dice.turn.combat_tracker_generate(discord_id=self.discord_id, channel_id=self.msg.channel.id, chars=chars)
+            tracker = dice.turn.combat_tracker_generate(discord_id=self.discord_id, channel_id=self.chan_id, chars=chars)
         await dicedb.query.update_turn_order(client, discord_id=self.discord_id,
-                                             channel_id=self.msg.channel.id, combat_tracker=tracker)
+                                             channel_id=self.chan_id, combat_tracker=tracker)
 
-        return 'Characters added to tracker.'
+        return 'Added to the tracker: ' + ', '.join([x[:x.index('/')] for x in chars])
 
     async def clear(self, client, _):
         """
         Clear the turn order.
         """
-        await dicedb.query.remove_turn_order(client, discord_id=self.discord_id, channel_id=self.msg.channel.id)
-        return 'Combat tracker cleaed.'
+        await dicedb.query.remove_turn_order(client, discord_id=self.discord_id, channel_id=self.chan_id)
+        return 'Combat tracker cleared.'
 
     async def next(self, client, tracker):
         """
@@ -529,8 +528,9 @@ class Turn(Action):
 
         tracker = dice.turn.combat_tracker_move(tracker, self.args.steps)
         await dicedb.query.update_turn_order(client, discord_id=self.discord_id,
-                                             channel_id=self.msg.channel.id, combat_tracker=tracker)
-        return dice.turn.combat_tracker_format(tracker)
+                                             channel_id=self.chan_id, combat_tracker=tracker)
+        turn = tracker['turns'][0]
+        return f"**Next User**\n{turn['name']} ({turn['init']}): {turn['roll']}"
 
     async def remove(self, client, tracker):
         """
@@ -538,12 +538,12 @@ class Turn(Action):
         """
         try:
             chars = [x.strip() for x in ' '.join(self.args.chars).split(',')]
-        except ValueError:
-            raise dice.exc.InvalidCommandArgs("Please check format of command.")
+        except ValueError as exc:
+            raise dice.exc.InvalidCommandArgs("Please check format of command.") from exc
 
         dice.turn.combat_tracker_remove_chars(tracker, chars)
         await dicedb.query.update_turn_order(client, discord_id=self.discord_id,
-                                             channel_id=self.msg.channel.id, combat_tracker=tracker)
+                                             channel_id=self.chan_id, combat_tracker=tracker)
 
         return 'Removed from the tracker: ' + ', '.join(chars)
 
@@ -560,19 +560,19 @@ class Turn(Action):
                 found = [x for x in tracker['turns'] if x['name'].lower() == name.lower()]
                 if found:
                     changed = True
-                    found[0]['roll'] = roll
+                    found[0]['roll'] = float(roll)
 
-        except ValueError:
-            raise dice.exc.InvalidCommandArgs("Please check format of command.")
+        except ValueError as exc:
+            raise dice.exc.InvalidCommandArgs("Please check format of command.") from exc
 
         if changed:
             await dicedb.query.update_turn_order(client, discord_id=self.discord_id,
-                                                 channel_id=self.msg.channel.id, combat_tracker=tracker)
+                                                 channel_id=self.chan_id, combat_tracker=tracker)
 
         return "Updated characters with new inits."
 
     async def execute(self):
-        tracker = await dicedb.query.get_turn_order(self.db, discord_id=self.discord_id, channel_id=self.msg.channel.id)
+        tracker = await dicedb.query.get_turn_order(self.db, discord_id=self.discord_id, channel_id=self.chan_id)
         if self.args.subcmd == 'n':
             self.args.subcmd = 'next'
 
@@ -582,7 +582,7 @@ class Turn(Action):
             if tracker:
                 msg = dice.turn.combat_tracker_format(tracker)
             else:
-                msg = 'No combat begun.'
+                raise dice.exc.InvalidCommandArgs("No combat has begun!")
 
         await self.reply(msg)
 
@@ -684,12 +684,12 @@ class PunMenu(dice.util.PagingMenu):
     Manage the puns in the database.
     """
     def menu(self):
-        header = """**Pun Management**
-Page {}/{}
-Select a pun to remove by number [1..{}]:
+        header = f"""**Pun Management**
+Page {self.page}/{self.total_pages}
+Select a pun to remove by number [1..{len(self.cur_entries)}]:
 
 
-""".format(self.page, self.total_pages, len(self.cur_entries))
+"""
         return format_pun_list(header, self.cur_entries, dice.util.PAGING_FOOTER, cnt=1)
 
     async def handle_msg(self, user_select):
@@ -752,14 +752,14 @@ class RerollMenu(dice.util.PagingMenu):
     Select a youtube video to play from search results.
     """
     def menu(self):
-        msg = """**Last {} Rolls**
-Page {}/{}
-Select a roll by number [1..{}]:
+        msg = f"""**Last {LIMIT_REROLLS} Rolls**
+Page {self.page}/{self.total_pages}
+Select a roll by number [1..{len(self.cur_entries)}]:
 
-""".format(LIMIT_REROLLS, self.page, self.total_pages, len(self.cur_entries))
+"""
 
         for cnt, entry in enumerate(self.cur_entries, start=1):
-            msg += "    {cnt}) {spec}\n".format(cnt=cnt, spec=entry['roll'])
+            msg += f"    {cnt}) {entry['roll']}\n"
         msg = msg.rstrip()
         msg += dice.util.PAGING_FOOTER
 
@@ -792,9 +792,8 @@ class Reroll(Action):
                 if self.args.offset > -1:
                     raise IndexError
                 selected = list(reversed(rolls['history']))[self.args.offset]
-            except IndexError:
-                raise dice.exc.InvalidCommandArgs("Please select a negative offset from : [-1, -{}]".
-                                                  format(LIMIT_REROLLS))
+            except IndexError as exc:
+                raise dice.exc.InvalidCommandArgs(f"Please select a negative offset from : [-1, -{LIMIT_REROLLS}]") from exc
 
         msg = "**Reroll Result**\n\n" + '\n'.join(await make_rolls(selected['roll']))
         await self.reply(msg)
@@ -1305,12 +1304,12 @@ def timer_summary(timers, name):
     Returns:
         A string that summarizes name's timers.
     """
-    msg = "Active timers for __{}__:\n\n".format(name)
+    msg = f"Active timers for __{name}__:\n\n"
 
     user_timers = [x for x in timers.values() if name in x.key]
     if user_timers:
         for ind, timer in enumerate(user_timers, start=1):
-            msg += "  **{}**) ".format(ind) + str(timer)
+            msg += f"  **{ind}**) {timer}"
     else:
         msg += "**None**"
 
@@ -1331,9 +1330,9 @@ def parse_time_spec(time_spec):
         secs += int(t_spec[0])
         secs += int(t_spec[1]) * 60
         secs += int(t_spec[2]) * 3600
-    except (IndexError, ValueError):
+    except (IndexError, ValueError) as exc:
         if secs == 0:
-            raise dice.exc.InvalidCommandArgs("I can't understand time spec! Use format: **HH:MM:SS**")
+            raise dice.exc.InvalidCommandArgs("I can't understand time spec! Use format: **HH:MM:SS**") from exc
 
     return secs
 

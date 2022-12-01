@@ -62,6 +62,21 @@ def subs_help(subs, prefix):
 
 
 @register_parser
+def subs_m(subs, prefix):
+    """ Subcommand parsing for math """
+    desc = """Evaluate some simple math operations.
+
+{prefix}m 1 + 2
+        Do simple math operations.
+{prefix}m 1 + 2, 55/5, 5 * 10
+        Do several math operations.
+    """.format(prefix=prefix)
+    sub = subs.add_parser(prefix + 'm', description=desc, formatter_class=RawHelp)
+    sub.set_defaults(cmd='Math')
+    sub.add_argument('spec', nargs='+', help='The math operations.')
+
+
+@register_parser
 def subs_math(subs, prefix):
     """ Subcommand parsing for math """
     desc = """Evaluate some simple math operations.
@@ -377,31 +392,31 @@ def subs_n(subs, prefix):
         Show and advance next num players.
     """.format(prefix=prefix)
     sub = subs.add_parser(prefix + 'n', description=desc, formatter_class=RawHelp)
-    sub.add_argument('next', nargs='?', default='zero', help='Advance n chars in order.')
-    sub.set_defaults(cmd='Turn', add=False, clear=False, next=True, remove=False)
+    sub.add_argument('steps', nargs='?', type=int, default=1, help='Move n steps forward or back in turns.')
+    sub.set_defaults(cmd='Turn', subcmd='next', steps=1)
 
 
-@register_parser
-def subs_effect(subs, prefix):
-    """ Subcommand parsing for effect """
-    desc = """Track effects on characters in the turn order.
-Any text is allowed, the number following is the number of turns to persist.
-The turn counter will decrement at the end of a character's turn.
+#  @register_parser
+#  def subs_effect(subs, prefix):
+    #  """ Subcommand parsing for effect """
+    #  desc = """Track effects on characters in the turn order.
+#  Any text is allowed, the number following is the number of turns to persist.
+#  The turn counter will decrement at the end of a character's turn.
 
-{prefix}effect Char1, Char2 --add Poison/3, Stun/3
-        Add the poison and stun effects to the characters for 3 turns each.
-{prefix}effect Char1 --remove Poison, Stun
-        Remove the poison and stun effects for the characters.
-{prefix}effect Char1 --update Poison/1, Stun/1
-        Update the poison effect for the characters to 1 turn left.
-    """.format(prefix=prefix)
-    sub = subs.add_parser(prefix + 'effect', aliases=[prefix + 'e'],
-                          description=desc, formatter_class=RawHelp)
-    sub.set_defaults(cmd='Effect')
-    sub.add_argument('targets', nargs='*', help='Users to target with effects.')
-    sub.add_argument('-a', '--add', nargs='+', help='Add effects for the user.')
-    sub.add_argument('-r', '--remove', nargs='+', help='remove the effect from a user.')
-    sub.add_argument('-u', '--update', nargs='+', help='Update the effects turns for user.')
+#  {prefix}effect Char1, Char2 --add Poison/3, Stun/3
+        #  Add the poison and stun effects to the characters for 3 turns each.
+#  {prefix}effect Char1 --remove Poison, Stun
+        #  Remove the poison and stun effects for the characters.
+#  {prefix}effect Char1 --update Poison/1, Stun/1
+        #  Update the poison effect for the characters to 1 turn left.
+    #  """.format(prefix=prefix)
+    #  sub = subs.add_parser(prefix + 'effect', aliases=[prefix + 'e'],
+                          #  description=desc, formatter_class=RawHelp)
+    #  sub.set_defaults(cmd='Effect')
+    #  sub.add_argument('targets', nargs='*', help='Users to target with effects.')
+    #  sub.add_argument('-a', '--add', nargs='+', help='Add effects for the user.')
+    #  sub.add_argument('-r', '--remove', nargs='+', help='remove the effect from a user.')
+    #  sub.add_argument('-u', '--update', nargs='+', help='Update the effects turns for user.')
 
 
 @register_parser

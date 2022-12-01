@@ -250,7 +250,7 @@ async def randomly_select_pun(client, discord_id):
     choice = numpy.random.randint(0, len(puns['puns']))
     puns['puns'][choice]['hits'] += 1
     await client.puns.replace_one(
-        {'discord_id': puns['discord_id']},
+        {'discord_id': discord_id},
         puns
     )
 

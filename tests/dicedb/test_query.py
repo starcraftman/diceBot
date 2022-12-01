@@ -46,7 +46,7 @@ async def test_find_saved_roll(test_db, f_dusers, f_saved_rolls):
 
 @pytest.mark.asyncio
 async def test_find_all_saved_rolls(test_db, f_dusers, f_saved_rolls):
-    results = [x['name'] for x in await dicedb.query.find_all_saved_rolls(test_db, 0)]
+    results = [x['name'] for x in await dicedb.query.find_all_saved_rolls(test_db, 1)]
 
     assert 'Crossbow' in results
     assert 'Staff' in results
@@ -63,10 +63,10 @@ async def test_remove_saved_roll(test_db, f_dusers, f_saved_rolls):
 
 @pytest.mark.asyncio
 async def test_update_saved_roll(test_db, f_dusers, f_saved_rolls):
-    await dicedb.query.update_saved_roll(test_db, 0, 'Crossbow', 'd20 + 12, d8')
-    new_roll = await dicedb.query.find_saved_roll(test_db, 0, 'Crossbow')
+    await dicedb.query.update_saved_roll(test_db, 1, 'Crossbow', 'd20 + 12, d8')
+    new_roll = await dicedb.query.find_saved_roll(test_db, 1, 'Crossbow')
     assert new_roll['name'] == 'Crossbow'
-    assert new_roll['discord_id'] == 0
+    assert new_roll['discord_id'] == 1
     assert new_roll['roll'] == 'd20 + 12, d8'
 
 
@@ -82,14 +82,14 @@ async def test_update_saved_roll_not_exists(test_db, f_saved_rolls):
 
 @pytest.mark.asyncio
 async def test_add_pun(test_db, f_dusers, f_puns):
-    await dicedb.query.add_pun(test_db, 0, 'A new pun')
-    existing = await dicedb.query.get_all_puns(test_db, 0)
+    await dicedb.query.add_pun(test_db, 1, 'A new pun')
+    existing = await dicedb.query.get_all_puns(test_db, 1)
     assert 'A new pun' == existing['puns'][-1]['text']
 
 
 @pytest.mark.asyncio
 async def test_get_all_puns(test_db, f_dusers, f_puns):
-    puns = await dicedb.query.get_all_puns(test_db, 0)
+    puns = await dicedb.query.get_all_puns(test_db, 1)
     assert {'hits': 2, 'text': 'Second pun'} in puns['puns']
     assert len(puns['puns']) == 3
 
@@ -98,17 +98,17 @@ async def test_get_all_puns(test_db, f_dusers, f_puns):
 
 @pytest.mark.asyncio
 async def test_remove_pun(test_db, f_dusers, f_puns):
-    assert len(await dicedb.query.get_all_puns(test_db, 0)) == 3
-    await dicedb.query.remove_pun(test_db, 0, 'Third pun')
-    left = await dicedb.query.get_all_puns(test_db, 0)
+    assert len(await dicedb.query.get_all_puns(test_db, 1)) == 3
+    await dicedb.query.remove_pun(test_db, 1, 'Third pun')
+    left = await dicedb.query.get_all_puns(test_db, 1)
     assert len(left['puns']) == 2
     assert 'Second pun' == left['puns'][-1]['text']
 
 
 @pytest.mark.asyncio
 async def test_randomly_select_pun(test_db, f_dusers, f_puns):
-    assert 'pun' in await dicedb.query.randomly_select_pun(test_db, 0)
-    after = await dicedb.query.get_all_puns(test_db, 0)
+    assert 'pun' in await dicedb.query.randomly_select_pun(test_db, 1)
+    after = await dicedb.query.get_all_puns(test_db, 1)
     assert f_puns[0]['puns'] != after['puns']
 
 
@@ -120,8 +120,8 @@ async def test_randomly_select_pun_raises(test_db, f_dusers):
 
 @pytest.mark.asyncio
 async def test_check_for_pun_dupe(test_db, f_dusers, f_puns):
-    assert await dicedb.query.check_for_pun_dupe(test_db, 0, 'First pun')
-    assert not await dicedb.query.check_for_pun_dupe(test_db, 0, 'Not there.')
+    assert await dicedb.query.check_for_pun_dupe(test_db, 1, 'First pun')
+    assert not await dicedb.query.check_for_pun_dupe(test_db, 1, 'Not there.')
 
 
 @pytest.mark.asyncio
@@ -193,14 +193,14 @@ async def test_update_googly(test_db, f_googly):
 
 @pytest.mark.asyncio
 async def test_get_list(test_db, f_movies):
-    db_movies = await dicedb.query.get_list(test_db, 0, 'Movies')
+    db_movies = await dicedb.query.get_list(test_db, 1, 'Movies')
     assert len(db_movies['entries']) == 3
 
 
 @pytest.mark.asyncio
 async def test_add_list_entries_exists(test_db, f_movies):
-    await dicedb.query.add_list_entries(test_db, 0, 'Movies', ['Bad Boys'])
-    all_movies = await dicedb.query.get_list(test_db, 0, 'Movies')
+    await dicedb.query.add_list_entries(test_db, 1, 'Movies', ['Bad Boys'])
+    all_movies = await dicedb.query.get_list(test_db, 1, 'Movies')
     assert len(all_movies['entries']) == 4
     assert all_movies['entries'][-1] == 'Bad Boys'
 
@@ -216,8 +216,8 @@ async def test_add_list_entries_not_exists(test_db, f_movies):
 
 @pytest.mark.asyncio
 async def test_remove_list_entries(test_db, f_movies):
-    await dicedb.query.remove_list_entries(test_db, 0, 'Movies', ['Toy Story', 'Bad Boys'])
-    all_movies = await dicedb.query.get_list(test_db, 0, 'Movies')
+    await dicedb.query.remove_list_entries(test_db, 1, 'Movies', ['Toy Story', 'Bad Boys'])
+    all_movies = await dicedb.query.get_list(test_db, 1, 'Movies')
 
     assert len(all_movies['entries']) == 2
     assert 'Toy Story' not in all_movies['entries']

@@ -8,6 +8,7 @@ See: https://motor.readthedocs.io/en/stable/tutorial-asyncio.html
 """
 import os
 import pathlib
+import sys
 
 import certifi
 import motor.motor_asyncio
@@ -17,6 +18,12 @@ ROOT = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
 CERT_URL = pathlib.Path(os.path.join(ROOT, 'atlasCert.url.private'))
 CERT_PAT = pathlib.Path(os.path.join(ROOT, 'atlasCert.private'))
 PASS_PAT = pathlib.Path(os.path.join(ROOT, 'atlasPass.private'))
+
+DEFAULT_DB = 'dice'
+TEST_DB = False
+if 'pytest' in sys.modules:
+    DEFAULT_DB = 'test_dice'
+    TEST_DB = True
 
 
 def get_db_client(with_database='dice'):
@@ -44,6 +51,8 @@ def get_db_client(with_database='dice'):
         with open(PASS_PAT, encoding='utf-8') as fin:
             client = motor.motor_asyncio.AsyncIOMotorClient(fin.read().strip())
 
+    if with_database and TEST_DB:
+        with_database = DEFAULT_DB
     if with_database:
         client = client[with_database]
 

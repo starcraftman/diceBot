@@ -25,7 +25,7 @@ handlers:
     <<: *default_handler
     level: DEBUG
     filename: /tmp/dice/main.log
-  err_stream:
+  info_stream:
     class: logging.StreamHandler
     level: INFO
     formatter: custom
@@ -37,8 +37,8 @@ loggers:
     handlers: [asyncio]
   dice:
     level: DEBUG
-    handlers: [dice, err_stream]
+    handlers: [dice, info_stream]
 
-# root:
-  # level: ERROR
-  # handlers: [err_stream]
+root:
+  level: INFO
+  handlers: [info_stream]
