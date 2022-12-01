@@ -167,6 +167,19 @@ async def add_roll_history(client, discord_id, *, entries, limit=100):
     )
 
 
+async def update_roll_history(client, rolls):
+    """Replace the rolls made for a given user by the rolls object itself.
+
+    Args:
+        client: A connection onto the db.
+        rolls: The roll history object.
+    """
+    return await client.rolls_made.replace_one(
+        {'discord_id': rolls['discord_id']},
+        rolls,
+    )
+
+
 async def check_for_pun_dupe(client, discord_id, pun):
     """Returns True IFF the text already exists in users pun list.
 

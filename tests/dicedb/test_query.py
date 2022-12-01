@@ -128,7 +128,15 @@ async def test_check_for_pun_dupe(test_db, f_dusers, f_puns):
 @pytest.mark.asyncio
 async def test_get_roll_history(test_db, f_dusers, f_lastrolls):
     rolls = await dicedb.query.get_roll_history(test_db, 1)
-    assert len(rolls['history']) == 3
+    rolls['history'] = [
+        {'roll': 'd20 + 5, d10 + 2', 'result': '19, 11'},
+        {'roll': 'd20 + 5, d10 + 2', 'result': '19, 11'},
+        {'roll': 'd20 + 5, d10 + 2', 'result': '19, 11'},
+        {'roll': 'd20 + 5, d10 + 2', 'result': '19, 11'},
+    ]
+    rolls = await dicedb.query.update_roll_history(test_db, rolls)
+    rolls = await dicedb.query.get_roll_history(test_db, 1)
+    assert len(rolls['history']) == 4
 
     rolls = await dicedb.query.get_roll_history(test_db, NEW_DISCORDID)
     assert not rolls['history']
@@ -143,6 +151,19 @@ async def test_add_roll_history(test_db, f_dusers, f_lastrolls):
 
     assert entries[0] == found['history'][-1]
     assert entries[0] != found['history'][-2]
+
+
+@pytest.mark.asyncio
+async def test_update_roll_history(test_db, f_dusers, f_lastrolls):
+    rolls = await dicedb.query.get_roll_history(test_db, 1)
+    rolls['history'] = [
+        {'roll': 'd20 + 5, d10 + 2', 'result': '19, 11'},
+        {'roll': 'd20 + 5, d10 + 2', 'result': '19, 11'},
+    ]
+    await dicedb.query.update_roll_history(test_db, rolls)
+
+    new_rolls = await dicedb.query.get_roll_history(test_db, 1)
+    assert new_rolls['history'][-1]['result'] == '19, 11'
 
 
 @pytest.mark.asyncio

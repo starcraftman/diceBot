@@ -100,10 +100,12 @@ async def test_cmd_d5(f_bot):
     await action_map(msg, f_bot).execute()
 
     expect = """Searching D&D 5e Wiki: **detect magic**
-Top 3 Results:
+Top 5 Results:
 
 Detect Magic – 5th Edition SRD
-      <https://www.5esrd.com/spellcasting/all-spells/d/detect-magic/>"""
+      <https://www.5esrd.com/database/spell/detect-magic/>
+Traps – 5th Edition SRD
+      <https://www.5esrd.com/gamemastering/traps/>"""
 
     assert expect in str(f_bot.send.call_args).replace("\\n", "\n")
 
@@ -266,7 +268,7 @@ async def test_cmd_pun_add_dupe(test_db, f_bot, f_puns):
 
 
 @pytest.mark.asyncio
-async def test_cmd_roll(f_bot):
+async def test_cmd_roll(f_bot, f_saved_rolls):
     msg = fake_msg_gears("!roll 3: 2d6 + 3")
 
     await action_map(msg, f_bot).execute()
@@ -282,7 +284,7 @@ async def test_cmd_roll(f_bot):
 
 
 @pytest.mark.asyncio
-async def test_cmd_roll_alias(f_bot):
+async def test_cmd_roll_alias(f_bot, f_saved_rolls):
     msg = fake_msg_gears("!r 3: 2d6 + 3")
 
     await action_map(msg, f_bot).execute()
