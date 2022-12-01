@@ -490,154 +490,97 @@ class Timers(Action):
             await self.reply(timer_summary(TIMERS, self.msg.author.name))
 
 
-#  class Turn(Action):
-    #  """
-    #  Manipulate a turn order tracker.
-    #  """
-    #  def add(self, session, order):
-        #  """
-        #  Add users to an existing turn order,
-        #  start a new turn order if needed.
-        #  """
-        #  parts = ' '.join(self.args.add).split(',')
+class Turn(Action):
+    """
+    Manipulate a turn order tracker.
+    """
+    async def add(self, client, order):
+        """
+        Add users to an existing turn order,
+        start a new turn order if needed.
+        """
+        parts = ' '.join(self.args.add).split(',')
 
-        #  if not order:
-            #  order = dice.turn.TurnOrder()
-            #  parts += dicedb.query.generate_inital_turn_users(session, self.chan_id)
 
-        #  order.add_all(dice.turn.parse_turn_users(parts))
-        #  dicedb.query.update_turn_order(session, self.chan_id, order)
 
-        #  return str(order)
+    async def clear(self, client, _):
+        """
+        Clear the turn order.
+        """
+        await dicedb.query.remove_turn_order(client, discord_id=self.discord_id, channel_id=self.msg.channel_id)
+        return 'Turn order cleared.'
 
-    #  def clear(self, session, _):
-        #  """
-        #  Clear the turn order.
-        #  """
-        #  dicedb.query.remove_turn_order(session, self.chan_id)
-        #  return 'Turn order cleared.'
+    def next(self, _, order):
+        """
+        Advance the turn order next places.
+        """
+        if self.args.next < 1:
+            raise dice.exc.InvalidCommandArgs('!next requires number in range [1, +∞]')
 
-    #  def mod(self, session, _):
-        #  """
-        #  Update a user's initiative modifier.
-        #  """
-        #  dicedb.query.update_turn_char(session, str(self.msg.author.id),
-                                      #  self.chan_id, modifier=self.args.mod)
-        #  return 'Updated **modifier** for {} to: {}'.format(self.msg.author.name, self.args.mod)
+        text, cnt = '', self.args.next
+        while cnt:
+            text += self.__single_next(_, order) + '\n\n'
+            cnt -= 1
 
-    #  def name(self, session, _):
-        #  """
-        #  Update a user's character name for turn order.
-        #  """
-        #  name_str = ' '.join(self.args.name)
-        #  dicedb.query.update_turn_char(session, str(self.msg.author.id),
-                                      #  self.chan_id, name=name_str)
-        #  return 'Updated **name** for {} to: {}'.format(self.msg.author.name, name_str)
+        return text.rstrip()
 
-    #  def __single_next(self, session, order):
-        #  """
-        #  Advance the turn order.
-        #  """
-        #  msg = ''
-        #  if order.cur_user:
-            #  effects = order.cur_user.decrement_effects()
-            #  if effects:
-                #  msg += 'The following effects expired for **{}**:\n'.format(order.cur_user.name)
-                #  pad = '\n' + ' ' * 8
-                #  msg += pad + pad.join([x.text for x in effects]) + '\n\n'
+    def remove(self, client, order):
+        """
+        Remove one or more users from turn order.
+        """
+        users = ' '.join(self.args.remove).split(',')
+        removed = []
+        for user in users:
+            removed += [order.remove(user)]
 
-        #  msg += '**Next User**\n' + str(order.next())
+        dicedb.query.update_turn_order(client, self.chan_id, order)
 
-        #  dicedb.query.update_turn_order(session, self.chan_id, order)
+        msg = 'Removed the following users:\n'
+        return msg + '\n  - ' + '\n  - '.join([x.name for x in removed])
 
-        #  return msg
+    def update(self, client, order):
+        """
+        Update one or more character's init for this turn order.
+        Usually used for some spontaneous change or DM decision.
+        """
+        msg = 'Updated the following users:\n'
+        for spec in ' '.join(self.args.update).split(','):
+            try:
+                part_name, new_init = spec.split('/')
+                changed = order.update_user(part_name.strip(), new_init.strip())
+                msg += '    Set __{}__ to {}\n'.format(changed.name, changed.init)
+            except ValueError:
+                raise dice.exc.InvalidCommandArgs("See usage, incorrect arguments.")
 
-    #  def next(self, _, order):
-        #  """
-        #  Advance the turn order next places.
-        #  """
-        #  if self.args.next < 1:
-            #  raise dice.exc.InvalidCommandArgs('!next requires number in range [1, +∞]')
+        dicedb.query.update_turn_order(client, self.chan_id, order)
 
-        #  text, cnt = '', self.args.next
-        #  while cnt:
-            #  text += self.__single_next(_, order) + '\n\n'
-            #  cnt -= 1
+        return msg
 
-        #  return text.rstrip()
+    async def execute(self):
+        existing = await dicedb.query.get_turn_order(self.db, discord_id=self.discord_id, channel_id=self.msg.channel.id)
+        if not existing and not self.args.add:
+            raise dice.exc.InvalidCommandArgs(f'Start combat with: {self.prefix}turn')
 
-    #  def remove(self, session, order):
-        #  """
-        #  Remove one or more users from turn order.
-        #  """
-        #  users = ' '.join(self.args.remove).split(',')
-        #  removed = []
-        #  for user in users:
-            #  removed += [order.remove(user)]
+        try:
+            # Non-numeric default is 'zero', when arg not provided is None
+            try:
+                self.args.next = int(self.args.next)
+            except TypeError:
+                self.args.next = 1
+            msg = getattr(self, 'next')(self.db, existing)
+        except (AttributeError, ValueError):
+            pass
 
-        #  dicedb.query.update_turn_order(session, self.chan_id, order)
+        if self.args.add:
+            await self.add()
+        elif self.args.remove:
+            await self.remove():
+        elif: self.args.update:
+            await self.update():
+        else:
+            await self.clear()
 
-        #  msg = 'Removed the following users:\n'
-        #  return msg + '\n  - ' + '\n  - '.join([x.name for x in removed])
-
-    #  def unset(self, session, _):
-        #  """
-        #  Unset the default character you set for the channel.
-        #  """
-        #  dicedb.query.remove_turn_char(session, str(self.msg.author.id),
-                                      #  self.chan_id)
-
-        #  return "Removed you from the default turn order."
-
-    #  def update(self, session, order):
-        #  """
-        #  Update one or more character's init for this turn order.
-        #  Usually used for some spontaneous change or DM decision.
-        #  """
-        #  msg = 'Updated the following users:\n'
-        #  for spec in ' '.join(self.args.update).split(','):
-            #  try:
-                #  part_name, new_init = spec.split('/')
-                #  changed = order.update_user(part_name.strip(), new_init.strip())
-                #  msg += '    Set __{}__ to {}\n'.format(changed.name, changed.init)
-            #  except ValueError:
-                #  raise dice.exc.InvalidCommandArgs("See usage, incorrect arguments.")
-
-        #  dicedb.query.update_turn_order(session, self.chan_id, order)
-
-        #  return msg
-
-    #  async def execute(self):
-        #  dicedb.query.ensure_duser(self.session, self.msg.author)
-
-        #  order = dice.turn.parse_order(dicedb.query.get_turn_order(self.session, self.chan_id))
-        #  msg = str(order) if order else 'No turn order to report.'
-
-        #  if not order and (self.args.next != 'zero' or self.args.remove):
-            #  raise dice.exc.InvalidCommandArgs('Please add some users first.')
-
-        #  try:
-            #  # Non-numeric default is 'zero', when arg not provided is None
-            #  try:
-                #  self.args.next = int(self.args.next)
-            #  except TypeError:
-                #  self.args.next = 1
-            #  msg = getattr(self, 'next')(self.session, order)
-        #  except (AttributeError, ValueError):
-            #  pass
-
-        #  methods = [x[0] for x in inspect.getmembers(self, inspect.ismethod)
-                   #  if x[0] not in ['__init__', 'execute', '__single_next', 'next']]
-        #  for name in methods:
-            #  try:
-                #  var = getattr(self.args, name)
-                #  if var is not None and var is not False:  # 0 is allowed for init
-                    #  msg = getattr(self, name)(self.session, order)
-                    #  break
-            #  except AttributeError:
-                #  pass
-
-        #  await self.reply(msg)
+        await self.reply(msg)
 
 
 #  class Effect(Action):

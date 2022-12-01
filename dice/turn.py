@@ -2,468 +2,223 @@
 Implement a simple turn order manager.
 """
 from __future__ import absolute_import, print_function
-from functools import total_ordering
 
 import numpy.random as rand
 
-import dice.exc
 import dice.tbl
 
 COLLIDE_INCREMENT = 0.01
+ROLL_LIMIT = 8
 
 
-def break_init_tie(user1, user2, *, increment=COLLIDE_INCREMENT):
+def compare_turns(left, right):
     """
-    Resolve a tie of two player inits according to Pathfinder rules.
-        Highest modifier if they differ goes first.
-        If same modifier, keep rolling until different.
-
-    Loser of tie will have their init reduced by increment.
-
-    Args:
-        user1: A TurnUser with the same init as user2.
-        user2: A TurnUser with the same init as user1.
-
-    Returns:
-        (winner, loser) - Ordered tuple, winner won the tie.
+    Comparison function to compare two roll objects. Assumed to have the same number of rolls.
     """
-    if user1.modifier > user2.modifier:
-        winner, loser = user1, user2
-
-    elif user1.modifier < user2.modifier:
-        winner, loser = user2, user1
-
-    else:
-        old_init = user1.init
-        while user1.init == user2.init:
-            user1.roll_init()
-            user2.roll_init()
-
-        winner, loser = reversed(sorted([user1, user2]))
-        user1.init = user2.init = old_init
-
-    loser.init -= increment
-    return (winner, loser)
+    return left['rolls'] <= right['rolls']
 
 
-def find_user_by_name(users, name_part):
+def merge_turn_lists(left, right):
     """
-    Loosely match against all users names name_part.
-    Return the one user that matches exactly.
+    Merge two list of turn objects (i.e. turns from combat tracker).
+    Left list will be used as a base and right merged in. Hence left has slightly higher priority.
 
-    Raises:
-        InvalidCommandArgs: No user matched, or too many matched due to looseness.
-
-    Returns:
-        [ind, user]
-            ind: The position in the users list.
-            user: The TurnUser that matched.
+    :param left [TODO:type]: [TODO:description]
+    :param right [TODO:type]: [TODO:description]
     """
-    possible = []
-    for ind, user in enumerate(users):
-        if name_part in user.name:
-            possible += [(ind, user)]
+    merged = []
+    base = sorted(left, key=compare_turns, reverse=True)
+    to_add = sorted(right, key=compare_turns, reverse=True)
 
-    if len(possible) != 1:
-        if not possible:
-            msg = "No user matches: " + name_part
-        else:
-            msg = "Unable to match exactly 1 user. Be more specific."
+    while to_add or base:
+        if to_add and base and to_add[0]['rolls'] > base[0]['rolls']:
+            merged += [to_add[0]]
+            to_add = to_add[1:]
 
-        raise dice.exc.InvalidCommandArgs(msg)
+        elif to_add and base and to_add[0]['rolls'] < base[0]['rolls']:
+            merged += [base[0]]
+            base = base[1:]
 
-    return possible[0]
+        # When new characters roll equal, depriorize adding characters
+        elif to_add and base and to_add[0]['rolls'] == base[0]['rolls']:
+            merged += [base[0]]
+            base = base[1:]
+            to_add[0]['roll'] -= COLLIDE_INCREMENT
+
+        elif to_add and not base:
+            merged += [to_add[0]]
+            to_add = to_add[1:]
+
+        elif base and not to_add:
+            merged += [base[0]]
+            base = base[1:]
+
+    return merged
 
 
-def users_same_init(users):
+def roll_init(*, init, num_dice=1, sides_dice=20, times=1):
     """
-    Return a list of users that have inits that are the same.
+    Roll initiative for a particular user. Default 1d20 + init
 
-    Args:
-        users: A list of TurnUsers.
-
-    Returns:
-        Returns a list of different TurnUsers with the same init.
+    :param init int: The initiative modifier for a character.
+    :param dice int: The amount of dice to roll for initiative. A spec of form: mdn where m number of dice, n sides. Default d20
+    :param times int: The number of init rolls to make.
+    :returns: A list of rolled initiatives as floats.
+    :rtype: [float]
     """
-    inits = [x.init for x in users]
-    for init in set(inits):
-        inits.remove(init)
-    inits = list(set(inits))
+    if num_dice < 1 or sides_dice < 2 or times < 1:
+        raise ValueError(f"Please select a valid num_dice and sides_dice. Rejecting: {times} x {num_dice}d{sides_dice}")
 
-    return [x for x in users if x.init in inits]
+    values = []
+    while times:
+        value = init
+        for _ in range(0, num_dice):
+            value += rand.randint(1, sides_dice)
+
+        values += [float(value)]
+        times -= 1
+
+    return values
 
 
-def parse_turn_users(parts):
+def order_based_on_rolls(turns):
     """
-    Parse users based on a textual specification.
-    Expected format of parts:
-        [name/modifier, name/modifier/premade_roll, ...]
+    Order a list of turn objects by the rolls made.
+    It will pad up the rolls made to match the most made rolls.
+    Last roll will be repeated until pad finished.
 
-    Raises:
-        InvalidCommandArgs - Improper format found.
-
-    Returns:
-        A list of TurnUsers that matched the specification.
+    :param turns [turn, turn, ...]: A list of turn objects with 'rolls' field, a list of integers.
+    :returns: The turns list passed in sorted in order of initiative.
+    :rtype: [turn, turn, ...]
     """
-    users = []
-    try:
-        while parts:
-            roll = None
-            subparts = parts[0].split('/')
+    pad = max(len(x['rolls']) for x in turns)
+    for turn in turns:
+        roll_diff = pad - len(turn['rolls'])
+        if roll_diff:
+            turn['rolls'] += roll_init(init=turn['init'], times=roll_diff)
 
-            if len(subparts) == 3:
-                name, modifier, roll = subparts[0].strip(), int(subparts[1]), int(subparts[2])
-            elif len(subparts) == 2:
-                name, modifier = subparts[0].strip(), int(subparts[1])
-            else:
-                raise dice.exc.InvalidCommandArgs("Improperly formatted, missing information.")
-
-            users += [dice.turn.TurnUser(name, modifier, roll)]
-            parts = parts[1:]
-    except ValueError:
-        raise dice.exc.InvalidCommandArgs("Improperly formatted, attempted to parse an integer and failed.")
-
-    return users
+    return sorted(turns, key=compare_turns, reverse=True)
 
 
-def parse_order(order_str):
+def combat_tracker_generate(discord_id, channel_id, chars):
     """
-    Given a repr string representing a TurnOrder, return the object.
+    Generate an initial turn order for combat trackers
 
-    Args:
-        order_str: A string that contains a pickled TurnOrder object.
+    The list of chars comes in following form:
+        - Rogue Guy/7 -> Character named Rogue Guy, has init of 7.
+        - Rogue Guy/7/21 -> Character named Rogue Guy, has init of 7 and rolled 21 elsewhere.
 
-    Return:
-        If the string is actually a parsable TurnOrder, return the object. Otherwise return None
+    :param client motor.motor_asyncio.AsyncIOMotorClient: The client onto the db
+    :param discord_id int: The discord id of controlling user
+    :param channel_id int: The channel id of where command was invoked
+    :param chars [str]: A list of strings defining the initial users
+    :returns: The combat tracker of the chracters with fully rolled results.
+    :rtype: A dictionary object.
     """
-    if order_str and order_str.startswith('TurnOrder('):
-        return eval(order_str)
+    tracker = {'discord_id': discord_id, 'channel_id': channel_id, 'turns': []}
+    combat_tracker_add_chars(tracker, chars)
+    tracker['turns'] = sorted(tracker['turns'], key=lambda x: x['roll'], reverse=True)
 
-    return None
+    return tracker
 
 
-@total_ordering
-class TurnEffect():
+def combat_tracker_break_ties(tracker):
     """
-    An effect that expires after a number of turns or combat.
+    Look through the generated tracker and resolve any intiative ties.
 
-    Attributes:
-        text: A string that describes the effect.
-        turns: An integer number of turns.
+    :param tracker Object: The tracker object.
+    :returns: The combat tracker of the chracters with fully rolled results.
+    :rtype: A dictionary object.
     """
-    def __init__(self, text, turns):
-        self.text = text
-        self.turns = turns
-
-    def __str__(self):
-        return '{}: {}'.format(self.text, self.turns)
-
-    def __repr__(self):
-        return "TurnEffect(text={!r}, turns={!r})".format(self.text, self.turns)
-
-    def __eq__(self, other):
-        return self.text == other.text
-
-    def __lt__(self, other):
-        return self.text < other.text
-
-    def __hash__(self):
-        return hash(self.text)
-
-    def __add__(self, num):
-        return TurnEffect(self.text, self.turns + num)
-
-    def __sub__(self, num):
-        return TurnEffect(self.text, self.turns - num)
-
-    def __radd__(self, num):
-        return self + num
-
-    def __iadd__(self, num):
-        self.turns += num
-        return self
-
-    def __isub__(self, num):
-        self.turns -= num
-        return self
-
-    def is_expired(self):
-        """
-        An effect is expired if the remaining turns < 1.
-        """
-        return self.turns < 1
-
-
-@total_ordering
-class TurnUser():
-    """
-    A user in a TurnOrder.
-    Has a unique name and an initiative roll.
-
-    Attributes:
-        name: The name of the character.
-        modifier: The initiative modifier to be added to the roll.
-        init: The rolled initiative, rolled automatically on creation.
-        effects: A list of TurnEffects active on the character.
-    """
-    def __init__(self, name, modifier, init=None, effects=None):
-        self.name = name
-        self.modifier = modifier
-        self.init = init
-        self.effects = []
-
-        if not init:
-            self.init = self.roll_init()
-        if effects:
-            self.effects = effects
-
-    def __str__(self):
-        effects = ''
-        if self.effects:
-            pad = '\n' + ' ' * 8
-            effects = pad + pad.join(str(x) for x in self.effects)
-        return '{} ({}): {:.2f}{}'.format(self.name, self.modifier, self.init, effects)
-
-    def __repr__(self):
-        return 'TurnUser(name={!r}, modifier={!r}, init={!r}, effects={!r})'.format(
-            self.name, self.modifier, self.init, self.effects)
-
-    def __eq__(self, other):
-        return (self.name, self.modifier, self.init) == (other.name, other.modifier, other.init)
-
-    def __ne__(self, other):
-        return (self.name, self.modifier, self.init) != (other.name, other.modifier, other.init)
-
-    def __lt__(self, other):
-        return self.init < other.init
-
-    def roll_init(self):
-        """
-        Roll d20 + init modifier to determine character initiative.
-        Sets the result before returning it.
-
-        Returns:
-            The character's rolled initiative, an integer.
-        """
-        self.init = rand.randint(1, 21) + self.modifier
-
-        return self.init
-
-    def add_effect(self, text, turns):
-        """
-        Add an effect to user for a number of turns.
-
-        Args:
-            text: An arbitrary name for the effect, should be unique.
-            turns: An integer number of turns >= 1.
-
-        Raises:
-            InvalidCommandArgs: Malformed user input.
-        """
-        if turns < 1:
-            raise dice.exc.InvalidCommandArgs('Turn amount must be > 0.')
-        if text in [x.text for x in self.effects]:
-            raise dice.exc.InvalidCommandArgs('Please choose a unique text for effect.')
-
-        self.effects += [TurnEffect(text, turns)]
-
-    def update_effect(self, find_text, new_turns):
-        """
-        Update any matching name for new amount of turns.
-
-        Args:
-            find_text: The text that matches TurnEffect.text
-            new_turns: The new amount of turns for the effect.
-        """
-        for effect in self.effects:
-            if effect.text == find_text:
-                effect.turns = new_turns
-
-    def remove_effect(self, find_text):
-        """
-        Remove an effect from the user.
-
-        Args:
-            find_text: The text that matches TurnEffect.text
-        """
-        self.effects = [x for x in self.effects if x.text != find_text]
-
-    def decrement_effects(self):
-        """
-        Turn has finished, decrement all effect counters.
-
-        Returns:
-            A list of all TurnEffects that expired.
-        """
-        finished = []
-        for effect in self.effects:
-            effect -= 1
-            if effect.is_expired():
-                finished += [effect]
-
-        for effect in finished:
-            self.effects.remove(effect)
-
-        return finished
-
-
-class TurnOrder():
-    """
-    Model the turn order for combat in Pathfinder.
-    A turn order is composed of TurnUser objects.
-
-    Attributes:
-        user: The list of TurnUsers that are egaged in the encounter.
-        user_index: The index that points to the current user.
-    """
-    def __init__(self, users=None, user_index=0):
-        """
-        Unless recreating an object, always use add() or add_all().
-        """
-        if not users:
-            users = []
-        self.users = users
-        self.user_index = user_index
-
-    def __str__(self):
-        msg = '__**Turn Order**__\n\n'
-
-        rows = [['name', 'mod.', 'init']]
-        for user in self.users:
-            name = user.name
-            if self.cur_user and user == self.cur_user:
-                name = '> {} <'.format(user.name)
-            modifier = '{}{}'.format('+' if user.modifier >= 0 else '', user.modifier)
-            init = '{:0.2f}'.format(user.init)
-            rows += [[name, modifier, init]]
-
-        msg += dice.tbl.wrap_markdown(dice.tbl.format_table(rows, header=True))
-
-        return msg
-
-    def __repr__(self):
-        return 'TurnOrder(users={!r}, user_index={!r})'.format(self.users, self.user_index)
-
-    @property
-    def cur_user(self):
-        """
-        The current user who should take their turn.
-
-        Returns:
-            None if no users set, else the current TurnUser who is active.
-        """
-        if not self.users:
-            return None
-
-        return self.users[self.user_index]
-
-    def add(self, user):
-        """
-        Add a user to the turn order, resolve any collisions with initiative.
-
-        Args:
-            user: TurnUser to add to the list of users.
-
-        Raises:
-            InvalidCommandArgs: The new user would have same name as an existing one.
-        """
-        if user.name in [x.name for x in self.users]:
-            raise dice.exc.InvalidCommandArgs("Cannot have two users with same name.")
-
-        self.users.append(user)
-
-        conflicts = users_same_init(self.users)
-        while conflicts:
-            self.__resolve_collision(conflicts)
-            conflicts = users_same_init(self.users)
-
-        self.users = list(reversed(sorted(self.users)))
-
-    def add_all(self, users):
-        """
-        Add all users to the turn order.
-
-        Args:
-            users: A list of TurnUsers to add to the users list.
-
-        See TurnUser.add() for details.
-        """
-        for user in users:
-            self.add(user)
-
-    def remove(self, name_part):
-        """
-        Remove a user from the turn order.
-
-        Args:
-            name_part: A substring of a TurnUser.name to look for.
-
-        Raises:
-            InvalidCommandArgs: name_part was not found in the users or too many names matched.
-
-        Returns:
-            The removed user.
-        """
-        ind, user = find_user_by_name(self.users, name_part)
-
-        if user == self.users[-1]:
-            self.user_index = 0
-        elif ind < self.user_index:
-            self.user_index -= 1
-        self.users.remove(user)
-
-        return user
-
-    def update_user(self, name_part, new_init):
-        """
-        Update a user's final init, will retain the same modifier.
-
-        Args:
-            name_part: A substring of a TurnUser.name to look for.
-            new_init: The new initiative to give the selected TurnUser.
-
-        Raises:
-            InvalidCommandArgs: name_part was not found in the users or too many names matched.
-
-        Returns:
-            The user that was updated.
-        """
-        _, matched = find_user_by_name(self.users, name_part)
-
+    conflicts = {}
+    for turn in tracker['turns']:
         try:
-            matched.init = int(new_init)
-            self.users = list(reversed(sorted(self.users)))
-            return matched
-        except ValueError:
-            raise dice.exc.InvalidCommandArgs("Unable to update init, provide valid integer.")
+            conflicts[turn['roll']] += [turn]
+        except KeyError:
+            conflicts[turn['roll']] = [turn]
 
-    def next(self):
-        """
-        Advance to the next user in the order.
+    for _, turns in conflicts.items():
+        if len(turns) >= 2:
+            turns = resolve_tie(turns)
 
-        Raises:
-            InvalidCommandArgs: No users in the turn order.
+    return tracker
 
-        Returns:
-            The TurnUser who should take their turn.
-        """
-        if not self.users:
-            raise dice.exc.InvalidCommandArgs("Add some users first!")
 
-        self.user_index = (self.user_index + 1) % len(self.users)
+def combat_tracker_add_chars(tracker, chars):
+    """
+    Given a tracker, add characters to it.
+    After adding characters will always resolve ties on added characters.
 
-        return self.cur_user
+    The list of chars comes in following form:
+        - Rogue Guy/7 -> Character named Rogue Guy, has init of 7.
+        - Rogue Guy/7/21 -> Character named Rogue Guy, has init of 7 and rolled 21 elsewhere.
 
-    def __resolve_collision(self, conflicts):
-        """
-        Resolve a collision of inits amongst conflicts.
+    :param tracker dict: A combat tracker object.
+    :param chars [str]: List of characters to add in required specification format.
+    """
+    to_add = []
+    for chara in chars:
+        parts = chara.split('/')
+        name, init = parts[0], int(parts[1])
+        if len(parts) > 2:
+            roll = float(parts[2])
+            rolls = [roll, init + roll] + roll_init(init=init, times=ROLL_LIMIT)
+        else:
+            rolls = roll_init(init=init, times=ROLL_LIMIT + 1)
+            rolls = rolls[0:1] + [rolls[0] + init] + rolls[1:]
+            roll = rolls[0]
+        to_add += [{
+            'name': name,
+            'init': init,
+            'roll': roll,
+            'rolls': rolls,
+        }]
 
-        Args:
-            conflicts: A list of TurnUsers with the same inits.
-        """
-        break_init_tie(*conflicts)
+    tracker['turns'] = merge_turn_lists(tracker['turns'], to_add)
 
-        conflicts = users_same_init(self.users)
-        while conflicts:
-            self.__resolve_collision(conflicts)
-            conflicts = users_same_init(self.users)
+    return tracker
+
+
+def combat_tracker_remove_chars(tracker, chars):
+    """
+    Given a tracker, remove characters from it.
+
+    :param tracker dict: A combat tracker object.
+    :param chars [str]: List of names to remove.
+    """
+    to_remove = [x.lower() for x in chars]
+    tracker['turns'] = [x for x in tracker['turns'] if x['name'].lower() not in to_remove]
+
+    return tracker
+
+
+def combat_tracker_format(tracker):
+    """
+    Format the combat tracker for presentation on discord.
+
+    :param tracker dict: The combat tracker.
+    """
+    lines = [['Name', 'Init', 'Roll']]
+    lines += [[x['name'], x['init'], x['roll']] for x in tracker['turns']]
+    return dice.tbl.wrap_markdown(dice.tbl.format_table(lines, header=True))
+
+
+def combat_tracker_move(tracker, steps):
+    """
+    Move the combat tracker forward or backward by steps.
+    A negative integer will move it backward that many steps.
+
+    :param tracker dict: The combat tracker.
+    :param steps int: The number of steps to move forward or back.
+    """
+    if steps > 0:
+        while steps:
+            tracker['turns'] = tracker['turns'][1:] + [tracker['turns'][0]]
+            steps -= 1
+    if steps < 0:
+        steps = abs(steps)
+        while steps:
+            tracker['turns'] = [tracker['turns'][-1]] + tracker['turns'][0:-1]
+            steps -= 1
+
+    return tracker

@@ -5,485 +5,132 @@ import pytest
 
 import dice.exc
 import dice.turn
-from dice.turn import TurnUser, TurnOrder, TurnEffect
 
 
-def test_break_init_tie_modifier_differ():
-    user = TurnUser('Chris', 7)
-    user.init = 27
-    user2 = TurnUser('Orc', 2)
-    user2.init = 27
+def test_roll_init():
+    rolls = dice.turn.roll_init(init=5, num_dice=2, sides_dice=30)
+    assert len(rolls) == 1
+    assert rolls[0] >= 7
+    assert rolls[0] <= 65
+
+
+def test_roll_init_many():
+    rolls = dice.turn.roll_init(init=5, num_dice=2, sides_dice=30, times=9)
+    assert len(rolls) == 9
+    assert rolls[-1] >= 7
+    assert rolls[-1] <= 65
+
+
+def test_resolve_tie():
+    turns = [
+        {'init': 5, 'name': 'Rogue Guy', 'roll': 21.0, 'rolls': [21.0]},
+        {'init': 7, 'name': 'Wizard Boy', 'roll': 21.0, 'rolls': [21.0]},
+    ]
+    result = dice.turn.resolve_tie(turns)
+    assert result[0]['roll'] == 21.0
+    assert result[0]['name'] == 'Wizard Boy'
+    assert result[1]['roll'] == 20.99
+    assert result[1]['name'] == 'Rogue Guy'
+
+
+def test_resolve_tie_roll_off():
+    turns = [
+        {'init': 5, 'name': 'Rogue Guy', 'roll': 21.0, 'rolls': [21.0]},
+        {'init': 5, 'name': 'Wizard Boy', 'roll': 21.0, 'rolls': [21.0]},
+        {'init': 5, 'name': 'Fighter Dude', 'roll': 21.0, 'rolls': [21.0]},
+    ]
+    result = dice.turn.resolve_tie(turns)
+
+    assert result[0]['roll'] == 21.0
+    assert result[1]['roll'] == 20.99
+    assert result[2]['roll'] == 20.98
+
+
+def test_roll_off():
+    init_and_roll = {26: [
+        {'init': 5, 'name': 'Rogue Guy', 'roll': 21.0, 'rolls': [21.0, 26.0]},
+        {'init': 5, 'name': 'Wizard Boy', 'roll': 21.0, 'rolls': [21.0, 26.0]},
+        {'init': 5, 'name': 'Fighter Dude', 'roll': 21.0, 'rolls': [21.0, 26.0]},
+    ]}
+    result = dice.turn.roll_off(init_and_roll, 26)
+    turns = sorted(result[26], key=lambda x: x['roll'], reverse=True)
+    assert turns[0]['roll'] == 21.0
+    assert turns[1]['roll'] == 20.99
+    assert turns[2]['roll'] == 20.98
+
+
+def test_order_based_on_rolls():
+    turns = [
+        {'init': 5, 'name': 'Rogue Guy', 'roll': 21.0, 'rolls': [15]},
+        {'init': 5, 'name': 'Wizard Boy', 'roll': 21.0, 'rolls': [14, 12, 10]},
+        {'init': 5, 'name': 'Fighter Dude', 'roll': 21.0, 'rolls': [14, 12, 15]},
+    ]
+    ordered = dice.turn.order_based_on_rolls(turns)
+    assert ['Rogue Guy', 'Fighter Dude', 'Wizard Boy'] == [x['name'] for x in ordered]
+
+
+def test_combat_tracker_generate():
+    tracker = dice.turn.combat_tracker_generate(1, 1, ['Wizard Boy/7', 'Fighter Dude/3', 'Rogue Guy/5/21'])
+    assert tracker['discord_id'] == 1
+    assert tracker['channel_id'] == 1
+    wizard = [x for x in tracker['turns'] if x['name'] == 'Wizard Boy'][0]
+    assert wizard['roll'] >= 7 and wizard['roll'] <= 27
+
+
+def test_combat_tracker_break_ties_init():
+    tracker = {
+        'channel_id': 1,
+        'discord_id': 1,
+        'turns': [
+            {'effects': '', 'init': 5, 'name': 'Rogue Guy', 'roll': 21.0, 'rolls': [21.0]},
+            {'effects': '', 'init': 7, 'name': 'Wizard Boy', 'roll': 21.0, 'rolls': [21.0]},
+            {'effects': '', 'init': 3, 'name': 'Fighter Dude', 'roll': 5.0, 'rolls': [5.0]}
+        ]
+    }
+    result = dice.turn.combat_tracker_break_ties(tracker)
+    result['turns'] = sorted(result['turns'], key=lambda x: x['roll'], reverse=True)
+    assert result['turns'][0]['roll'] == 21.0
+    assert result['turns'][1]['roll'] == 20.99
+
+
+def test_combat_tracker_add_chars_empty():
+    tracker = dice.turn.combat_tracker_generate(1, 1, ['Wizard Boy/7/10', 'Fighter Dude/3/12', 'Rogue Guy/5/21'])
+    tracker['turns'] = []
+    dice.turn.combat_tracker_add_chars(tracker, ['Wiz2/7/10', 'Druid/-1/15'])
+    assert tracker['turns'][0]['name'] == 'Druid'
+    assert tracker['turns'][-1]['name'] == 'Wiz2'
+
+
+def test_combat_tracker_add_chars_tie():
+    tracker = dice.turn.combat_tracker_generate(1, 1, ['Wizard Boy/7/10', 'Fighter Dude/3/12', 'Rogue Guy/5/21'])
+    dice.turn.combat_tracker_add_chars(tracker, ['Wiz2/7/10', 'Druid/-1/15'])
+    assert tracker['turns'][1]['name'] == 'Druid'
+    assert tracker['turns'][-1]['name'] == 'Wiz2'
 
-    assert dice.turn.break_init_tie(user, user2) == (user, user2)
-    assert dice.turn.break_init_tie(user2, user) == (user, user2)
 
+def test_combat_tracker_remove_chars():
+    tracker = dice.turn.combat_tracker_generate(1, 1, ['Wizard Boy/7', 'Fighter Dude/3', 'Rogue Guy/5/21'])
+    dice.turn.combat_tracker_remove_chars(tracker, ['Fighter Dude', 'Rogue Guy'])
+    assert len(tracker['turns']) == 1
+    assert tracker['turns'][0]['name'] == 'Wizard Boy'
 
-def test_break_init_tie_modifier_same():
-    user = TurnUser('Chris', 2)
-    user.init = 27
-    user2 = TurnUser('Orc', 2)
-    user2.init = 27
 
-    winner, loser = dice.turn.break_init_tie(user, user2)
-    assert winner.modifier == loser.modifier
-    assert winner.init > loser.init
+def test_combat_tracker_format():
+    tracker = dice.turn.combat_tracker_generate(1, 1, ['Wizard Boy/7/10', 'Fighter Dude/3/12', 'Rogue Guy/5/21'])
+    result = dice.turn.combat_tracker_format(tracker)
+    assert "Rogue Guy    | 5    | 21.0" in result
 
 
-def test_find_user_by_name():
-    users = [TurnUser("Chris", 7), TurnUser("Chris' Pet", 2),
-             TurnUser("Orc", 7), TurnUser("Orc2", 2)]
-    dice.turn.find_user_by_name(users, "Orc2")
+def test_combat_tracker_move_fwd():
+    tracker = dice.turn.combat_tracker_generate(1, 1, ['Wizard Boy/7/10', 'Fighter Dude/3/12', 'Rogue Guy/5/21'])
+    dice.turn.combat_tracker_move(tracker, 2)
+    assert tracker['turns'][0]['name'] == 'Wizard Boy'
+    assert tracker['turns'][-1]['name'] == 'Fighter Dude'
 
 
-def test_find_user_by_name_raises():
-    users = [TurnUser("Chris", 7), TurnUser("Chris' Pet", 2),
-             TurnUser("Orc", 7), TurnUser("Orc2", 2)]
+def test_combat_tracker_move_back():
+    tracker = dice.turn.combat_tracker_generate(1, 1, ['Wizard Boy/7/10', 'Fighter Dude/3/12', 'Rogue Guy/5/21'])
+    dice.turn.combat_tracker_move(tracker, -1)
 
-    with pytest.raises(dice.exc.InvalidCommandArgs):
-        dice.turn.find_user_by_name(users, "Chris")
-
-    with pytest.raises(dice.exc.InvalidCommandArgs):
-        dice.turn.find_user_by_name(users, "Dwarf")
-
-
-def test_users_same_init():
-    user = TurnUser('Chris', 7)
-    user.init = 27
-    user2 = TurnUser('Orc', 2)
-    user2.init = 10
-    users = [user, user2]
-
-    assert not dice.turn.users_same_init(users)
-    user2.init = 27
-    assert dice.turn.users_same_init(users)
-
-
-def test_parse_turn_users():
-    tokens = ['Chris/7', 'Noggles/3/20']
-    users = dice.turn.parse_turn_users(tokens)
-
-    assert users[0].name == 'Chris'
-    assert users[0].modifier == 7
-    assert dice.turn.TurnUser('Noggles', 3, 20) == users[1]
-
-
-def test_parse_turn_users_errors():
-    tokens = ['Chris/notNumber']
-    with pytest.raises(dice.exc.InvalidCommandArgs):
-        dice.turn.parse_turn_users(tokens)
-
-    tokens = ['Chris']
-    with pytest.raises(dice.exc.InvalidCommandArgs):
-        dice.turn.parse_turn_users(tokens)
-
-
-def test_turn_effect__repr__():  # covers __init__ too, quite simple
-    effect = dice.turn.TurnEffect('poison', 3)
-
-    assert repr(effect) == "TurnEffect(text='poison', turns=3)"
-
-
-def test_turn_effect__str__():
-    effect = dice.turn.TurnEffect('poison', 3)
-
-    assert str(effect) == 'poison: 3'
-
-
-def test_turn_effect__eq__():
-    effect = dice.turn.TurnEffect('poison', 3)
-    effect2 = dice.turn.TurnEffect('poison', 1)
-
-    assert effect == effect2
-
-
-def test_turn_effect__lt__():
-    effect = dice.turn.TurnEffect('poison', 3)
-    effect2 = dice.turn.TurnEffect('on fire', 1)
-
-    assert effect > effect2
-
-
-def test_turn_effect__hash__():
-    effect = dice.turn.TurnEffect('poison', 3)
-
-    assert hash(effect) == hash(effect.text)
-
-
-def test_turn_effect__add__():
-    effect = dice.turn.TurnEffect('poison', 3)
-    n_effect = effect + 1
-
-    assert effect.turns == n_effect.turns - 1
-    assert n_effect.turns == 4
-
-
-def test_turn_effect__sub__():
-    effect = dice.turn.TurnEffect('poison', 3)
-    n_effect = effect - 1
-
-    assert effect.turns == n_effect.turns + 1
-    assert n_effect.turns == 2
-
-
-def test_turn_effect__radd__():
-    effect = dice.turn.TurnEffect('poison', 3)
-    n_effect = 1 + effect
-
-    assert effect.turns == n_effect.turns - 1
-    assert n_effect.turns == 4
-
-
-def test_turn_effect__iadd__():
-    effect = dice.turn.TurnEffect('poison', 3)
-    effect += 1
-
-    assert effect.turns == 4
-
-
-def test_turn_effect__isub__():
-    effect = dice.turn.TurnEffect('poison', 3)
-    effect -= 1
-
-    assert effect.turns == 2
-
-
-def test_turn_effect_is_expired():
-    effect = dice.turn.TurnEffect('poison', 1)
-    assert not effect.is_expired()
-
-    effect -= 1
-    assert effect.is_expired()
-
-
-def test_tuser__init__():
-    user = TurnUser('Chris', 7)
-    assert user.init in list(range(7, 28))
-    user = TurnUser('Chris', 7, 22)
-    assert user.init == 22
-    user = TurnUser('Chris', 7, 22, ['poison'])
-    assert user.effects == ['poison']
-
-
-def test_tuser__repr__():
-    user = TurnUser('Chris', 7)
-    user.init = 27
-    assert repr(user) == "TurnUser(name='Chris', modifier=7, init=27, effects=[])"
-
-    user.add_effect('Poison', 3)
-    assert repr(user) == "TurnUser(name='Chris', modifier=7, init=27, effects=[TurnEffect(text='Poison', turns=3)])"
-
-
-def test_tuser__str__():
-    user = TurnUser('Chris', 7)
-    user.init = 27
-    assert str(user) == 'Chris (7): 27.00'
-
-    user.add_effect('Poison', 3)
-    assert str(user) == 'Chris (7): 27.00\n        Poison: 3'
-
-
-def test_tuser__eq__():
-    user = TurnUser('Chris', 7)
-    user.init = 27
-    user2 = TurnUser('Orc', 2)
-    user2.init = 27
-    user3 = TurnUser('Chris', 7)
-    user3.init = 27
-
-    assert user != user2
-    assert user == user3
-
-
-def test_tuser__ne__():
-    user = TurnUser('Chris', 7)
-    user.init = 27
-    user2 = TurnUser('Orc', 2)
-    user2.init = 10
-
-    assert user2 != user
-
-
-def test_tuser__lt__():
-    user = TurnUser('Chris', 7)
-    user.init = 27
-    user2 = TurnUser('Orc', 2)
-    user2.init = 10
-
-    assert user2 < user
-
-
-def test_tuser_roll_init():
-    user = TurnUser('Chris', 7)
-    old = user.init
-    while user.init == old:
-        user.roll_init()
-
-    assert user.init != old
-
-
-def test_tuser_add_effect():
-    user = TurnUser('Chris', 7, 27)
-    user.add_effect('Poison', 4)
-
-    assert str(user.effects) == "[TurnEffect(text='Poison', turns=4)]"
-
-    with pytest.raises(dice.exc.InvalidCommandArgs):
-        user.add_effect('Stun', 0)
-    with pytest.raises(dice.exc.InvalidCommandArgs):
-        user.add_effect('Stun', -4)
-    with pytest.raises(dice.exc.InvalidCommandArgs):
-        user.add_effect('Poison', 3)
-
-
-def test_tuser_update_effect():
-    user = TurnUser('Chris', 7, 27)
-    user.add_effect('Poison', 4)
-
-    assert str(user.effects) == "[TurnEffect(text='Poison', turns=4)]"
-
-    user.update_effect('Poison', 1)
-    assert str(user.effects) == "[TurnEffect(text='Poison', turns=1)]"
-
-
-def test_tuser_remove_effect():
-    user = TurnUser('Chris', 7, 27)
-    user.add_effect('Poison', 4)
-
-    assert str(user.effects) == "[TurnEffect(text='Poison', turns=4)]"
-
-    user.remove_effect('Poison')
-    assert str(user.effects) == "[]"
-
-
-def test_tuser_decrement_effects():
-    user = TurnUser('Chris', 7, 27)
-    user.add_effect('Poison', 1)
-    user.add_effect('Rufus', 2)
-
-    expect = [TurnEffect(text='Poison', turns=1), TurnEffect(text='Rufus', turns=2)]
-    assert user.effects == expect
-
-    assert user.decrement_effects() == expect[:1]
-    assert user.effects == [TurnEffect(text='Rufus', turns=1)]
-
-
-def test_torder__init__():
-    order = TurnOrder()
-    assert order.users == []
-    assert order.cur_user is None
-
-
-def test_torder__str__():
-    order = TurnOrder()
-    user = TurnUser('Chris', 7)
-    user.init = 27
-    user2 = TurnUser('Orc', 2)
-    user2.init = 10
-    order.users = list(reversed(sorted([user, user2])))
-
-    expect = """__**Turn Order**__
-
-```  name    | mod. | init
---------- | ---- | -----
-> Chris < | +7   | 27.00
-Orc       | +2   | 10.00```"""
-    assert str(order) == expect
-
-
-def test_torder__repr__():
-    order = TurnOrder()
-    user = TurnUser('Chris', 7)
-    user.init = 27
-    user2 = TurnUser('Orc', 2)
-    user2.init = 10
-    order.users = list(reversed(sorted([user, user2])))
-
-    expect = "TurnOrder(users=[TurnUser(name='Chris', modifier=7, init=27, effects=[]), "\
-             "TurnUser(name='Orc', modifier=2, init=10, effects=[])], "\
-             "user_index=0)"
-    assert repr(order) == expect
-
-
-def test_torder_does_name_exist():
-    order = TurnOrder()
-    user = TurnUser('Chris', 7)
-    user.init = 27
-    user2 = TurnUser('Chris', 2)
-    user2.init = 10
-
-    order.add(user)
-    with pytest.raises(dice.exc.InvalidCommandArgs):
-        order.add(user2)
-
-
-def test_torder_add_empty():
-    order = TurnOrder()
-    user = TurnUser('Chris', 7)
-    user.init = 27
-    order.add(user)
-
-    assert user in order.users
-
-
-def test_torder_add_second():
-    order = TurnOrder()
-    user = TurnUser('Chris', 7)
-    user.init = 27
-    user2 = TurnUser('Orc', 2)
-    user2.init = 10
-    order.add(user)
-    order.add(user2)
-
-    assert user in order.users
-    assert user2 in order.users
-
-
-def test_torder_add_all_diff_modifiers():
-    order = TurnOrder()
-    user = TurnUser('Chris', 7, 10)
-    user2 = TurnUser('Orc', 2, 10)
-    user3 = TurnUser('Dwarf', 3, 10)
-    order.add_all([user, user2, user3])
-
-    assert 'Chris' in str(order)
-    assert 'Orc' in str(order)
-    assert 'Dwarf' in str(order)
-
-
-def test_torder_add_all_same():
-    order = TurnOrder()
-    user = TurnUser('Chris', 4, 10)
-    user2 = TurnUser('Orc', 4, 10)
-    user3 = TurnUser('Dwarf', 4, 10)
-    order.add_all([user, user2, user3])
-
-    assert user.init != user2.init
-    assert user2.init != user3.init
-    assert user.init != user3.init
-
-
-def test_turn_add_collide_on_addition():
-    order = TurnOrder()
-    user = TurnUser('Chris', 7)
-    user.init = 27
-    user2 = TurnUser('Orc', 2)
-    user2.init = 27
-    user3 = TurnUser('Orc2', 2)
-    user3.init = 27
-    user4 = TurnUser('Orc3', 2)
-    user4.init = 27
-    order.add(user)
-    order.add(user2)
-    order.add(user3)
-    order.add(user4)
-
-    assert order.users[0] == user
-    for a_user in [user, user2, user3, user4]:
-        assert a_user in order.users
-
-
-def test_torder_next():
-    order = TurnOrder()
-    user = TurnUser('Chris', 7)
-    user.init = 27
-    user2 = TurnUser('Orc', 2)
-    user2.init = 10
-    order.add(user)
-    order.add(user2)
-
-    assert order.cur_user == user
-    assert order.next() == user2
-    assert order.cur_user == user2
-    assert order.next() == user
-    assert order.cur_user == user
-
-
-def test_torder_next_empty_users():
-    order = TurnOrder()
-
-    with pytest.raises(dice.exc.InvalidCommandArgs):
-        order.next()
-
-
-def test_torder_remove_current():
-    order = TurnOrder()
-    user = TurnUser('Chris', 7, 27)
-    user2 = TurnUser('Dwarf', 3, 12)
-    user3 = TurnUser('Orc', 2, 10)
-    order.add_all([user, user2, user3])
-    order.next()
-    assert order.user_index == 1
-    assert order.cur_user == user2
-
-    order.remove(user2.name)
-
-    assert order.user_index == 1
-    assert user in order.users
-    assert user2 not in order.users
-    assert user3 in order.users
-    assert order.cur_user == user3
-
-
-def test_torder_remove_prev():
-    order = TurnOrder()
-    user = TurnUser('Chris', 7, 27)
-    user2 = TurnUser('Dwarf', 3, 12)
-    user3 = TurnUser('Orc', 2, 10)
-    order.add_all([user, user2, user3])
-    order.next()
-    assert order.user_index == 1
-    assert order.cur_user == user2
-
-    order.remove(user.name)
-
-    assert order.user_index == 0
-    assert user not in order.users
-    assert user2 in order.users
-    assert user3 in order.users
-    assert order.cur_user == user2
-
-
-def test_torder_remove_last():
-    order = TurnOrder()
-    user = TurnUser('Chris', 7, 27)
-    user2 = TurnUser('Dwarf', 3, 12)
-    user3 = TurnUser('Orc', 2, 10)
-    order.add_all([user, user2, user3])
-    order.next()
-    order.next()
-    assert order.user_index == 2
-    assert order.cur_user == user3
-
-    order.remove(user3.name)
-
-    assert order.user_index == 0
-    assert user in order.users
-    assert user2 in order.users
-    assert user3 not in order.users
-    assert order.cur_user == user
-
-
-def test_torder_update_user():
-    order = TurnOrder()
-    user = TurnUser('Chris', 7, 27)
-    user2 = TurnUser('Orc', 2, 10)
-    user3 = TurnUser('Dwarf', 3, 12)
-    order.add_all([user, user2, user3])
-    order.update_user('ris', 1)
-
-    assert user.init == 1
-    assert order.users[-1] == user
-
-
-def test_torder_update_user_raises():
-    order = TurnOrder()
-    user = TurnUser('Chris', 7, 27)
-    user2 = TurnUser('Orc', 2, 10)
-    user3 = TurnUser('Dwarf', 3, 12)
-    order.add_all([user, user2, user3])
-
-    with pytest.raises(dice.exc.InvalidCommandArgs):
-        order.update_user('r', 1)
-
-    with pytest.raises(dice.exc.InvalidCommandArgs):
-        order.update_user('Chris', 'a')
+    assert tracker['turns'][0]['name'] == 'Wizard Boy'
+    assert tracker['turns'][-1]['name'] == 'Fighter Dude'

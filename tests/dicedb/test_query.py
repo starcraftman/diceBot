@@ -231,53 +231,40 @@ async def test_replace_list_entries(test_db, f_movies):
     assert all_movies['entries'][-1] == 'Bad Boys'
 
 
-#  def test_update_turn_order(session, f_turnorders):
-    #  order = dice.turn.TurnOrder()
-    #  dicedb.query.update_turn_order(session, 'a_key', order)
-    #  fetched = dicedb.query.get_turn_order(session, 'a_key')
-    #  assert fetched == repr(order)
+@pytest.mark.asyncio
+async def test_get_turn_order(test_db, f_turnorders):
+    combat = await dicedb.query.get_turn_order(test_db, discord_id=1, channel_id=1)
+    assert combat['tracker'][0]['name'] == 'orc'
 
 
-#  def test_get_turn_order(session, f_turnorders):
-    #  fetched = dicedb.query.get_turn_order(session, f_turnorders[0].id)
-    #  assert fetched == 'TurnOrder'
+@pytest.mark.asyncio
+async def test_update_turn_order(test_db, f_turnorders):
+    combat = await dicedb.query.get_turn_order(test_db, discord_id=1, channel_id=1)
+    combat['tracker'] = [{'name': 'alex', 'init': -3, 'roll': 15, 'effets': ''}]
+    await dicedb.query.update_turn_order(test_db, discord_id=1, channel_id=1, combat_tracker=combat)
 
-    #  assert dicedb.query.get_turn_order(session, 'a_key') is None
-
-
-#  def test_remove_turn_order(session, f_turnorders):
-    #  key = f_turnorders[0].id
-
-    #  dicedb.query.remove_turn_order(session, key)
-    #  dicedb.query.remove_turn_order(session, key)
-    #  assert dicedb.query.get_turn_order(session, 'key') is None
+    combat = await dicedb.query.get_turn_order(test_db, discord_id=1, channel_id=1)
+    assert combat['tracker'][0]['name'] == 'alex'
 
 
-#  def test_generate_initial_turn_users(session, f_dusers, f_turnchars):
-    #  assert dicedb.query.generate_inital_turn_users(session, 'turn') == ['Wizard/7', 'Fighter/2', 'Rogue/3']
+@pytest.mark.asyncio
+async def test_remove_turn_order(test_db, f_turnorders):
+    await dicedb.query.remove_turn_order(test_db, discord_id=1, channel_id=1)
+    await dicedb.query.remove_turn_order(test_db, discord_id=1, channel_id=1)
+    assert await dicedb.query.get_turn_order(test_db, discord_id=1, channel_id=1) is None
 
 
-#  def test_get_turn_char(session, f_turnchars):
-    #  turn_char = f_turnchars[0]
+@pytest.mark.asyncio
+async def test_generate_initial_turn_order(test_db, f_turnorders):
+    chars = ['The Wizard/7', 'Fighter/-3', 'Rogue Guy/4/22']
+    await dicedb.query.generate_inital_turn_users(test_db, discord_id=1, channel_id=3, chars=chars)
+    found = await dicedb.query.get_turn_order(test_db, discord_id=1, channel_id=3)
 
-    #  assert dicedb.query.get_turn_char(session, turn_char.user_key, 'turn') == turn_char
-
-
-#  def test_update_turn_char(session, f_turnchars):
-    #  turn_char = f_turnchars[0]
-
-    #  dicedb.query.update_turn_char(session, turn_char.user_key, 'turn',
-                                  #  name='NotWizard', modifier=-1)
-    #  up_char = dicedb.query.get_turn_char(session, turn_char.user_key, 'turn')
-    #  assert up_char.modifier == -1
-    #  assert up_char.name == 'NotWizard'
-
-
-#  def test_remove_turn_char(session, f_turnchars):
-    #  turn_char = f_turnchars[0]
-
-    #  dicedb.query.remove_turn_char(session, turn_char.user_key, 'turn')
-    #  assert dicedb.query.get_turn_char(session, turn_char.user_key, 'turn') is None
+    assert found
+    assert found['tracker'][1]['init'] == -3
+    assert found['tracker'][-1]['name'] == 'Rogue Guy'
+    assert found['tracker'][-1]['init'] == 4
+    assert found['tracker'][-1]['roll'] == 22
 
 
 #  def test_add_song_with_tags_update_existing(session, f_songs):

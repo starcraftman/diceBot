@@ -429,20 +429,28 @@ async def f_googly(test_db):
     await test_db.googly_eyes.delete_many({})
 
 
-#  @pytest_asyncio.fixture
-#  async def f_turnorders(test_db, f_turnchars):
-    #  """
-    #  Fixture to insert some test Puns.
-    #  """
-    #  turns = (
-        #  {'id': 'guild1-chan1', 'text': 'TurnOrder'},
-        #  {'id': 'guild1-chan2', 'text': 'TurnOrder'},
-    #  )
-    #  await test_db.turn_orders.insert_many(turns)
+@pytest_asyncio.fixture
+async def f_turnorders(test_db):
+    """
+    Fixture to insert some test Puns.
+    """
+    turns = (
+        {'discord_id': 1, 'channel_id': 1, 'tracker': [
+            {'name': 'orc', 'init': 4, 'roll': 21, 'effects': ''},
+            {'name': 'chris', 'init': 9, 'roll': 20, 'effects': ''},
+            {'name': 'hammy', 'init': 7, 'roll': 18, 'effects': ''},
+        ]},
+        {'discord_id': 1, 'channel_id': 2, 'tracker': [
+            {'name': 'orc1', 'init': 4, 'roll': 15, 'effects': ''},
+            {'name': 'orc2', 'init': 4, 'roll': 12, 'effects': ''},
+            {'name': 'figher', 'init': 5, 'roll': 16, 'effects': ''},
+        ]},
+    )
+    await test_db.combat_trackers.insert_many(turns)
 
-    #  yield turns
+    yield turns
 
-    #  await test_db.turn_orders.delete_many({})
+    await test_db.combat_trackers.delete_many({})
 
 
 #  @pytest_asyncio.fixture

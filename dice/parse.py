@@ -333,41 +333,32 @@ def subs_status(subs, prefix):
 @register_parser
 def subs_turn(subs, prefix):
     """ Subcommand parsing for turn """
-    desc = """Manage the turn order.
+    desc = f"""Manage the turn order.
 
 {prefix}turn
         Show the complete current turn order.
-{prefix}turn --add a_name/init_modifier/optional_roll, second_name/init_modifier, ...
-{prefix}turn -a a_name/init_modifier/optional_roll, second_name/init_modifier, ...
+{prefix}turn add a name/init_modifier/optional_roll, second name/init_modifier, ...
         Add a user to the existing turn order.
-{prefix}turn --clear
-{prefix}turn -c
+{prefix}turn clear
         Clear the existing turn order.
-{prefix}turn --next
-{prefix}turn -n
+{prefix}turn next
         Select the next person in order.
-{prefix}turn --remove a user, another user
-{prefix}turn -r a user, another user
+{prefix}turn remove a user, another user
         Remove a user from the turn order.
-{prefix}turn --name A name
-        Set your character name for turn order.
-{prefix}turn --mod -5
-        Set your character init modifier for turn order.
-{prefix}turn --unset
-        Remove your character from the default turn order for this channel.
-{prefix}turn --update Chris/1, Noggles/22, ...
+{prefix}turn update Chris/1, Noggles/22, ...
         Override the rolls for init for matching characters.
-    """.format(prefix=prefix)
+    """
     sub = subs.add_parser(prefix + 'turn', description=desc, formatter_class=RawHelp)
     sub.set_defaults(cmd='Turn')
-    sub.add_argument('-a', '--add', nargs='+', help='Add a user to the turn order.')
-    sub.add_argument('-c', '--clear', action='store_true', help='Clear the turn order.')
-    sub.add_argument('--mod', type=int, help='Set turn order init.')
-    sub.add_argument('--name', nargs='+', help='Set turn order name.')
-    sub.add_argument('-n', '--next', nargs='?', default='zero', help='Advance n chars in order.')
-    sub.add_argument('--unset', action='store_true', help='Remove yourself from default turn order.')
-    sub.add_argument('-r', '--remove', nargs='+', help='Remove a user.')
-    sub.add_argument('--update', nargs='+', help='Update the following users.')
+
+    subcmds = sub.add_subparsers(title='subcommands',
+                                 description='Turn subcommands', dest='subcmd')
+    subcmd = subcmds.add_parser('add', help='Add one or more combat characters.')
+    subcmd = subcmds.add_parser('clear', help='Clear the combat.')
+    subcmd = subcmds.add_parser('remove', help='Remove one or more combat characters by name.')
+    subcmd = subcmds.add_parser('update', help='Update the init rolls for one or more combat characters.')
+    subcmd = subcmds.add_parser('next', help='Move turn order forward by n steps.')
+    subcmd.add_argument('steps', type=int, default='zero', help='Positive or negative steps of turns.')
 
 
 @register_parser

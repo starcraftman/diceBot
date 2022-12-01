@@ -31,7 +31,7 @@ def get_db_client(with_database='dice'):
     Args:
         with_database: Return this collection from top level client. Default dice
     """
-    if CERT_PAT.exists():
+    if CERT_PAT.exists() and CERT_URL.exists():
         with open(CERT_URL, encoding='utf-8') as fin:
             client = motor.motor_asyncio.AsyncIOMotorClient(
                 fin.read().strip(),

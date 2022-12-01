@@ -161,7 +161,7 @@ async def add_roll_history(client, discord_id, *, entries, limit=100):
             last_entry = entry
     rolls['history'] = rolls['history'][-limit:]
 
-    await client.rolls_made.replace_one(
+    return await client.rolls_made.replace_one(
         {'discord_id': discord_id},
         rolls,
     )
@@ -194,7 +194,7 @@ async def add_pun(client, discord_id, new_pun):
     else:
         exists = {'discord_id': discord_id, 'puns': [{'text': new_pun, 'hits': 0}]}
 
-    await client.puns.replace_one(
+    return await client.puns.replace_one(
         {'discord_id': discord_id},
         exists,
         True
@@ -229,7 +229,7 @@ async def remove_pun(client, discord_id, pun_text):
     if exists:
         exists['puns'] = [x for x in exists['puns'] if x['text'] != pun_text]
 
-        await client.puns.replace_one(
+        return await client.puns.replace_one(
             {'discord_id': discord_id},
             exists,
             True
@@ -280,7 +280,7 @@ async def update_googly(client, googly_eyes):
         client: A connection onto the db.
         googly_eyes: An existing googly eyes object.
     """
-    await client.googly_eyes.replace_one(
+    return await client.googly_eyes.replace_one(
         {'discord_id': googly_eyes['discord_id']},
         googly_eyes
     )
@@ -312,7 +312,7 @@ async def add_list_entries(client, discord_id, name, to_add):
     else:
         exists = {'discord_id': discord_id, 'name': name, 'entries': to_add}
 
-    await client.lists.replace_one(
+    return await client.lists.replace_one(
         {'discord_id': discord_id, 'name': name},
         exists,
         True
@@ -335,12 +335,12 @@ async def remove_list_entries(client, discord_id, name, to_remove):
         exists['entries'] = [x for x in exists['entries'] if x not in to_remove]
 
         if exists['entries']:
-            await client.lists.replace_one(
+            return await client.lists.replace_one(
                 {'discord_id': discord_id, 'name': name},
                 exists
             )
-        else:
-            await client.lists.delete_one({'discord_id': discord_id, 'name': name})
+
+        return await client.lists.delete_one({'discord_id': discord_id, 'name': name})
 
 
 async def replace_list_entries(client, discord_id, name, replacement):
@@ -353,98 +353,36 @@ async def replace_list_entries(client, discord_id, name, replacement):
         name: The name of the list to retrieve.
         replacement: Entries to replace old list entries with.
     """
-    await client.lists.replace_one(
+    return await client.lists.replace_one(
         {'discord_id': discord_id, 'name': name},
         {'discord_id': discord_id, 'name': name, 'entries': replacement},
         True
     )
 
-#  def update_turn_order(session, key, turnorder):
-    #  """
-    #  Add an existing turn order for a given server/channel combination.
-    #  """
-    #  try:
-        #  stored = session.query(TurnOrder).filter(TurnOrder.id == key).one()
-        #  stored.text = repr(turnorder)
-        #  session.add(stored)
-    #  except sqla_oexc.NoResultFound:
-        #  session.add(TurnOrder(id=key, text=repr(turnorder)))
-    #  session.commit()
+
+async def get_turn_order(client, *, discord_id, channel_id):
+    """
+    Fetch an existing turn order for a given server/channel combination.
+    """
+    await client.combat_trackers.find_one({'discord_id': discord_id, 'channel_id': channel_id})
 
 
-#  def get_turn_order(session, key):
-    #  """
-    #  Fetch an existing turn order for a given server/channel combination.
-    #  """
-    #  try:
-        #  return session.query(TurnOrder).filter(TurnOrder.id == key).one().text
-    #  except sqla_oexc.NoResultFound:
-        #  return None
+async def update_turn_order(client, *, discord_id, channel_id, combat_tracker):
+    """
+    Add an existing turn order for a given server/channel combination.
+    """
+    return await client.combat_trackers.replace_one(
+        {'discord_id': discord_id, 'channel_id': channel_id},
+        combat_tracker,
+        True
+    )
 
 
-#  def remove_turn_order(session, key):
-    #  """
-    #  Remove the turn order from the db.
-    #  """
-    #  try:
-        #  stored = session.query(TurnOrder).filter(TurnOrder.id == key).one()
-        #  session.delete(stored)
-        #  session.commit()
-    #  except sqla_oexc.NoResultFound:
-        #  pass
-
-
-#  def generate_inital_turn_users(session, turn_key):
-    #  """
-    #  Find all potential turn order users for that turn_key.
-    #  """
-    #  chars = session.query(TurnChar).filter(TurnChar.turn_key == turn_key,
-                                           #  TurnChar.modifier is not None,
-                                           #  TurnChar.name is not None).all()
-    #  return ['{}/{}'.format(char.name, char.modifier) for char in chars]
-
-
-#  def get_turn_char(session, user_key, turn_key):
-    #  """
-    #  Fetch the character identified by the combination user_key & turn_key.
-    #  """
-    #  try:
-        #  return session.query(TurnChar).filter(TurnChar.user_key == user_key,
-                                              #  TurnChar.turn_key == turn_key).one()
-    #  except sqla_oexc.NoResultFound:
-        #  return None
-
-
-#  def update_turn_char(session, user_key, turn_key, *, name=None, modifier=None):
-    #  """
-    #  Given user and turn ids, set a character and/or init value.
-    #  """
-    #  try:
-        #  char = session.query(TurnChar).filter(TurnChar.user_key == user_key,
-                                              #  TurnChar.turn_key == turn_key).one()
-        #  if name:
-            #  char.name = name
-        #  if modifier:
-            #  char.modifier = modifier
-
-    #  except sqla_oexc.NoResultFound:
-        #  char = TurnChar(user_key=user_key, turn_key=turn_key, name=name, modifier=modifier)
-
-    #  session.add(char)
-    #  session.commit()
-
-
-#  def remove_turn_char(session, user_key, turn_key):
-    #  """
-    #  Delete the turn character from db.
-    #  """
-    #  try:
-        #  char = session.query(TurnChar).filter(TurnChar.user_key == user_key,
-                                              #  TurnChar.turn_key == turn_key).one()
-        #  session.delete(char)
-        #  session.commit()
-    #  except sqla_oexc.NoResultFound:
-        #  pass
+async def remove_turn_order(client, *, discord_id, channel_id):
+    """
+    Remove the turn order from the db.
+    """
+    return await client.combat_trackers.delete_one({'discord_id': discord_id, 'channel_id': channel_id})
 
 
 #  def add_song_with_tags(session, name, url, tags=None):
