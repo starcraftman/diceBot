@@ -392,7 +392,7 @@ def parse_comments_from_back(line):
     return line, comment.strip()
 
 
-def parse_dice_line(line):
+def parse_dice_line(line, json=False):
     """
     Take a complete dice specification with optional literals and return
     AThrow object containing all required parts to model the throw.
@@ -410,7 +410,7 @@ def parse_dice_line(line):
         AThrow object with the required parts.
     """
     spec, note = parse_comments_from_back(line)
-    throw = AThrow(spec=check_parentheses(spec).rstrip(), note=note)
+    throw = AThrow(spec=check_parentheses(spec).rstrip(), note=note, json=json)
 
     while spec:
         if spec[0].isspace():

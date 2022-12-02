@@ -73,7 +73,7 @@ class ReprMixin():
         return f'{self.__class__.__name__}({", ".join(kwargs)})'
 
 
-class BIterator():
+class BIterator(ReprMixin):
     """
     Bidirectional iterator that can move up and down list.
     If you want a shuffle, just feed in random.shuffle(items).
@@ -83,12 +83,11 @@ class BIterator():
         index: The position in the list. Iterator always starts off the list at -1 unless specified.
                Index will end iterating the liast at len(items).
     """
+    _repr_keys = ['index', 'items']
+
     def __init__(self, items, index=-1):
         self.items = items
         self.index = index
-
-    def __repr__(self):
-        return f"BIterator(index={self.index}, items={self.items!r})"
 
     def __next__(self):
         """ Allow using it like an actual iterator. """

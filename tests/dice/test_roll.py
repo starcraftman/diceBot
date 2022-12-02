@@ -839,6 +839,14 @@ def test_athrow_next(f_athrow):
     assert re.match(r'4d6 \+ 4 = [ 0-9\+=()]+', f_athrow.next())
 
 
+def test_athrow_next_json():
+    result = dice.roll.parse_dice_line('4d6 + 4', json=True).next()
+    assert re.match(r'4d6 \+ 4 = [ 0-9\+=()]+', result['output'])
+    assert not result['note']
+    assert not result['success']
+    assert "4d6 + 4" == result['spec']
+
+
 def test_athrow_next_note(f_athrow):
     f_athrow.note = "A note"
     first, second = f_athrow.next().split('\n')

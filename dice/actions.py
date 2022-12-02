@@ -256,7 +256,7 @@ class Roll(Action):
     Perform one or more rolls of dice according to spec.
     """
     async def execute(self):
-        update_rolls = False
+        entries = None
         full_spec = ' '.join(self.args.spec).strip()
         msg = ''
 
@@ -288,9 +288,13 @@ class Roll(Action):
                 full_spec = saved_roll['roll']
                 resp = [f"__Dice Rolls__ ({saved_roll['name']})", '']
 
-            resp += await make_rolls(full_spec)
-            msg = '\n'.join(resp)
-            update_rolls = True
+            results = await make_rolls(full_spec)
+            msg = '\n'.join(resp + [x['output'] for x in results])
+            entries = [{
+                'spec': full_spec,
+                'output': ' , '.join(x['output'] for x in results),
+                'value': sum(x['value'] for x in results)
+            }]
 
         if self.msg.mentions:
             for member in set(self.msg.mentions + [self.msg.author]):
@@ -298,12 +302,11 @@ class Roll(Action):
         else:
             await self.reply(msg)
 
-        if update_rolls:
-            entries = [{'roll': full_spec, 'result': ''}]
+        if entries:
             await dicedb.query.add_roll_history(self.db, self.discord_id, entries=entries)
 
 
-class Timer(Action):
+class Timer(dice.util.ReprMixin, Action):
     """
     Allow users to set timers to remind them of things.
     Users can override the warning times and set a descritpion for the timer.
@@ -314,6 +317,8 @@ class Timer(Action):
         end: The datetime when the Timer will be finished.
         triggers: A series of tuples like (datetime, msg_for_user).
     """
+    _repr_keys = ['description', 'start', 'end', 'last_msgs', 'triggers']
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -336,12 +341,6 @@ class Timer(Action):
         __Ends at {self.end.replace(microsecond=0)}
         __Remaining__ {diff}
         """
-
-    def __repr__(self):
-        keys = ['description', 'start', 'end', 'last_msgs', 'triggers']
-        kwargs = [f'{key}={getattr(self, key)!r}' for key in keys]
-
-        return f"Timer({', '.join(kwargs)})"
 
     def __eq__(self, other):
         return self.key == other.key
@@ -795,8 +794,17 @@ class Reroll(Action):
             except IndexError as exc:
                 raise dice.exc.InvalidCommandArgs(f"Please select a negative offset from : [-1, -{LIMIT_REROLLS}]") from exc
 
-        msg = "**Reroll Result**\n\n" + '\n'.join(await make_rolls(selected['roll']))
+        results = await make_rolls(selected['spec'])
+        msg = "**Reroll Result**\n\n" + '\n'.join(x['output'] for x in results)
+
         await self.reply(msg)
+
+        entries = [{
+            'spec': selected['spec'],
+            'output': ' , '.join(x['output'] for x in results),
+            'value': sum(x['value'] for x in results)
+        }]
+        await dicedb.query.add_roll_history(self.db, self.discord_id, entries=entries)
 
 
 class Movies(Action):
@@ -1425,17 +1433,17 @@ async def make_rolls(spec):
                     raise dice.exc.InvalidCommandArgs(f"Please run <= {LIMIT_ROLL_TIMES} times a dice roll.")
 
             try:
-                throw = dice.roll.parse_dice_line(line)
+                throw = dice.roll.parse_dice_line(line, json=True)
                 jobs += [loop.run_in_executor(pool, throw_in_pool, throw) for _ in range(times)]
             except ValueError as exc:
                 raise dice.exc.InvalidCommandArgs(str(exc))
 
         try:
-            lines = await asyncio.wait_for(asyncio.gather(*jobs), ROLL_TIMEOUT)
+            results = await asyncio.wait_for(asyncio.gather(*jobs), ROLL_TIMEOUT)
         except concurrent.futures.TimeoutError:
-            lines = ["Timeout! One or more of the dice took too long computing."]
+            results = []
 
-    return lines
+    return results
 
 
 #  def get_guild_player(guild_id, msg):
