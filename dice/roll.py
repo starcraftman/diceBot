@@ -27,6 +27,7 @@ import numpy.random as rand
 import dice.exc
 from dice.util import ReprMixin
 
+PAD_LEN = 8
 IS_DIE = re.compile(r'(\d+)?d(\d+)', re.ASCII | re.IGNORECASE)
 IS_FATEDIE = re.compile(r'(\d+)?df', re.ASCII | re.IGNORECASE)
 IS_LITERAL = re.compile(r'([-+])|([0-9]+\b)', re.ASCII)
@@ -753,14 +754,16 @@ class AThrow(list):
     Attributes:
         spec: The original spec that created the line.
         note: Any comment user wanted attached to roll.
+        json: If true, throws return a json output. Otherwise a simple string.
     """
-    def __init__(self, *, items=None, spec=None, note=None):
+    def __init__(self, *, items=None, spec=None, note=None, json=False):
         super().__init__(items if items else [])
         self.spec = spec
         self.note = note
+        self.json = json
 
     def __repr__(self):
-        return f"AThrow(spec={self.spec!r}, note={self.note!r}, items={self[:]!r})"
+        return f"AThrow(spec={self.spec!r}, note={self.note!r}, json={self.json}, items={self[:]!r})"
 
     def __str__(self):
         return " ".join([str(x) for x in self])
@@ -843,18 +846,41 @@ class AThrow(list):
             ValueError: Some part of the specification failed to parse.
 
         Returns:
-            A string that shows the user how he rolled.
+            If self.json is True, return a json with all information on roll.
+            If self.json is False, a string that shows the user how he rolled.
         """
         self.roll()
 
-        success = self.success_string()
-        trail = ""
-        if success:
-            trail += "\n        " + success
-        if self.note:
-            trail += "\n        Note: " + self.note
+        result = {
+            'note': self.note,
+            'spec': self.spec,
+            'success': self.success_string(),
+            'value': self.value,
+            'steps': str(self),
+        }
+        result['output'] = throw_output(result)
 
-        return f"{self.spec} = {self} = {self.value}{trail}"
+        return result if self.json else result['output']
+
+
+def throw_output(result):
+    """
+    Using a result dict from a throw, combine them into expected output format.
+
+    Args:
+        result: A dict object with all information required.
+
+    Returns:
+        A string formatted to present important information of roll.
+    """
+    pad = PAD_LEN * " "
+    trail = ""
+    if result['success']:
+        trail += f"\n{pad}{result['success']}"
+    if result['note']:
+        trail += f"\n{pad}Note: {result['note']}"
+
+    return f"{result['spec']} = {result['steps']} = {result['value']}{trail}"
 
 
 @functools.total_ordering
@@ -1045,8 +1071,8 @@ class RerollDice(ReprMixin, ModifyDice):
             line = line.replace(substr, '', 1)
 
         possible = list(range(1, max_roll + 1))
-        reroll_always = {x for x in possible if any([pred(x) for pred in reroll_always])}
-        reroll_once = {x for x in possible if any([pred(x) for pred in reroll_once])}
+        reroll_always = {x for x in possible if any(pred(x) for pred in reroll_always)}
+        reroll_once = {x for x in possible if any(pred(x) for pred in reroll_once)}
 
         if (not reroll_always and not reroll_once) or not set(possible) - reroll_always - reroll_once:
             raise ValueError("Reroll predicates are invalid. Combination Would always or never reroll!")

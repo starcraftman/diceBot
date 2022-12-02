@@ -5,7 +5,7 @@ See: https://motor.readthedocs.io/en/stable/tutorial-asyncio.html
 """
 import asyncio
 
-from bson import SON
+#  from bson import SON
 import motor.motor_asyncio
 
 

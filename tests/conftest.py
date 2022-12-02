@@ -1,4 +1,4 @@
-# pylint: disable=redefined-outer-name,missing-function-docstring,unused-argument
+# pylint: disable=redefined-outer-name,missing-function-docstring,unused-argument,redefined-builtin
 """
 Used for pytest fixtures and anything else test setup/teardown related.
 """
@@ -22,7 +22,6 @@ except ImportError:
     sys.exit(1)
 
 import dicedb
-import dicedb.schema
 
 
 #  @pytest.yield_fixture(scope='function', autouse=True)
@@ -87,6 +86,9 @@ class FakeObject():
 
 
 class Guild(FakeObject):
+    """
+    A fake guild object for discord testing.
+    """
     def __init__(self, name, id=None):
         super().__init__(name, id)
         self.channels = []
@@ -100,6 +102,9 @@ class Guild(FakeObject):
 
 
 class Channel(FakeObject):
+    """
+    A fake channel for text.
+    """
     def __init__(self, name, *, guild=None, type=0, id=None):
         super().__init__(name, id)
         self.guild = guild
@@ -110,6 +115,9 @@ class Channel(FakeObject):
 
 
 class VoiceState(FakeObject):
+    """
+    The voice state.
+    """
     def __init__(self, name, *, is_afk=False, voice_channel=None, id=None):
         super().__init__(name, id)
         self.is_afk = is_afk
@@ -117,6 +125,9 @@ class VoiceState(FakeObject):
 
 
 class Member(FakeObject):
+    """
+    The member of a channel.
+    """
     def __init__(self, name, roles, *, id=None, voice=None):
         super().__init__(name, id)
         self.discriminator = '12345'
@@ -136,6 +147,9 @@ class Member(FakeObject):
 
 
 class Role(FakeObject):
+    """
+    A role of a member.
+    """
     def __init__(self, name, guild=None, *, id=None):
         super().__init__(name, id)
         self.guild = guild
@@ -145,6 +159,9 @@ class Role(FakeObject):
 
 
 class Message(FakeObject):
+    """
+    A message itself.
+    """
     def __init__(self, content, author, guild, channel, mentions, *, id=None):
         super().__init__(None, id)
         self.author = author

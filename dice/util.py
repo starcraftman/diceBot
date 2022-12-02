@@ -114,15 +114,6 @@ class BIterator():
         """ Exhaust the iterator. """
         self.index = len(self.items)
 
-    def next(self):
-        """
-        Move the iterator to the next position.
-
-        Raises:
-            StopIteration: Iterator is exhausted.
-        """
-        return self.__next__()
-
     def prev(self):
         """
         Move the iterator to the prev position.
@@ -206,7 +197,7 @@ class PagingMenu(abc.ABC):
                     await self.reply('Paging menu terminated. Goodbye human!.')
                     break
 
-                elif user_select.content in ['next', 'prev']:
+                if user_select.content in ['next', 'prev']:
                     offset = 1 if user_select.content == 'next' else -1
                     self._page = (self._page + offset) % self.total_pages
                     continue
@@ -276,7 +267,7 @@ def get_config(*keys, default=None):
         KeyError: No such key in the config.
         FileNotFoundError: Failed to load the configuration file.
     """
-    with open(YAML_FILE) as fin:
+    with open(YAML_FILE, 'r', encoding='utf-8') as fin:
         conf = yaml.load(fin, Loader=Loader)
 
     try:
@@ -301,7 +292,7 @@ def init_logging():  # pragma: no cover
         FileNotFoundError: Failed to load the configuration file.
     """
     log_file = rel_to_abs(get_config('paths', 'log_conf'))
-    with open(log_file) as fin:
+    with open(log_file, 'r', encoding='utf-8') as fin:
         lconf = yaml.load(fin, Loader=Loader)
 
     for handler in lconf['handlers']:
@@ -310,7 +301,7 @@ def init_logging():  # pragma: no cover
         except (OSError, KeyError):
             pass
 
-    with open(log_file) as fin:
+    with open(log_file, 'r', encoding='utf-8') as fin:
         logging.config.dictConfig(yaml.load(fin, Loader=Loader))
 
     print('See main.log for general traces.')
@@ -426,7 +417,7 @@ def load_yaml(fname):
     Returns: A dict object.
     """
     try:
-        with open(fname) as fin:
+        with open(fname, 'r', encoding='utf-8') as fin:
             obj = yaml.load(fin, Loader=Loader)
     except FileNotFoundError:
         obj = {}
@@ -441,7 +432,7 @@ def write_yaml(fname, obj):
     Raises:
         OSError - Something prevented saving the file.
     """
-    with open(fname, 'w') as fout:
+    with open(fname, 'w', encoding='utf-8') as fout:
         yaml.dump(obj, fout, Dumper=Dumper, encoding='UTF-8', indent=2,
                   explicit_start=True, default_flow_style=False)
 

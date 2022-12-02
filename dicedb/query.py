@@ -3,7 +3,6 @@ Module should handle logic related to querying/manipulating tables from a high l
 """
 from __future__ import absolute_import, print_function
 import os
-import pathlib
 import pprint
 import re
 import tempfile

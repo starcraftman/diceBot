@@ -8,7 +8,7 @@ import mock
 
 import dice.exc
 
-from tests.conftest import fake_msg_gears, Channel
+from tests.conftest import fake_msg_gears
 
 
 def test_dice_exception_reply():

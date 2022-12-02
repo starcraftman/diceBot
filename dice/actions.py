@@ -578,11 +578,11 @@ class Turn(Action):
 
         try:
             msg = await getattr(self, self.args.subcmd)(self.db, tracker)
-        except TypeError:
+        except TypeError as exc:
             if tracker:
                 msg = dice.turn.combat_tracker_format(tracker)
             else:
-                raise dice.exc.InvalidCommandArgs("No combat has begun!")
+                raise dice.exc.InvalidCommandArgs("No combat has begun!") from exc
 
         await self.reply(msg)
 

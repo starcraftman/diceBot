@@ -4,8 +4,6 @@ Common exceptions.
 # TODO: Has become messy, cleanup hierarchy and flow.
 from __future__ import absolute_import, print_function
 
-import dice.matcher
-
 
 class DiceException(Exception):
     """

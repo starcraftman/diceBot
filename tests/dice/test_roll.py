@@ -779,7 +779,7 @@ def test_dicelist_roll_mods():
 
 
 def test_athrow__repr__(f_athrow):
-    expect = "AThrow(spec='4d6 + 4', note='note', items=[DiceList(items=[Die(sides=6, value=5, flags=1), Die(sides=6, value=2, flags=1), Die(sides=6, value=6, flags=1), Die(sides=6, value=1, flags=1)], mods=[]), '+', '4'])"
+    expect = "AThrow(spec='4d6 + 4', note='note', json=False, items=[DiceList(items=[Die(sides=6, value=5, flags=1), Die(sides=6, value=2, flags=1), Die(sides=6, value=6, flags=1), Die(sides=6, value=1, flags=1)], mods=[]), '+', '4'])"
     assert repr(f_athrow) == expect
 
 

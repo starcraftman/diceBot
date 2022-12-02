@@ -11,7 +11,6 @@ from __future__ import absolute_import, print_function
 import asyncio
 
 import os
-import mock
 import pytest
 
 import dice.actions

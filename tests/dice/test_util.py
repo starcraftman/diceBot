@@ -141,14 +141,14 @@ def test_biterator__init__():
 # Also covers __next__
 def test_biterator_next():
     itr = dice.util.BIterator([0, 1, 2])
-    assert itr.next() == 0
-    assert itr.next() == 1
-    assert itr.next() == 2
+    assert next(itr) == 0
+    assert next(itr) == 1
+    assert next(itr) == 2
 
     with pytest.raises(StopIteration):
-        itr.next()
+        next(itr)
     with pytest.raises(StopIteration):
-        itr.next()
+        next(itr)
     assert itr.index == len(itr.items)
 
 
@@ -170,15 +170,15 @@ def test_biterator_is_finished():
     itr = dice.util.BIterator([0, 1, 2])
     assert itr.is_finished()
 
-    itr.next()
+    next(itr)
     assert not itr.is_finished()
-    itr.next()
+    next(itr)
     assert not itr.is_finished()
-    itr.next()
+    next(itr)
     assert not itr.is_finished()
 
     with pytest.raises(StopIteration):
-        itr.next()
+        next(itr)
     assert itr.is_finished()
 
 
@@ -186,7 +186,7 @@ def test_biterator_finish():
     itr = dice.util.BIterator([0, 1, 2])
     assert itr.is_finished()
 
-    itr.next()
+    next(itr)
     assert not itr.is_finished()
     itr.finish()
     assert itr.is_finished()
@@ -197,12 +197,12 @@ def test_biterator_current():
     itr = dice.util.BIterator([0, 1, 2])
     assert itr.current is None
 
-    itr.next()
+    next(itr)
     assert itr.current == 0
-    itr.next()
-    itr.next()
+    next(itr)
+    next(itr)
     assert itr.current == 2
 
     with pytest.raises(StopIteration):
-        itr.next()
+        next(itr)
     assert itr.current is None

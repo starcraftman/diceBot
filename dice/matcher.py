@@ -8,7 +8,7 @@ def substr_match(seq, line, *, skip_spaces=True, ignore_case=True):
     True iff the substr is present in string. Ignore spaces and optionally case.
     """
     return substr_ind(seq, line, skip_spaces=skip_spaces,
-                      ignore_case=ignore_case) != []
+                      ignore_case=ignore_case)
 
 
 def substr_ind(seq, line, *, skip_spaces=True, ignore_case=True):

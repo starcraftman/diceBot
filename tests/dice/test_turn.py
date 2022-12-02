@@ -2,8 +2,6 @@
 """
 Tests for the turn order functions.
 """
-import pytest
-
 import dice.exc
 import dice.turn
 
