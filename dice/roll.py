@@ -19,6 +19,8 @@ Logic regarding modifiers:
 # TODO: Strong overlap between Die and DiceList?
 # TODO: Grouped rolls {2d10,4d20}kh1, take highest total value.
 import abc
+import asyncio
+import concurrent.futures
 import functools
 import re
 
@@ -36,6 +38,8 @@ REROLL_MATCH = re.compile(r'(ro?\[\d+,\d+\])|(ro?[><=]\d+)|(ro?\d+)', re.ASCII |
 LIMIT_DIE_NUMBER = 1000
 LIMIT_DIE_SIDES = 1000
 LIMIT_DICE_LIST_STR = 200
+LIMIT_ROLL_TIMES = 100
+POOL_ROLL_TIMEOUT = 30
 PARENS_MAP = {'(': 3, '{': 7, '[': 11, ')': -3, '}': -7, ']': -11}
 DICE_WARN = """**Error**: {}
         {}
@@ -1235,15 +1239,57 @@ class SortDice(ModifyDice):
         dice_list[:] = ordered
 
 
-def main():
-    """ Try dice rolls interactively. """
+async def make_rolls(spec):
+    """
+    Take a specification of dice rolls and return a string.
+    This function will process additional modifiers to normal dice spec.
+        4: d20 + 8, d8 + 2 -> Will roll 4 times d20 + 8 followed by d8 + 2.
+    """
+    loop = asyncio.get_event_loop()
+    jobs = []
+    with concurrent.futures.ProcessPoolExecutor(initializer=dice.util.seed_random) as pool:
+        for line in re.split(r's*,\s+', spec):
+            line = line.strip()
+            times = 1
+
+            if ':' in line:
+                parts = line.split(':')
+                times, line = int(parts[0]), parts[1].strip()
+                if times > LIMIT_ROLL_TIMES:
+                    raise dice.exc.InvalidCommandArgs(f"Please run <= {LIMIT_ROLL_TIMES} times a dice roll.")
+
+            try:
+                throw = parse_dice_line(line, json=True)
+                jobs += [loop.run_in_executor(pool, throw.next) for _ in range(times)]
+            except ValueError as exc:
+                raise dice.exc.InvalidCommandArgs(str(exc))
+
+        try:
+            results = await asyncio.wait_for(asyncio.gather(*jobs), POOL_ROLL_TIMEOUT)
+        except concurrent.futures.TimeoutError:
+            results = []
+
+    return results
+
+
+async def amain():
+    """
+    Try dice rolls interactively.
+    """
     while True:
         try:
             text = input('> ')
-            throw = parse_dice_line(text)
-            print(throw.next())
+            results = await make_rolls(text)
+            print("\n".join(x['output'] for x in results))
         except ValueError as exc:
             print(exc)
+
+
+def main():
+    """
+    Start and run an async main.
+    """
+    asyncio.new_event_loop().run_until_complete(amain())
 
 
 if __name__ == "__main__":

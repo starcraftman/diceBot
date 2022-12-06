@@ -13,6 +13,7 @@ import dice.exc
 import dicedb
 
 DEFAULT_VOLUME = dice.util.get_config('music', 'default_volume', default=20)
+LIMIT_REROLLS = dice.util.get_config('reroll_limit', default=100)
 
 
 async def dump_db():  # pragma: no cover
@@ -149,7 +150,16 @@ async def add_roll_history(client, discord_id, *, entries, limit=100):
         limit: The max history to store. Default is 100.
     """
     rolls = await get_roll_history(client, discord_id)
-    rolls['history'] = (rolls['history'] + entries)[-limit:]
+
+    # Ensure no adjacent repeats, unlikely but prudent
+    last_entry = {}
+    if rolls['history']:
+        last_entry = rolls['history'][-1]
+    for entry in entries:
+        if entry != last_entry:
+            rolls['history'] += [entry]
+            last_entry = entry
+    rolls['history'] = rolls['history'][-limit:]
 
     return await client.rolls_made.replace_one(
         {'discord_id': discord_id},

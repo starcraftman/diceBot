@@ -28,8 +28,8 @@ import dice.util
 
 import dicedb
 import dicedb.query
+from dicedb.query import LIMIT_REROLLS
 
-ROLL_TIMEOUT = 30
 CHECK_TIMER_GAP = 5
 TIMERS = {}
 TIMER_OFFSETS = ["60:00", "15:00", "5:00", "1:00"]
@@ -41,9 +41,7 @@ PONI_JSON = "https://derpibooru.org/api/v1/json"
 PONI_PER_PAGE = 25
 LIMIT_SONGS = 8
 LIMIT_TAGS = 16
-LIMIT_REROLLS = dice.util.get_config('reroll_limit', default=20)
 LIMIT_REROLLS_PER_PAGE = 10
-LIMIT_ROLL_TIMES = 20
 PLAYERS = {}
 
 
@@ -288,7 +286,7 @@ class Roll(Action):
                 full_spec = saved_roll['roll']
                 resp = [f"__Dice Rolls__ ({saved_roll['name']})", '']
 
-            results = await make_rolls(full_spec)
+            results = await dice.roll.make_rolls(full_spec)
             msg = '\n'.join(resp + [x['output'] for x in results])
             entries = [{
                 'spec': full_spec,
@@ -794,7 +792,7 @@ class Reroll(Action):
             except IndexError as exc:
                 raise dice.exc.InvalidCommandArgs(f"Please select a negative offset from : [-1, -{LIMIT_REROLLS}]") from exc
 
-        results = await make_rolls(selected['spec'])
+        results = await dice.roll.make_rolls(selected['spec'])
         msg = "**Reroll Result**\n\n" + '\n'.join(x['output'] for x in results)
 
         await self.reply(msg)
@@ -1404,46 +1402,6 @@ def get_pf2_results_background(full_url, num):
             result = "No results!"
 
     return result.rstrip()
-
-
-def throw_in_pool(throw):  # pragma: no cover
-    """
-    Simple wrapper to init random in other process before throw.
-    """
-    return throw.next()
-
-
-async def make_rolls(spec):
-    """
-    Take a specification of dice rolls and return a string.
-    This function will process additional modifiers to normal dice spec.
-        4: d20 + 8, d8 + 2 -> Will roll 4 times d20 + 8 followed by d8 + 2.
-    """
-    loop = asyncio.get_event_loop()
-    jobs = []
-    with concurrent.futures.ProcessPoolExecutor(initializer=dice.util.seed_random) as pool:
-        for line in re.split(r's*,\s+', spec):
-            line = line.strip()
-            times = 1
-
-            if ':' in line:
-                parts = line.split(':')
-                times, line = int(parts[0]), parts[1].strip()
-                if times > LIMIT_ROLL_TIMES:
-                    raise dice.exc.InvalidCommandArgs(f"Please run <= {LIMIT_ROLL_TIMES} times a dice roll.")
-
-            try:
-                throw = dice.roll.parse_dice_line(line, json=True)
-                jobs += [loop.run_in_executor(pool, throw_in_pool, throw) for _ in range(times)]
-            except ValueError as exc:
-                raise dice.exc.InvalidCommandArgs(str(exc))
-
-        try:
-            results = await asyncio.wait_for(asyncio.gather(*jobs), ROLL_TIMEOUT)
-        except concurrent.futures.TimeoutError:
-            results = []
-
-    return results
 
 
 #  def get_guild_player(guild_id, msg):
