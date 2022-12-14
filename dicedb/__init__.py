@@ -22,11 +22,10 @@ PASS_PAT = pathlib.Path(os.path.join(ROOT, 'atlasPass.private'))
 DEFAULT_DB = 'dice'
 TEST_DB = False
 if 'pytest' in sys.modules:
-    DEFAULT_DB = 'test_dice'
     TEST_DB = True
 
 
-def get_db_client(with_database='dice'):
+def get_db_client(with_database=DEFAULT_DB):
     """
     Returns the db client to mongo, after selecting the database first.
     If you want raw client, pass None.
@@ -51,8 +50,8 @@ def get_db_client(with_database='dice'):
         with open(PASS_PAT, encoding='utf-8') as fin:
             client = motor.motor_asyncio.AsyncIOMotorClient(fin.read().strip())
 
-    if with_database and TEST_DB:
-        with_database = DEFAULT_DB
+    if with_database and TEST_DB:  # Bit of a hack to send all tests to different top level
+        with_database = 'test_' + with_database
     if with_database:
         client = client[with_database]
 
