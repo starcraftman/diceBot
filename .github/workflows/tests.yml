@@ -1,0 +1,34 @@
+name: tests
+on: [push]
+
+env:
+  GITHUB: "True"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
+
+    # Example services for Mongodb, PostgreSQL and Redis can be found here:
+    # https://github.com/actions/example-services/tree/master/.github/workflows
+    steps:
+    # Commands use passwordless sudo
+    - uses: actions/checkout@v3
+    - name: Install packages required for tests
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y apt-transport-https ca-certificates
+        curl https://apt.secrethub.io | sudo bash
+        sudo apt-get install -y git build-essential python3-dev python3-pip libyajl2 jq
+    - name: Install pip dependencies
+      run: python setup.py deps --force=yes
+    - name: Generate secret config files
+      env:
+        SECRETHUB_CREDENTIAL: ${{ secrets.SECRETHUB }}
+      run: |
+        secrethub inject -i "tests/secrethub/secretConfig.yml" -o "data/config.yml"
+    - name: Run unit tests
+        # Certain tests only failing on github CI, mark with this
+      run: python -m pytest --cov=cog --cov=cogdb
