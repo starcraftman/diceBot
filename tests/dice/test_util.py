@@ -128,6 +128,7 @@ def test_is_valid_url():
         assert not dice.util.is_valid_url(link)
 
 
+@pytest.mark.skipif(os.environ.get('GITHUB') == "True", reason="Disabled for github.")
 def test_get_chrome_driver():
     with dice.util.get_chrome_driver() as browser:
         assert isinstance(browser, selenium.webdriver.Chrome)

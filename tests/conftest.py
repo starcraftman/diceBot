@@ -318,9 +318,7 @@ def f_bot():
 
 @pytest.fixture
 def test_db():
-    client = dicedb.get_db_client('test_dice')
-
-    yield client
+    yield dicedb.get_db_client()
 
 
 @pytest_asyncio.fixture()
