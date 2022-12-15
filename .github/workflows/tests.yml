@@ -2,6 +2,7 @@ name: tests
 on: [push]
 
 env:
+  # Certain tests only failing on github CI, mark with this
   GITHUB: "True"
 
 jobs:
@@ -13,22 +14,26 @@ jobs:
 
     # Example services for Mongodb, PostgreSQL and Redis can be found here:
     # https://github.com/actions/example-services/tree/master/.github/workflows
-    steps:
     # Commands use passwordless sudo
-    - uses: actions/checkout@v3
-    - name: Install packages required for tests
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y apt-transport-https ca-certificates
-        curl https://apt.secrethub.io | sudo bash
-        sudo apt-get install -y git build-essential python3-dev python3-pip libyajl2 jq
-    - name: Install pip dependencies
-      run: python setup.py deps --force=yes
-    - name: Generate secret config files
-      env:
-        SECRETHUB_CREDENTIAL: ${{ secrets.SECRETHUB }}
-      run: |
-        secrethub inject -i "tests/secrethub/secretConfig.yml" -o "data/config.yml"
-    - name: Run unit tests
-        # Certain tests only failing on github CI, mark with this
-      run: python -m pytest --cov=cog --cov=cogdb
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install packages required for tests
+        run: |
+          apt-get update
+          apt-get install -y apt-transport-https ca-certificates curl gnupg
+          curl -sLf --retry 3 --tlsv1.2 --proto "=https" 'https://packages.doppler.com/public/cli/gpg.DE2A7741A397C129.key' | apt-key add -
+          echo "deb https://packages.doppler.com/public/cli/deb/debian any-version main" | tee /etc/apt/sources.list.d/doppler-cli.list
+          apt-get update
+          apt-get install -y git build-essential python3-dev python3-pip libyajl2 jq doppler
+
+      - name: Install pip dependencies
+        run: python setup.py deps --force=yes
+
+      - name: Generate secret config files
+        run: |
+          doppler secrets substitute "tests/secrethub/secretConfig.yml" --output "data/config.yml"
+
+      - name: Run unit tests
+        env:
+          DOPPLER_TOKEN: ${{secrets.DOPPLER_TOKEN}}
+        run: python -m pytest --cov=cog --cov=cogdb
