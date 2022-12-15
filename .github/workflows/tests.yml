@@ -30,6 +30,8 @@ jobs:
         run: python setup.py deps --force=yes
 
       - name: Generate secret config files
+        env:
+          DOPPLER_TOKEN: ${{secrets.DOPPLER_TOKEN}}
         run: |
           doppler secrets substitute "tests/secrethub/secretConfig.yml" --output "data/config.yml"
 
