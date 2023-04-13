@@ -38,7 +38,10 @@ loggers:
   dice:
     level: DEBUG
     handlers: [dice, info_stream]
+  dicedb:
+    level: DEBUG
+    handlers: [dice, info_stream]
 
-root:
-  level: INFO
-  handlers: [info_stream]
+# root:
+  # level: INFO
+  # handlers: [info_stream]

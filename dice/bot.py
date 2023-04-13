@@ -87,7 +87,6 @@ class DiceBot(discord.Client):
     """
     def __init__(self, prefix, **kwargs):
         super().__init__(**kwargs)
-        self.status = ''
         self.prefix = prefix
         self.emoji = EmojiResolver()
         self.parser = dice.parse.make_parser(prefix)
@@ -150,16 +149,7 @@ class DiceBot(discord.Client):
             log.info('  "%s" with id %s', guild.name, guild.id)
 
         self.emoji.update(self.guilds)
-
-        # This block is effectively a one time setup.
-        mod = sys.modules[__name__]
-        # TODO: Review these
-        if not mod.LIVE_TASKS:
-            mod.LIVE_TASKS += [
-                asyncio.ensure_future(presence_task(self)),
-                #  asyncio.ensure_future(dice.music.gplayer_monitor(dice.actions.PLAYERS, {})),
-                #  asyncio.ensure_future(dice.actions.timer_monitor(dice.actions.TIMERS)),
-            ]
+        await self.change_presence(activity=discord.Game("Rolling dice vigorously."))
 
         print('DiceBot Ready!')
 
@@ -326,7 +316,13 @@ def main():  # pragma: no cover
         seeded = dice.util.seed_random()
         logging.getLogger('dice.bot').warning('Seeding numpy/random with: %s', str(seeded))
         print(f'Seeding numpy/random with: {seeded:,}')
-        bot = DiceBot("!")
+
+        # Intents for: member info, dms and message.content access
+        intents = discord.Intents.default()
+        intents.members = True  # pylint: disable=assigning-non-slot
+        intents.messages = True  # pylint: disable=assigning-non-slot
+        intents.message_content = True  # pylint: disable=assigning-non-slot
+        bot = DiceBot("!", intents=intents)
         dice.util.BOT = bot
 
         loop = asyncio.get_event_loop()
